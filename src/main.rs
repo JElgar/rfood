@@ -1,7 +1,7 @@
 mod oop;
 mod fp;
 use self::fp::exp;
-use self::oop::set;
+use self::fp::set;
 
 fn main() {
     set::demo();
