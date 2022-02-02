@@ -84,3 +84,18 @@ impl Set for Union {
         format!("Union( {}, {} )", self.set1.debug(), self.set2.debug())
     }
 }
+
+pub fn demo() {
+    let s1: Box<dyn Set> = Box::new(Insert {
+        set: Box::new(Empty{}),
+        value: 1
+    });
+    let s2: Box<dyn Set> = Box::new(Insert {
+        set: Box::new(Empty{}),
+        value: 1
+    });
+
+    let s: Box<dyn Set> = s1.insert(4);
+    let s3: Box<dyn Set> = s.union(s2);
+    println!("{:?}", s3);
+}

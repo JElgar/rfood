@@ -20,3 +20,11 @@ impl Exp for Sub {
         return self.l.eval() - self.r.eval();
     }
 }
+
+pub fn demo() {
+    let e: Box<dyn Exp> = Box::new(Sub{
+        l: Box::new(Lit{n: 2}),
+        r: Box::new(Lit{n: 1})
+    });
+    println!("{}", e.eval());
+}
