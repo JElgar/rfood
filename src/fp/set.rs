@@ -1,13 +1,3 @@
-// pub trait Set {}
-// struct Empty {}
-// impl Set for Empty {}
-// 
-// struct Insert {}
-// impl Set for Insert {}
-// 
-// struct Union {}
-// impl Set for Union {}
-
 #[derive(Debug)]
 enum Set {
     Empty,
