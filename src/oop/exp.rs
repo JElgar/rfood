@@ -2,6 +2,10 @@ pub trait Exp {
     fn eval(&self) -> i32;
 }
 
+pub trait Other {
+    fn eval(&self) -> i32;
+}
+
 pub struct Lit{
     pub n: i32,
 }
