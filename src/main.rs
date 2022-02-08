@@ -9,8 +9,26 @@ use std::io::Read;
 
 mod ast;
 
-fn get_traits(syntax: &syn::File) {
-    println!("{:#?}", syntax);
+#[derive(Debug)]
+struct Trait {
+    name: String,
+    impls: Vec<Impl>,
+}
+
+#[derive(Debug)]
+struct Impl {
+    name: String,
+    attrs: Vec<syn::Attribute>,
+}
+
+#[derive(Debug)]
+struct Struct {
+    name: String,
+}
+
+fn get_traits(syntax: &syn::File) -> Vec<Trait> {
+    // println!("{:#?}", syntax);
+    let mut traits: Vec<Trait> = Vec::new();
     for item in &syntax.items {
         match item {
             syn::Item::Trait(syn::ItemTrait{
@@ -21,6 +39,10 @@ fn get_traits(syntax: &syn::File) {
                 println!("{:?}", item);
                 let vals = get_impls(syntax, ident.to_string());
                 println!("{:?}", vals);
+                traits.push(Trait{
+                    name: ident.to_string(),
+                    impls: vals,
+                });
             }
             // syn::Item::Impl(_) => {
             //     println!("Impl: ");
@@ -29,11 +51,12 @@ fn get_traits(syntax: &syn::File) {
             _ => (),
         }
     }
+    return traits;
 }
 
 
-fn get_impls(syntax: &syn::File, trait_name: String) -> Vec<&syn::Item> {
-    Vec::from_iter(syntax.items.iter().filter(
+fn get_impls(syntax: &syn::File, trait_name: String) -> Vec<Impl> {
+    let vals = syntax.items.iter().filter(
         |item| match item {
             syn::Item::Impl(syn::ItemImpl{
                 trait_: Some(
@@ -56,24 +79,80 @@ fn get_impls(syntax: &syn::File, trait_name: String) -> Vec<&syn::Item> {
             } => true,
             _ => false,
         }
+    );
+    println!("{:?}", Vec::from_iter(vals.clone()));
+    Vec::from_iter(vals.map(
+        |item| match item {
+            syn::Item::Impl(syn::ItemImpl{
+                attrs,
+                self_ty,
+                ..
+            }) => {
+                match &**self_ty {
+                    syn::Type::Path(
+                        syn::TypePath{
+                            path: syn::Path{
+                                segments,
+                                ..
+                            },
+                            ..
+                        }
+                    ) if segments.first().is_some() => Impl{
+                        name: segments.first().unwrap().ident.to_string(),
+                        attrs: attrs.clone(),
+                    },
+                    _ => panic!("Could not find name of impl")
+                }
+            }
+            _ => panic!("An impl value is not a valid impl")
+        }
     ))
+}
+
+fn get_struct(syntax: &syn::File, struct_name: &String) -> Struct {
+    match syntax.items.iter().find_map(
+        |item| match item {
+            syn::Item::Struct(syn::ItemStruct{
+                ident,
+                ..
+            }) if ident.to_string() == *struct_name => {
+                println!("{:?}", item);
+                Some(Struct{name: ident.to_string()})
+            },
+            _ => None,
+        }
+    ) {
+        Some(v) => v,
+        _ => panic!("Could not find struct with name {}", struct_name),
+    }
 }
 
 fn main() {
     // let mut args = env::args();
     // let _ = args.next(); // executable name
 
-    let filename = "./src/fp/exp.rs";
+    let filename = "./src/oop/set.rs";
     let mut file = File::open(&filename).expect("Unable to open file");
 
     let mut src = String::new();
     file.read_to_string(&mut src).expect("Unable to read file");
 
     let mut syntax: syn::File = syn::parse_file(&src).expect("Unable to parse file");
-    get_traits(&syntax);
+    let traits = get_traits(&syntax);
 
-    let new_enum: syn::Item = ast::create::create_enum(&"HelloEnum".to_string());
-    syntax.items.push(new_enum);
+    for trait_ in &traits {
+        let mut variants: Vec<syn::Variant> = Vec::new();
+
+        for variant in &trait_.impls {
+            let impl_struct = get_struct(&syntax, &variant.name);
+            println!("Varaint: {}", variant.name);
+            println!("Struct: {:?}", impl_struct);
+            variants.push(ast::create::create_enum_variant(&variant.name, ast::create::create_enum_unnamed_fields(Vec::new())));
+        }
+
+        let new_enum: syn::Item = ast::create::create_enum(&trait_.name, variants);
+        syntax.items.push(new_enum);
+    }
 
     println!("{}", quote!(#syntax))
 }
