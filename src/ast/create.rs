@@ -43,6 +43,9 @@ pub fn create_enum_unnamed_fields(fields: Vec<syn::Field>) -> syn::Fields {
     )
 }
 
+// pub fn struct_to_enum_type(syn::Field) -> syn::Field {
+// }
+
 // pub fn create_enum_field() -> syn::Field {
 //     syn::Field {
 //         attrs: [].to_vec(),

@@ -8,6 +8,7 @@ use std::fs::File;
 use std::io::Read;
 
 mod ast;
+mod fp;
 
 #[derive(Debug)]
 struct Trait {
@@ -24,6 +25,7 @@ struct Impl {
 #[derive(Debug)]
 struct Struct {
     name: String,
+    fields: syn::Fields,
 }
 
 fn get_traits(syntax: &syn::File) -> Vec<Trait> {
@@ -52,6 +54,22 @@ fn get_traits(syntax: &syn::File) -> Vec<Trait> {
         }
     }
     return traits;
+}
+
+fn get_enum(syntax: &syn::File) -> syn::ItemEnum {
+    // println!("{:#?}", syntax);
+    let enum_ = syntax.items.iter().find_map(
+        |item| match item {
+            syn::Item::Enum(item_enum) => return Some(item_enum),
+            _ => None
+        }
+    );
+
+    if let Some(v) = enum_ {
+        return v.clone()
+    }
+
+    panic!("No enums found in file")
 }
 
 
@@ -114,10 +132,14 @@ fn get_struct(syntax: &syn::File, struct_name: &String) -> Struct {
         |item| match item {
             syn::Item::Struct(syn::ItemStruct{
                 ident,
+                fields,
                 ..
             }) if ident.to_string() == *struct_name => {
+                println!("\n\n");
+                println!("{}", "The struct");
                 println!("{:?}", item);
-                Some(Struct{name: ident.to_string()})
+                println!("\n\n");
+                Some(Struct{name: ident.to_string(), fields: fields.clone()})
             },
             _ => None,
         }
@@ -130,29 +152,38 @@ fn get_struct(syntax: &syn::File, struct_name: &String) -> Struct {
 fn main() {
     // let mut args = env::args();
     // let _ = args.next(); // executable name
-
-    let filename = "./src/oop/set.rs";
+    
+    let filename = "./src/fp/set.rs";
     let mut file = File::open(&filename).expect("Unable to open file");
-
     let mut src = String::new();
     file.read_to_string(&mut src).expect("Unable to read file");
+    let syntax: syn::File = syn::parse_file(&src).expect("Unable to parse file");
+    let enum_ = get_enum(&syntax);
+    println!("{:?}", enum_);
 
-    let mut syntax: syn::File = syn::parse_file(&src).expect("Unable to parse file");
-    let traits = get_traits(&syntax);
+    // let filename = "./src/oop/set.rs";
+    // let mut file = File::open(&filename).expect("Unable to open file");
 
-    for trait_ in &traits {
-        let mut variants: Vec<syn::Variant> = Vec::new();
+    // let mut src = String::new();
+    // file.read_to_string(&mut src).expect("Unable to read file");
 
-        for variant in &trait_.impls {
-            let impl_struct = get_struct(&syntax, &variant.name);
-            println!("Varaint: {}", variant.name);
-            println!("Struct: {:?}", impl_struct);
-            variants.push(ast::create::create_enum_variant(&variant.name, ast::create::create_enum_unnamed_fields(Vec::new())));
-        }
+    // let mut syntax: syn::File = syn::parse_file(&src).expect("Unable to parse file");
+    // let traits = get_traits(&syntax);
 
-        let new_enum: syn::Item = ast::create::create_enum(&trait_.name, variants);
-        syntax.items.push(new_enum);
-    }
+    // for trait_ in &traits {
+    //     let mut variants: Vec<syn::Variant> = Vec::new();
 
-    println!("{}", quote!(#syntax))
+    //     for variant in &trait_.impls {
+    //         let impl_struct = get_struct(&syntax, &variant.name);
+    //         println!("Varaint: {}", variant.name);
+    //         println!("Struct: {:?}", impl_struct);
+    //         // variants.push(ast::create::create_enum_variant(&variant.name, ast::create::create_enum_unnamed_fields(Vec::new())));
+    //         variants.push(ast::create::create_enum_variant(&variant.name, impl_struct.fields));
+    //     }
+
+    //     let new_enum: syn::Item = ast::create::create_enum(&trait_.name, variants);
+    //     syntax.items.push(new_enum);
+    // }
+
+    // println!("{}", quote!(#syntax))
 }
