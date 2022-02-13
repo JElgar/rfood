@@ -43,7 +43,40 @@ pub fn create_enum_unnamed_fields(fields: Vec<syn::Field>) -> syn::Fields {
     )
 }
 
-// pub fn struct_to_enum_type(syn::Field) -> syn::Field {
+// pub fn struct_to_enum_type(mut fields: &syn::Fields) -> &syn::Fields {
+//     match fields {
+//         syn::Fields::Named(internal_fields) => {
+//             // If field is Box
+//             let named_fields = internal_fields.named.iter().map(|field| {
+//                 match &*field {
+//                     syn::Field {
+//                         ty: syn::Type::Path(
+//                             syn::TypePath{
+//                                 path: syn::Path{
+//                                     segments,
+//                                     ..
+//                                 },
+//                                 ..
+//                             }
+//                         ),
+//                         ..
+//                     } if match segments.first() {
+//                         Some(syn::PathSegment{
+//                             ident,
+//                             ..
+//                         }) => ident.to_string() == "Box",
+//                         _ => false,
+//                     } => field,
+//                     _ => field,
+//                 }
+//             });
+// 
+//             internal_fields.named = syn::punctuated::Punctuated::from_iter(named_fields);
+//             return fields;
+//         },
+//         syn::Fields::Unnamed(..) => panic!("Unnamed struct transform not supported"),
+//         _ => panic!("Unsupported field format"),
+//     }
 // }
 
 // pub fn create_enum_field() -> syn::Field {

@@ -1,13 +1,13 @@
 #[derive(Debug)]
 enum Set {
-    Empty,
+    Empty{ },
     Insert{set: Box<Set>, value: i32},
     Union{s1: Box<Set>, s2: Box<Set>},
 }
 
 fn is_empty(set: Box<Set>) -> bool {
     return match *set {
-        Set::Empty => true,
+        Set::Empty{} => true,
         Set::Insert{..} => false,
         Set::Union{s1, s2} => is_empty(s1) && is_empty(s2)
     }
@@ -15,7 +15,7 @@ fn is_empty(set: Box<Set>) -> bool {
 
 fn contains(set: &Box<Set>, target: i32) -> bool {
     return match &**set {
-        Set::Empty => false,
+        Set::Empty{} => false,
         Set::Insert{set, value} => *value == target || contains(&set, target),
         Set::Union{s1, s2} => contains(&s1, target) && contains(&s2, target)
     }
@@ -29,9 +29,9 @@ fn insert(set: Box<Set>, value: i32) -> Box<Set> {
 }
 
 pub fn demo() {
-    let mut set: Box<Set> = Box::new(Set::Empty);
+    let mut set: Box<Set> = Box::new(Set::Empty{});
     set = insert(set, 1);
-    let set2 = Box::new(Set::Insert{set: Box::new(Set::Empty), value: 1});
+    let set2 = Box::new(Set::Insert{set: Box::new(Set::Empty{}), value: 1});
     println!("{:?}", set);
     println!("{:?}", set2);
     println!("{:?}", Set::Union{s1: set, s2: set2});

@@ -153,37 +153,41 @@ fn main() {
     // let mut args = env::args();
     // let _ = args.next(); // executable name
     
-    let filename = "./src/fp/set.rs";
+    // let filename = "./src/fp/set.rs";
+    // let mut file = File::open(&filename).expect("Unable to open file");
+    // let mut src = String::new();
+    // file.read_to_string(&mut src).expect("Unable to read file");
+    // let syntax: syn::File = syn::parse_file(&src).expect("Unable to parse file");
+    // let enum_ = get_enum(&syntax);
+    // println!("{:?}", enum_);
+
+    let filename = "./src/oop/set.rs";
     let mut file = File::open(&filename).expect("Unable to open file");
+
     let mut src = String::new();
     file.read_to_string(&mut src).expect("Unable to read file");
-    let syntax: syn::File = syn::parse_file(&src).expect("Unable to parse file");
+
+    let mut syntax: syn::File = syn::parse_file(&src).expect("Unable to parse file");
+    let traits = get_traits(&syntax);
+
+    for trait_ in &traits {
+        let mut variants: Vec<syn::Variant> = Vec::new();
+
+        for variant in &trait_.impls {
+            let impl_struct = get_struct(&syntax, &variant.name);
+            println!("Varaint: {}", variant.name);
+            println!("Struct: {:?}", impl_struct);
+            // variants.push(ast::create::create_enum_variant(&variant.name, ast::create::create_enum_unnamed_fields(Vec::new())));
+            variants.push(ast::create::create_enum_variant(&variant.name, impl_struct.fields));
+        }
+
+        let new_enum: syn::Item = ast::create::create_enum(&trait_.name, variants);
+        syntax.items.push(new_enum);
+    }
+   
+    // Get the generated enum
     let enum_ = get_enum(&syntax);
     println!("{:?}", enum_);
 
-    // let filename = "./src/oop/set.rs";
-    // let mut file = File::open(&filename).expect("Unable to open file");
-
-    // let mut src = String::new();
-    // file.read_to_string(&mut src).expect("Unable to read file");
-
-    // let mut syntax: syn::File = syn::parse_file(&src).expect("Unable to parse file");
-    // let traits = get_traits(&syntax);
-
-    // for trait_ in &traits {
-    //     let mut variants: Vec<syn::Variant> = Vec::new();
-
-    //     for variant in &trait_.impls {
-    //         let impl_struct = get_struct(&syntax, &variant.name);
-    //         println!("Varaint: {}", variant.name);
-    //         println!("Struct: {:?}", impl_struct);
-    //         // variants.push(ast::create::create_enum_variant(&variant.name, ast::create::create_enum_unnamed_fields(Vec::new())));
-    //         variants.push(ast::create::create_enum_variant(&variant.name, impl_struct.fields));
-    //     }
-
-    //     let new_enum: syn::Item = ast::create::create_enum(&trait_.name, variants);
-    //     syntax.items.push(new_enum);
-    // }
-
-    // println!("{}", quote!(#syntax))
+    println!("{}", quote!(#syntax))
 }
