@@ -161,6 +161,7 @@ fn main() {
     // let enum_ = get_enum(&syntax);
     // println!("{:?}", enum_);
 
+    //-- Do the transfrom --//
     let filename = "./src/oop/set.rs";
     let mut file = File::open(&filename).expect("Unable to open file");
 
@@ -190,4 +191,18 @@ fn main() {
     println!("{:?}", enum_);
 
     println!("{}", quote!(#syntax))
+   
+    //-- Print current and goal enum --//
+    // let filename = "./src/test.rs";
+    // let mut file = File::open(&filename).expect("Unable to open file");
+
+    // let mut src = String::new();
+    // file.read_to_string(&mut src).expect("Unable to read file");
+
+    // let syntax: syn::File = syn::parse_file(&src).expect("Unable to parse file");
+    // println!("Current enum: ");
+    // println!("{:?}", syntax.items[0]);
+    // println!("\n\n");
+    // println!("Required enum: ");
+    // println!("{:?}", syntax.items[1]);
 }
