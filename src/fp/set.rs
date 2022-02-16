@@ -5,34 +5,41 @@ enum Set {
     Union{s1: Box<Set>, s2: Box<Set>},
 }
 
-fn is_empty(set: Box<Set>) -> bool {
-    return match *set {
+fn is_empty(set: &Set) -> bool {
+    return match &set {
         Set::Empty{} => true,
         Set::Insert{..} => false,
         Set::Union{s1, s2} => is_empty(s1) && is_empty(s2)
     }
 }
 
-fn contains(set: &Box<Set>, target: i32) -> bool {
-    return match &**set {
+fn contains(set: &Set, target: i32) -> bool {
+    return match &set {
         Set::Empty{} => false,
         Set::Insert{set, value} => *value == target || contains(&set, target),
         Set::Union{s1, s2} => contains(&s1, target) && contains(&s2, target)
     }
 }
 
-fn insert(set: Box<Set>, value: i32) -> Box<Set> {
+fn insert(set: Set, value: i32) -> Set {
     if contains(&set, value) {
         return set;
     }
-    return Box::new(Set::Insert{set, value})
+    return Set::Insert{set: Box::new(set), value}
+}
+
+fn union(left: Set, right: Set) -> Set {
+    return Set::Union{s1: Box::new(left), s2: Box::new(right)}
 }
 
 pub fn demo() {
-    let mut set: Box<Set> = Box::new(Set::Empty{});
+    let mut set: Set = Set::Empty{};
     set = insert(set, 1);
-    let set2 = Box::new(Set::Insert{set: Box::new(Set::Empty{}), value: 1});
+    let set2 = Set::Insert{set: Box::new(Set::Empty{}), value: 1};
+
     println!("{:?}", set);
     println!("{:?}", set2);
-    println!("{:?}", Set::Union{s1: set, s2: set2});
+
+    let set3 = union(set, set2);
+    println!("{:?}", set3);
 }

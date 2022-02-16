@@ -9,6 +9,7 @@ use std::io::Read;
 
 mod ast;
 mod fp;
+mod oop;
 
 #[derive(Debug)]
 struct Trait {
@@ -20,6 +21,7 @@ struct Trait {
 struct Impl {
     name: String,
     attrs: Vec<syn::Attribute>,
+    methods: Vec<syn::ImplItemMethod>,
 }
 
 #[derive(Debug)]
@@ -28,36 +30,46 @@ struct Struct {
     fields: syn::Fields,
 }
 
+fn syn_impl_to_impl(impl_: &syn::ItemImpl) -> Impl {
+  match &*impl_.self_ty {
+    syn::Type::Path(
+        syn::TypePath{
+            path: syn::Path{
+                segments,
+                ..
+            },
+            ..
+        }
+    ) if segments.first().is_some() => Impl{
+        name: segments.first().unwrap().ident.to_string(),
+        attrs: impl_.attrs.clone(),
+        methods: Vec::from_iter(impl_.items.iter().filter_map(
+            |item| {
+                if let syn::ImplItem::Method(impl_item_method) = item {
+                    return Some(impl_item_method.clone());
+                };
+                return None
+            }
+        )),
+    },
+    _ => panic!("Could not find name of impl")
+  }
+}
+
 fn get_traits(syntax: &syn::File) -> Vec<Trait> {
-    // println!("{:#?}", syntax);
     let mut traits: Vec<Trait> = Vec::new();
     for item in &syntax.items {
-        match item {
-            syn::Item::Trait(syn::ItemTrait{
-                ident,
-                ..
-            }) => {
-                println!("Trait: {}", ident.to_string());
-                println!("{:?}", item);
-                let vals = get_impls(syntax, ident.to_string());
-                println!("{:?}", vals);
-                traits.push(Trait{
-                    name: ident.to_string(),
-                    impls: vals,
-                });
-            }
-            // syn::Item::Impl(_) => {
-            //     println!("Impl: ");
-            //     println!("{:?}", item);
-            // }
-            _ => (),
+        if let syn::Item::Trait(trait_data) = item {
+          traits.push(Trait{
+              name: trait_data.ident.to_string(),
+              impls: get_impls(syntax, trait_data.ident.to_string()),
+          });
         }
     }
     return traits;
 }
 
 fn get_enum(syntax: &syn::File) -> syn::ItemEnum {
-    // println!("{:#?}", syntax);
     let enum_ = syntax.items.iter().find_map(
         |item| match item {
             syn::Item::Enum(item_enum) => return Some(item_enum),
@@ -65,19 +77,20 @@ fn get_enum(syntax: &syn::File) -> syn::ItemEnum {
         }
     );
 
-    if let Some(v) = enum_ {
-        return v.clone()
+    if enum_.is_none() {
+        panic!("No enums found in file")
     }
 
-    panic!("No enums found in file")
+    enum_.unwrap().clone()
 }
 
 
 fn get_impls(syntax: &syn::File, trait_name: String) -> Vec<Impl> {
-    let vals = syntax.items.iter().filter(
-        |item| match item {
-            syn::Item::Impl(syn::ItemImpl{
-                trait_: Some(
+    // Filter all impls for the given trait and map them to a Impl struct
+    Vec::from_iter(syntax.items.iter().filter_map(
+        |item| {
+            if let syn::Item::Impl(item_data) = item {
+                if let Some(
                     (
                         _,
                         syn::Path{
@@ -86,67 +99,37 @@ fn get_impls(syntax: &syn::File, trait_name: String) -> Vec<Impl> {
                         },
                         _
                     )
-                ),
-                ..
-            }) if match segments.first() {
-                Some(syn::PathSegment{
-                    ident,
-                    ..
-                }) if ident.to_string() == trait_name => true,
-                _ => false,
-            } => true,
-            _ => false,
-        }
-    );
-    println!("{:?}", Vec::from_iter(vals.clone()));
-    Vec::from_iter(vals.map(
-        |item| match item {
-            syn::Item::Impl(syn::ItemImpl{
-                attrs,
-                self_ty,
-                ..
-            }) => {
-                match &**self_ty {
-                    syn::Type::Path(
-                        syn::TypePath{
-                            path: syn::Path{
-                                segments,
-                                ..
-                            },
-                            ..
+                ) = &item_data.trait_ {
+                    if let Some(syn::PathSegment{ident, ..}) = segments.first() {
+                        if ident.to_string() == trait_name {
+                            return Some(syn_impl_to_impl(item_data));
                         }
-                    ) if segments.first().is_some() => Impl{
-                        name: segments.first().unwrap().ident.to_string(),
-                        attrs: attrs.clone(),
-                    },
-                    _ => panic!("Could not find name of impl")
+                    }
                 }
             }
-            _ => panic!("An impl value is not a valid impl")
+            return None
         }
     ))
 }
 
 fn get_struct(syntax: &syn::File, struct_name: &String) -> Struct {
-    match syntax.items.iter().find_map(
+    let struct_ = syntax.items.iter().find_map(
         |item| match item {
             syn::Item::Struct(syn::ItemStruct{
                 ident,
                 fields,
                 ..
             }) if ident.to_string() == *struct_name => {
-                println!("\n\n");
-                println!("{}", "The struct");
-                println!("{:?}", item);
-                println!("\n\n");
                 Some(Struct{name: ident.to_string(), fields: fields.clone()})
             },
             _ => None,
         }
-    ) {
-        Some(v) => v,
-        _ => panic!("Could not find struct with name {}", struct_name),
+    );
+
+    if struct_.is_none() {
+        panic!("Could not find struct with name {}", struct_name)
     }
+    return struct_.unwrap();
 }
 
 fn main() {
@@ -160,9 +143,11 @@ fn main() {
     // let syntax: syn::File = syn::parse_file(&src).expect("Unable to parse file");
     // let enum_ = get_enum(&syntax);
     // println!("{:?}", enum_);
+    
+    // fp::set::demo();
 
     //-- Do the transfrom --//
-    let filename = "./src/oop/set.rs";
+    let filename = "./src/oop/exp.rs";
     let mut file = File::open(&filename).expect("Unable to open file");
 
     let mut src = String::new();
@@ -171,6 +156,7 @@ fn main() {
     let mut syntax: syn::File = syn::parse_file(&src).expect("Unable to parse file");
     let traits = get_traits(&syntax);
 
+    // Create enum from trait and its impls
     for trait_ in &traits {
         let mut variants: Vec<syn::Variant> = Vec::new();
 
@@ -185,6 +171,9 @@ fn main() {
         let new_enum: syn::Item = ast::create::create_enum(&trait_.name, variants);
         syntax.items.push(new_enum);
     }
+    
+    // Create function for each trait function using the impls
+    //
    
     // Get the generated enum
     let enum_ = get_enum(&syntax);
