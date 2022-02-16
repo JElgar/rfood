@@ -11,25 +11,35 @@ mod ast;
 mod fp;
 mod oop;
 
+/// Struct to hold the info for a trait
 #[derive(Debug)]
 struct Trait {
     name: String,
     impls: Vec<Impl>,
 }
 
+/// Struct to hold the info for an impl
 #[derive(Debug)]
 struct Impl {
+    /// The name of the trait 
     name: String,
     attrs: Vec<syn::Attribute>,
+    /// The required methods of the trait 
     methods: Vec<syn::ImplItemMethod>,
 }
 
+/// Struct to hold the info for a struct 
 #[derive(Debug)]
 struct Struct {
+    /// The name of the struct
     name: String,
+    /// The attributes of the struct
     fields: syn::Fields,
 }
 
+/// Converts a syn ItemImpl into a `Impl` struct
+///
+/// * `impl_` - The ItemImpl from syn, contains the data for an impl block
 fn syn_impl_to_impl(impl_: &syn::ItemImpl) -> Impl {
   match &*impl_.self_ty {
     syn::Type::Path(
@@ -56,6 +66,9 @@ fn syn_impl_to_impl(impl_: &syn::ItemImpl) -> Impl {
   }
 }
 
+/// Given the syntax find all traits
+///
+/// * `syntax` - The syntax tree of the input file 
 fn get_traits(syntax: &syn::File) -> Vec<Trait> {
     let mut traits: Vec<Trait> = Vec::new();
     for item in &syntax.items {
@@ -69,6 +82,9 @@ fn get_traits(syntax: &syn::File) -> Vec<Trait> {
     return traits;
 }
 
+/// Given the syntax find the first enum 
+///
+/// * `syntax` - The syntax tree of the input file 
 fn get_enum(syntax: &syn::File) -> syn::ItemEnum {
     let enum_ = syntax.items.iter().find_map(
         |item| match item {
@@ -85,6 +101,10 @@ fn get_enum(syntax: &syn::File) -> syn::ItemEnum {
 }
 
 
+/// Given the syntax find all impls for a given trait
+///
+/// * `syntax` - The syntax tree of the input file 
+/// * `trait_name` - The name of the trait to find impls for
 fn get_impls(syntax: &syn::File, trait_name: String) -> Vec<Impl> {
     // Filter all impls for the given trait and map them to a Impl struct
     Vec::from_iter(syntax.items.iter().filter_map(
@@ -112,6 +132,10 @@ fn get_impls(syntax: &syn::File, trait_name: String) -> Vec<Impl> {
     ))
 }
 
+/// Find a struct is the syntax 
+///
+/// * `syntax` - The syntax tree of the input file 
+/// * `struct_name` - The name of the struct to find
 fn get_struct(syntax: &syn::File, struct_name: &String) -> Struct {
     let struct_ = syntax.items.iter().find_map(
         |item| match item {
@@ -179,6 +203,7 @@ fn main() {
     let enum_ = get_enum(&syntax);
     println!("{:?}", enum_);
 
+    // TODO: https://stackoverflow.com/questions/65764987/how-to-pretty-print-syn-ast
     println!("{}", quote!(#syntax))
    
     //-- Print current and goal enum --//
