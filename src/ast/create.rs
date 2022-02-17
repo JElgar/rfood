@@ -24,9 +24,6 @@ pub fn create_enum(name: &String, variants: Vec<syn::Variant>) -> syn::Item {
 }
 
 pub fn create_enum_variant(name: &String, mut fields: syn::Fields) -> syn::Variant {
-    println!("Creating variant {}", name);
-    println!("{:?}", fields);
-
     // Remove pub from fields
     if let syn::Fields::Named(enum_fields) = &fields {
     
@@ -100,100 +97,50 @@ pub fn create_enum_variant(name: &String, mut fields: syn::Fields) -> syn::Varia
     }
 }
 
-pub fn create_enum_unnamed_fields(fields: Vec<syn::Field>) -> syn::Fields {
-    syn::Fields::Unnamed(
-        syn::FieldsUnnamed {
-            paren_token: syn::token::Paren{
-                span: syn::__private::Span::call_site(),
-            },
-            unnamed: syn::punctuated::Punctuated::from_iter(fields),
+pub fn create_function(sig: syn::Signature, stmts: Vec<syn::Stmt>) -> syn::Item {
+    syn::Item::Fn(
+        syn::ItemFn{
+            sig,
+            vis: syn::Visibility::Inherited,
+            attrs: Vec::new() as Vec<syn::Attribute>,
+            block: Box::new(syn::Block{
+                brace_token: syn::token::Brace{span: syn::__private::Span::call_site()},
+                stmts,
+            })
         },
     )
 }
 
-// pub fn struct_to_enum_type(mut fields: &syn::Fields) -> &syn::Fields {
-//     match fields {
-//         syn::Fields::Named(internal_fields) => {
-//             // If field is Box
-//             let named_fields = internal_fields.named.iter().map(|field| {
-//                 match &*field {
-//                     syn::Field {
-//                         ty: syn::Type::Path(
-//                             syn::TypePath{
-//                                 path: syn::Path{
-//                                     segments,
-//                                     ..
-//                                 },
-//                                 ..
-//                             }
+// pub fn create_match_statement() -> syn::Expr {
+//     syn::Expr::Match(
+//         syn::ExprMatch{
+//             attrs: Vec::new() as Vec<syn::Attribute>,
+//             match_token: syn::token::Match{span: syn::__private::Span::call_site()},
+//             expr: Box::new(syn::Expr::Path(
+//                 syn::ExprPath{
+//                     attrs: Vec::new() as Vec<syn::Attribute>,
+//                     qself: None,
+//                     path: syn::Path{
+//                         leading_colon: None,
+//                         segments: syn::punctuated::Punctuated::from_iter(
+//                             [
+//                                 syn::PathSegment{
+//                                     ident: syn::Ident::new("_", syn::__private::Span::call_site()),
+//                                     arguments: syn::PathArguments::None,
+//                                 }
+//                             ].iter().map(|segment| {
+//                                 syn::PathSegment{
+//                                     ident: segment.ident.clone(),
+//                                     arguments: segment.arguments.clone(),
+//                                 }
+//                             })
 //                         ),
-//                         ..
-//                     } if match segments.first() {
-//                         Some(syn::PathSegment{
-//                             ident,
-//                             ..
-//                         }) => ident.to_string() == "Box",
-//                         _ => false,
-//                     } => field,
-//                     _ => field,
+//                     },
 //                 }
-//             });
-// 
-//             internal_fields.named = syn::punctuated::Punctuated::from_iter(named_fields);
-//             return fields;
+//             )),
+//             guards: Vec::new() as Vec<syn::Expr>,
+//             arms: syn::punctuated::Punctuated::from_iter(Vec::new() as Vec<syn::Arm>),
 //         },
-//         syn::Fields::Unnamed(..) => panic!("Unnamed struct transform not supported"),
-//         _ => panic!("Unsupported field format"),
-//     }
+//     )
 // }
 
-// pub fn create_enum_field() -> syn::Field {
-//     syn::Field {
-//         attrs: [].to_vec(),
-//         vis: syn::Visibility::Inherited,
-//         ident: None,
-//         colon_token: None,
-//         ty: syn::Type::Path(
-//             syn::TypePath {
-//                 qself: None,
-//                 path: syn::Path {
-//                     leading_colon: None,
-//                     segments: [
-//                         PathSegment {
-//                             ident: Ident(
-//                                 Box,
-//                             ),
-//                             arguments: AngleBracketed(
-//                                 AngleBracketedGenericArguments {
-//                                     colon2_token: None,
-//                                     lt_token: Lt,
-//                                     args: [
-//                                         Type(
-//                                             Path(
-//                                                 TypePath {
-//                                                     qself: None,
-//                                                     path: Path {
-//                                                         leading_colon: None,
-//                                                         segments: [
-//                                                             PathSegment {
-//                                                                 ident: Ident(
-//                                                                     Exp,
-//                                                                 ),
-//                                                                 arguments: None,
-//                                                             },
-//                                                         ],
-//                                                     },
-//                                                 },
-//                                             ),
-//                                         ),
-//                                     ],
-//                                     gt_token: Gt,
-//                                 },
-//                             ),
-//                         },
-//                     ],
-//                 },
-//             },
-//         ),
-//     }
-// }

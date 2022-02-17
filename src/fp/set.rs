@@ -6,7 +6,7 @@ enum Set {
 }
 
 fn is_empty(set: &Set) -> bool {
-    return match &set {
+    return match set {
         Set::Empty{} => true,
         Set::Insert{..} => false,
         Set::Union{s1, s2} => is_empty(s1) && is_empty(s2)
@@ -14,7 +14,7 @@ fn is_empty(set: &Set) -> bool {
 }
 
 fn contains(set: &Set, target: i32) -> bool {
-    return match &set {
+    return match set {
         Set::Empty{} => false,
         Set::Insert{set, value} => *value == target || contains(&set, target),
         Set::Union{s1, s2} => contains(&s1, target) && contains(&s2, target)

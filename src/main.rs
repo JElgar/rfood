@@ -11,11 +11,17 @@ mod ast;
 mod fp;
 mod oop;
 
+use ast::print::write_and_fmt;
+
 /// Struct to hold the info for a trait
 #[derive(Debug)]
 struct Trait {
+    /// Name of the trait
     name: String,
+    /// The implementations of the trait
     impls: Vec<Impl>,
+    /// The methods in the trait
+    methods: Vec<syn::TraitItemMethod>,
 }
 
 /// Struct to hold the info for an impl
@@ -66,6 +72,82 @@ fn syn_impl_to_impl(impl_: &syn::ItemImpl) -> Impl {
   }
 }
 
+/// Convert trait signature to functional method signature
+///
+/// Replace &self with Box<T> and replace self with T
+///
+/// * `signature` - The signature of the trait method
+/// * `name` - The name of the trait
+fn trait_signature_to_fp_function_signature(signature: syn::Signature, self_name: &String) -> syn::Signature {
+    println!("Current sig is: {:?}", signature);
+
+    let colon = syn::token::Colon{
+        spans: [syn::__private::Span::call_site()],
+    };
+
+    let new_inputs = syn::punctuated::Punctuated::from_iter(signature.inputs.iter().map(|item| {
+      if let syn::FnArg::Receiver(arg_data) = item {
+          return syn::FnArg::Typed(
+              syn::PatType{
+                  attrs: arg_data.attrs.clone(),
+                  colon_token: colon,
+                  pat: Box::new(
+                      syn::Pat::Ident(syn::PatIdent{
+                          attrs: [].to_vec(),
+                          by_ref: None,
+                          mutability: None,
+                          // TODO make this not just exp
+                          ident: syn::Ident::new(&self_name.to_lowercase(), syn::__private::Span::call_site()),
+                          subpat: None,
+                      })
+                  ),
+                  ty: Box::new(syn::Type::Reference(
+                    syn::TypeReference{
+                        and_token: syn::token::And { spans: [syn::__private::Span::call_site()] },
+                        lifetime: None,
+                        mutability: None,
+                        elem: Box::new(
+                            syn::Type::Path(
+                                syn::TypePath{
+                                    qself: None,
+                                    path: syn::Path {
+                                        leading_colon: None,
+                                        segments: syn::punctuated::Punctuated::from_iter(
+                                            vec![
+                                              syn::PathSegment{
+                                                ident: syn::Ident::new(self_name, syn::__private::Span::call_site()),
+                                                arguments: syn::PathArguments::None,
+                                              }
+                                            ]
+                                        )
+                                    }
+                                }
+                            )
+                        ),
+                    }
+                  ))
+              }
+          )
+      }
+      item.clone()
+    }));
+
+    syn::Signature {
+        inputs: new_inputs,
+        ..signature
+    }
+}
+
+/// Give a trait method find the matching impl method
+fn get_matching_impl_method(trait_method: &syn::TraitItemMethod, impl_: &Impl) -> syn::ImplItemMethod {
+    return impl_.methods.iter().find_map(|method| {
+        if method.sig == trait_method.sig {
+            return Some(method.clone());
+        }
+        return None
+    }).unwrap_or_else(|| panic!("Could not find matching method"));
+}
+
 /// Given the syntax find all traits
 ///
 /// * `syntax` - The syntax tree of the input file 
@@ -74,8 +156,16 @@ fn get_traits(syntax: &syn::File) -> Vec<Trait> {
     for item in &syntax.items {
         if let syn::Item::Trait(trait_data) = item {
           traits.push(Trait{
-              name: trait_data.ident.to_string(),
-              impls: get_impls(syntax, trait_data.ident.to_string()),
+            name: trait_data.ident.to_string(),
+            impls: get_impls(syntax, trait_data.ident.to_string()),
+            methods: Vec::from_iter(trait_data.items.iter().filter_map(
+              |item| {
+                  if let syn::TraitItem::Method(impl_item_method) = item {
+                      return Some(impl_item_method.clone());
+                  };
+                  return None
+              }
+            )),
           });
         }
     }
@@ -156,20 +246,22 @@ fn get_struct(syntax: &syn::File, struct_name: &String) -> Struct {
     return struct_.unwrap();
 }
 
-fn main() {
-    // let mut args = env::args();
-    // let _ = args.next(); // executable name
-    
-    // let filename = "./src/fp/set.rs";
-    // let mut file = File::open(&filename).expect("Unable to open file");
-    // let mut src = String::new();
-    // file.read_to_string(&mut src).expect("Unable to read file");
-    // let syntax: syn::File = syn::parse_file(&src).expect("Unable to parse file");
-    // let enum_ = get_enum(&syntax);
-    // println!("{:?}", enum_);
-    
-    // fp::set::demo();
+fn print_goal() {
+  // -- Print current and goal enum --//
+  let filename = "./src/test.rs";
+  let mut file = File::open(&filename).expect("Unable to open file");
 
+  let mut src = String::new();
+  file.read_to_string(&mut src).expect("Unable to read file");
+
+  let syntax: syn::File = syn::parse_file(&src).expect("Unable to parse file");
+  println!("{:?}", syntax);
+}
+
+fn main() {
+    print_goal();
+    println!();
+    println!();
     //-- Do the transfrom --//
     let filename = "./src/oop/exp.rs";
     let mut file = File::open(&filename).expect("Unable to open file");
@@ -186,37 +278,32 @@ fn main() {
 
         for variant in &trait_.impls {
             let impl_struct = get_struct(&syntax, &variant.name);
-            println!("Varaint: {}", variant.name);
-            println!("Struct: {:?}", impl_struct);
-            // variants.push(ast::create::create_enum_variant(&variant.name, ast::create::create_enum_unnamed_fields(Vec::new())));
             variants.push(ast::create::create_enum_variant(&variant.name, impl_struct.fields));
+        }
+
+        // For each method in the trait find the matching implementation in each impl
+        for method in &trait_.methods {
+            println!("Method: {:?}", method);
+            for impl_ in &trait_.impls {
+                println!("Matching method for impl {:?}: {:?}", impl_.name, get_matching_impl_method(method, impl_));
+            }
+
+            // Create a match statement which matches on the enum and uses the method
+            
+            // Create a method with the functional programming function signature
+            let fp_signature = trait_signature_to_fp_function_signature(method.sig.clone(), &trait_.name);
+            let function = ast::create::create_function(fp_signature, Vec::new());
+            syntax.items.push(function);
         }
 
         let new_enum: syn::Item = ast::create::create_enum(&trait_.name, variants);
         syntax.items.push(new_enum);
     }
-    
-    // Create function for each trait function using the impls
-    //
-   
-    // Get the generated enum
-    let enum_ = get_enum(&syntax);
-    println!("{:?}", enum_);
 
     // TODO: https://stackoverflow.com/questions/65764987/how-to-pretty-print-syn-ast
-    println!("{}", quote!(#syntax))
-   
-    //-- Print current and goal enum --//
-    // let filename = "./src/test.rs";
-    // let mut file = File::open(&filename).expect("Unable to open file");
+    println!("{}", quote!(#syntax));
 
-    // let mut src = String::new();
-    // file.read_to_string(&mut src).expect("Unable to read file");
-
-    // let syntax: syn::File = syn::parse_file(&src).expect("Unable to parse file");
-    // println!("Current enum: ");
-    // println!("{:?}", syntax.items[0]);
-    // println!("\n\n");
-    // println!("Required enum: ");
-    // println!("{:?}", syntax.items[1]);
+    if write_and_fmt("outputs/output.rs", quote!(#syntax)).is_err() {
+        panic!("Unable to write output file");
+    }
 }
