@@ -78,15 +78,20 @@ fn syn_impl_to_impl(impl_: &syn::ItemImpl) -> Impl {
 ///
 /// * `signature` - The signature of the trait method
 /// * `name` - The name of the trait
-fn trait_signature_to_fp_function_signature(signature: syn::Signature, self_name: &String) -> syn::Signature {
+///
+/// Returns the function signature and the name of the type which replaces self if self is present
+fn trait_signature_to_fp_function_signature(signature: syn::Signature, self_name: &String) -> (syn::Signature, Option<syn::Ident>) {
     println!("Current sig is: {:?}", signature);
 
     let colon = syn::token::Colon{
         spans: [syn::__private::Span::call_site()],
     };
 
+    let mut self_replacement: Option<syn::Ident> = None;
+
     let new_inputs = syn::punctuated::Punctuated::from_iter(signature.inputs.iter().map(|item| {
       if let syn::FnArg::Receiver(arg_data) = item {
+          self_replacement = Some(syn::Ident::new(&self_name.to_lowercase(), syn::__private::Span::call_site()));
           return syn::FnArg::Typed(
               syn::PatType{
                   attrs: arg_data.attrs.clone(),
@@ -97,7 +102,7 @@ fn trait_signature_to_fp_function_signature(signature: syn::Signature, self_name
                           by_ref: None,
                           mutability: None,
                           // TODO make this not just exp
-                          ident: syn::Ident::new(&self_name.to_lowercase(), syn::__private::Span::call_site()),
+                          ident: self_replacement.clone().unwrap(),
                           subpat: None,
                       })
                   ),
@@ -132,13 +137,16 @@ fn trait_signature_to_fp_function_signature(signature: syn::Signature, self_name
       item.clone()
     }));
 
-    syn::Signature {
-        inputs: new_inputs,
-        ..signature
-    }
+    (
+        syn::Signature {
+            inputs: new_inputs,
+            ..signature
+        },  
+        self_replacement
+    )
 }
 
-/// Give a trait method find the matching impl method
+/// Given a trait method find the matching impl method
 fn get_matching_impl_method(trait_method: &syn::TraitItemMethod, impl_: &Impl) -> syn::ImplItemMethod {
     return impl_.methods.iter().find_map(|method| {
         if method.sig == trait_method.sig {
@@ -146,6 +154,16 @@ fn get_matching_impl_method(trait_method: &syn::TraitItemMethod, impl_: &Impl) -
         }
         return None
     }).unwrap_or_else(|| panic!("Could not find matching method"));
+}
+
+/// Given a syn::ImplItemMethod, extract the expression
+fn get_impl_method_expression(method: syn::ImplItemMethod) -> syn::Expr {
+    match method.block.stmts.first() {
+        Some(
+            syn::Stmt::Semi(syn::Expr::Return(syn::ExprReturn{expr: Some(expr), ..}), _)
+        ) => *expr.clone(),
+        _ => panic!("Could not find expression in method")
+    }
 }
 
 /// Given the syntax find all traits
@@ -287,12 +305,36 @@ fn main() {
             for impl_ in &trait_.impls {
                 println!("Matching method for impl {:?}: {:?}", impl_.name, get_matching_impl_method(method, impl_));
             }
+            
+            let (fp_signature, self_indent) = trait_signature_to_fp_function_signature(method.sig.clone(), &trait_.name);
+
+            let mut function_stmts: Vec<syn::Stmt> = Vec::new();
 
             // Create a match statement which matches on the enum and uses the method
+            match self_indent {
+                Some(ident) => {
+                    let mut arms: Vec<syn::Arm> = Vec::new();
+                    // For each impl create a match arm
+                    for impl_ in &trait_.impls {
+                        let expr: syn::Expr = get_impl_method_expression(get_matching_impl_method(method, impl_));
+                        let path = ast::create::create_match_path_for_enum(&trait_.name, &impl_.name);
+                        let match_arm = ast::create::create_match_arm(
+                            path, Vec::new(), expr,
+                        );
+                        arms.push(match_arm);
+                    }
+
+
+                    let match_expr = ast::create::create_match_statement(ident, arms);
+                    function_stmts.push(
+                        syn::Stmt::Expr(match_expr)
+                    );
+                },
+                None => {panic!("Cannot yet transform method with no self")}
+            }
             
             // Create a method with the functional programming function signature
-            let fp_signature = trait_signature_to_fp_function_signature(method.sig.clone(), &trait_.name);
-            let function = ast::create::create_function(fp_signature, Vec::new());
+            let function = ast::create::create_function(fp_signature, function_stmts);
             syntax.items.push(function);
         }
 
