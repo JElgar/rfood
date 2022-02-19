@@ -158,6 +158,9 @@ pub fn create_match_path_for_enum(enum_ident: &String, variant_ident: &String) -
 }
 
 pub fn create_match_arm(match_path: syn::Path, elems: Vec<syn::Ident>, body: syn::Expr) -> syn::Arm {
+
+  // Replace any call to self in the body and remember which methods are used
+
   syn::Arm {
     attrs: Vec::new() as Vec<syn::Attribute>,
     pat: syn::Pat::TupleStruct(syn::PatTupleStruct{

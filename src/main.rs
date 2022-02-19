@@ -12,6 +12,7 @@ mod fp;
 mod oop;
 
 use ast::print::write_and_fmt;
+use syn::visit_mut::VisitMut;
 
 /// Struct to hold the info for a trait
 #[derive(Debug)]
@@ -276,6 +277,22 @@ fn print_goal() {
   println!("{:?}", syntax);
 }
 
+fn visitor_test() {
+  let filename = "./src/test.rs";
+  let mut file = File::open(&filename).expect("Unable to open file");
+
+  let mut src = String::new();
+  file.read_to_string(&mut src).expect("Unable to read file");
+}
+
+struct ReplaceSelf;
+impl VisitMut for ReplaceSelf {
+    fn visit_expr_method_call_mut(&mut self, call: &mut syn::ExprMethodCall) {
+        syn::visit_mut::visit_expr_method_call_mut(self, call);
+        println!("Visiting call: {:?}", call);
+    }
+}
+
 fn main() {
     print_goal();
     println!();
@@ -348,4 +365,6 @@ fn main() {
     if write_and_fmt("outputs/output.rs", quote!(#syntax)).is_err() {
         panic!("Unable to write output file");
     }
+
+    ReplaceSelf.visit_file_mut(&mut syntax);
 }
