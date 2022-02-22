@@ -13,6 +13,11 @@ mod oop;
 
 use ast::print::write_and_fmt;
 use syn::visit_mut::VisitMut;
+use syn::punctuated::Punctuated;
+use syn::__private::Span;
+
+// TODO move out of main
+const EMPTY_ATTRS: Vec<syn::Attribute> = Vec::new();
 
 /// Struct to hold the info for a trait
 #[derive(Debug)]
@@ -82,8 +87,6 @@ fn syn_impl_to_impl(impl_: &syn::ItemImpl) -> Impl {
 ///
 /// Returns the function signature and the name of the type which replaces self if self is present
 fn trait_signature_to_fp_function_signature(signature: syn::Signature, self_name: &String) -> (syn::Signature, Option<syn::Ident>) {
-    println!("Current sig is: {:?}", signature);
-
     let colon = syn::token::Colon{
         spans: [syn::__private::Span::call_site()],
     };
@@ -285,11 +288,65 @@ fn visitor_test() {
   file.read_to_string(&mut src).expect("Unable to read file");
 }
 
+/// Check if [syn::Path] is a reference to self
+fn path_is_self(path: &syn::Path) -> bool{
+    if path.segments.is_empty() {
+        return false;
+    }
+    return path.segments.first().unwrap().ident.to_string() == "self";
+}
+
+/// Expr is self
+fn expr_is_self(expr: &syn::Expr) -> bool {
+    println!("Checking {:?} is self", expr);
+    match expr {
+        syn::Expr::Path(syn::ExprPath{
+            path,
+            ..
+        }) if path_is_self(path) => true,
+        _ => false
+    }
+}
+
+
 struct ReplaceSelf;
 impl VisitMut for ReplaceSelf {
     fn visit_expr_method_call_mut(&mut self, call: &mut syn::ExprMethodCall) {
         syn::visit_mut::visit_expr_method_call_mut(self, call);
-        println!("Visiting call: {:?}", call);
+        // println!("Visiting call: {:?}, {:?}", call, call.method.to_string());
+    }
+
+    fn visit_expr_field_mut(&mut self, field: &mut syn::ExprField) {
+        syn::visit_mut::visit_expr_field_mut(self, field);
+    }
+
+    fn visit_expr_mut(&mut self, expr: &mut syn::Expr) {
+        syn::visit_mut::visit_expr_mut(self, expr);
+        if let syn::Expr::Field(syn::ExprField{
+            member: syn::Member::Named(ident),
+            base,
+            ..
+        }) = expr {
+            println!("Found field expr");
+            if expr_is_self(base) {
+                println!("Found expr self");
+                *expr = syn::Expr::Unary(
+                    syn::ExprUnary {
+                        attrs: Vec::new() as Vec<syn::Attribute>,
+                        op: syn::UnOp::Deref(syn::token::Star{spans: [Span::call_site()]}),
+                        expr: Box::new(syn::Expr::Path(syn::ExprPath { attrs: EMPTY_ATTRS, qself: None, path: syn::Path { leading_colon: None, segments: Punctuated::from_iter([syn::PathSegment { ident: ident.clone(), arguments: syn::PathArguments::None}]) } })),
+                    }
+                );
+            }
+        }
+    }
+}
+
+struct ReplaceSelfMethodCall;
+impl VisitMut for ReplaceSelfMethodCall {
+    fn visit_expr_method_call_mut(&mut self, call: &mut syn::ExprMethodCall) {
+        syn::visit_mut::visit_expr_method_call_mut(self, call);
+        println!("Visiting call: {:?}, {:?}", call, call.method.to_string());
     }
 }
 
@@ -303,7 +360,6 @@ fn main() {
 
     let mut src = String::new();
     file.read_to_string(&mut src).expect("Unable to read file");
-
     let mut syntax: syn::File = syn::parse_file(&src).expect("Unable to parse file");
     let traits = get_traits(&syntax);
 
@@ -318,9 +374,9 @@ fn main() {
 
         // For each method in the trait find the matching implementation in each impl
         for method in &trait_.methods {
-            println!("Method: {:?}", method);
+            // println!("Method: {:?}", method);
             for impl_ in &trait_.impls {
-                println!("Matching method for impl {:?}: {:?}", impl_.name, get_matching_impl_method(method, impl_));
+                // println!("Matching method for impl {:?}: {:?}", impl_.name, get_matching_impl_method(method, impl_));
             }
             
             let (fp_signature, self_indent) = trait_signature_to_fp_function_signature(method.sig.clone(), &trait_.name);
@@ -362,9 +418,10 @@ fn main() {
     // TODO: https://stackoverflow.com/questions/65764987/how-to-pretty-print-syn-ast
     println!("{}", quote!(#syntax));
 
+    ReplaceSelfMethodCall.visit_file_mut(&mut syntax);
+    ReplaceSelf.visit_file_mut(&mut syntax);
+
     if write_and_fmt("outputs/output.rs", quote!(#syntax)).is_err() {
         panic!("Unable to write output file");
     }
-
-    ReplaceSelf.visit_file_mut(&mut syntax);
 }
