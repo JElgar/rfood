@@ -6,6 +6,7 @@ extern crate quote;
 // use std::env;
 use std::fs::File;
 use std::io::Read;
+use std::collections::HashMap;
 
 mod ast;
 mod fp;
@@ -342,7 +343,10 @@ impl VisitMut for ReplaceSelf {
     }
 }
 
-struct ReplaceSelfMethodCall;
+/// Replace any method calls to expr with self type with call to new function
+struct ReplaceSelfMethodCall{
+    type_map: HashMap<String, String>
+}
 impl VisitMut for ReplaceSelfMethodCall {
     fn visit_expr_method_call_mut(&mut self, call: &mut syn::ExprMethodCall) {
         syn::visit_mut::visit_expr_method_call_mut(self, call);
