@@ -13,6 +13,8 @@ mod fp;
 mod oop;
 
 use ast::print::write_and_fmt;
+use ast::context::{Gamma, generate_gamma};
+
 use syn::visit_mut::VisitMut;
 use syn::punctuated::Punctuated;
 use syn::__private::Span;
@@ -344,9 +346,10 @@ impl VisitMut for ReplaceSelf {
 }
 
 /// Replace any method calls to expr with self type with call to new function
-struct ReplaceSelfMethodCall{
-    type_map: HashMap<String, String>
-}
+struct ReplaceSelfMethodCall;
+// {
+//     type_map: HashMap<String, String>
+// }
 impl VisitMut for ReplaceSelfMethodCall {
     fn visit_expr_method_call_mut(&mut self, call: &mut syn::ExprMethodCall) {
         syn::visit_mut::visit_expr_method_call_mut(self, call);
@@ -358,6 +361,9 @@ fn main() {
     print_goal();
     println!();
     println!();
+
+    // Environemnt map
+    
     //-- Do the transfrom --//
     let filename = "./src/oop/exp.rs";
     let mut file = File::open(&filename).expect("Unable to open file");
@@ -365,6 +371,11 @@ fn main() {
     let mut src = String::new();
     file.read_to_string(&mut src).expect("Unable to read file");
     let mut syntax: syn::File = syn::parse_file(&src).expect("Unable to parse file");
+    
+    let gamma: Gamma = generate_gamma(&syntax);
+    println!("{:?}", gamma);
+    return;
+
     let traits = get_traits(&syntax);
 
     // Create enum from trait and its impls

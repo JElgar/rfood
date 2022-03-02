@@ -1,6 +1,13 @@
-fn eval(exp: &Exp) -> i32 {
-    return match exp {
-        Exp::Lit(num) => *num,
-        Exp::Sub(exp1, exp2) => eval(exp1) - eval(exp2)
+trait Thing {
+    fn do_something(&self);
+}
+
+struct ABC {
+    a: i32,
+}
+
+impl Thing for ABC {
+    fn do_something(&self) {
+        println!("{}", self.a);
     }
 }
