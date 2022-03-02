@@ -1,9 +1,17 @@
+extern crate proc_macro;
+
 use std::collections::HashMap;
 use syn::visit::{Visit, visit_item_enum, visit_item_trait, visit_item_struct, visit_item_impl};
-use syn::{ItemEnum, ItemTrait, Variant, ItemStruct, Type, Ident};
+use syn::{ItemEnum, ItemTrait, Variant, ItemStruct, Type, Ident, TraitItem, TraitItemMethod};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
+use syn::spanned::Spanned;
 
+trait GammaExpr {
+    fn get_signature(&self) -> (Type, Vec<Type>);
+}
+
+/// Global context
 #[derive(Debug)]
 pub struct Gamma {
     /// Enums are the datatypes
@@ -11,12 +19,20 @@ pub struct Gamma {
     /// Traits are the interfaces
     pub traits: Vec<ItemTrait>, // IT - Interfaces
     /// Enum variants are the constructors of a datatypes
-    pub enum_variants: HashMap<ItemEnum, Punctuated<Variant, Comma>>, // CTR(DT) - Constructor for DT
+    pub enum_variants: HashMap<ItemEnum, Vec<Variant>>, // CTR(DT) - Constructor for DT
     /// Generators are structs with an impl for a specific trait
     pub generators: HashMap<ItemTrait, Vec<ItemStruct>>, // GEN(IT) - Generic for IT
+    /// Destructor of an interface - A function in a trait
+    pub trait_methods: HashMap<ItemTrait, Vec<TraitItemMethod>>, // DTR(IT) - Destructor of IT
+    /// Consumers of an enum (datatype) - A function that takes in a DT and return some kind of match on it
+    // TODO: Collect
+    pub enum_consumers: HashMap<ItemEnum, Vec<ItemStruct>>, // CSM(DT) - Consumer of DT
+
+    // This is replaced with .signature
+    // pub signatures: HashMap<Ident, Type>, // SIG(F) - Signature of F
 
     // Helpers
-    // All structs
+    /// All structs found in the ast -> Note these may not be inscope!
     _structs: Vec<ItemStruct>,
 }
 
@@ -27,8 +43,17 @@ impl Gamma {
             traits: Vec::new(),
             enum_variants: HashMap::new(),
             generators: HashMap::new(),
+            trait_methods: HashMap::new(),
+            enum_consumers: HashMap::new(),
+
             _structs: Vec::new(),
         }
+    }
+
+    fn from_file(syntax: &syn::File) -> Self {
+        let mut gamma = Gamma::empty();
+        gamma.visit_file(syntax);
+        gamma
     }
 
     fn get_trait(&self, ident: &Ident) -> ItemTrait {
@@ -48,12 +73,23 @@ impl<'ast> Visit<'ast> for Gamma {
     fn visit_item_enum(&mut self, i: &'ast ItemEnum) {
         visit_item_enum(self, i);
         self.enums.push(i.clone());
-        self.enum_variants.insert(i.clone(), i.variants.clone());
+        self.enum_variants.insert(i.clone(), Vec::from_iter(i.variants.clone()));
     }
 
     fn visit_item_trait(&mut self, i: &'ast ItemTrait) {
         visit_item_trait(self, i);
         self.traits.push(i.clone());
+
+        // Filter all the items in the trait and pull out the methods
+        let trait_methods = Vec::from_iter(i.items.iter().filter_map(
+            |item| {
+                if let TraitItem::Method(impl_item_method) = item {
+                    return Some(impl_item_method.clone());
+                };
+                return None
+            }
+          ));
+        self.trait_methods.insert(i.clone(), trait_methods);
     }
 
     fn visit_item_struct(&mut self, i: &'ast ItemStruct) {
@@ -87,7 +123,5 @@ impl<'ast> Visit<'ast> for Gamma {
 }
 
 pub fn generate_gamma(syntax: &syn::File) -> Gamma {
-    let mut gamma = Gamma::empty();
-    gamma.visit_file(syntax);
-    gamma
+    Gamma::from_file(syntax)
 }

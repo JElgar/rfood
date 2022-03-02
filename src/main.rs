@@ -9,11 +9,12 @@ use std::io::Read;
 use std::collections::HashMap;
 
 mod ast;
+mod context;
 mod fp;
 mod oop;
 
 use ast::print::write_and_fmt;
-use ast::context::{Gamma, generate_gamma};
+use context::gamma::{Gamma, generate_gamma};
 
 use syn::visit_mut::VisitMut;
 use syn::punctuated::Punctuated;
@@ -374,6 +375,8 @@ fn main() {
     
     let gamma: Gamma = generate_gamma(&syntax);
     println!("{:?}", gamma);
+
+    ast::context::check_type(&syntax, &syntax.items[0]);
     return;
 
     let traits = get_traits(&syntax);
