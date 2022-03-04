@@ -1,7 +1,12 @@
+#![feature(rustc_private)]
+
 extern crate syn;
 extern crate proc_macro;
 #[macro_use]
 extern crate quote;
+
+extern crate rustc_ast;
+extern crate rustc_typeck;
 
 // use std::env;
 use std::fs::File;
@@ -22,6 +27,9 @@ use syn::__private::Span;
 
 // TODO move out of main
 const EMPTY_ATTRS: Vec<syn::Attribute> = Vec::new();
+
+const B: i32 = A;
+const A: i32 = 12;
 
 /// Struct to hold the info for a trait
 #[derive(Debug)]
@@ -359,6 +367,9 @@ impl VisitMut for ReplaceSelfMethodCall {
 }
 
 fn main() {
+    context::delta::Delta::generate_for_file();
+    return;
+
     print_goal();
     println!();
     println!();
@@ -376,7 +387,8 @@ fn main() {
     let gamma: Gamma = generate_gamma(&syntax);
     println!("{:?}", gamma);
 
-    ast::context::check_type(&syntax, &syntax.items[0]);
+    // ast::context::check_type(&syntax, &syntax.items[0]);
+    println!("B is: {:?}, A is: {:?}", B, A);
     return;
 
     let traits = get_traits(&syntax);
