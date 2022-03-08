@@ -24,10 +24,15 @@ impl Set for Empty {
         return s;
     }
     fn insert(self: Box<Self>, i: i32) -> Box<dyn Set> {
-        if self.contains(i) {
-            return self;
-        }
-        return Box::new(Insert{set: self, value: i});
+        // if self.contains(i) {
+        //     return self;
+        // }
+        // return Box::new(Insert{set: self, value: i});
+        return if self.contains(i) {
+            self
+        } else {
+            Box::new(Insert{set: self, value: i})
+        };
     }
     // fn debug(&self) -> String {
     //     String::from("Empty")
@@ -49,10 +54,11 @@ impl Set for Insert {
         return Box::new(Union{set1: self, set2: s});
     }
     fn insert(self: Box<Self>, i: i32) -> Box<dyn Set> {
-        if self.contains(i) {
-            return self;
-        }
-        return Box::new(Insert{set: self, value: i});
+        return if self.contains(i) {
+            self
+        } else {
+            Box::new(Insert{set: self, value: i})
+        };
     }
     // fn debug(&self) -> String {
     //     format!("Insert( {}, {} )", self.value, self.set.debug())
@@ -75,10 +81,11 @@ impl Set for Union {
         return Box::new(Union{set1: self, set2: s});
     }
     fn insert(self: Box<Self>, i: i32) -> Box<dyn Set> {
-        if self.contains(i) {
-            return self;
-        }
-        return Box::new(Insert{set: self, value: i});
+        return if self.contains(i) {
+            self
+        } else {
+            Box::new(Insert{set: self, value: i})
+        };
     }
     // fn debug(&self) -> String {
     //     format!("Union( {}, {} )", self.set1.debug(), self.set2.debug())

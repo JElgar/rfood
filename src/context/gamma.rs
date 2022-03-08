@@ -89,6 +89,7 @@ impl Gamma {
         // If not found raise an exception
         .unwrap_or_else(|| panic!("Method {:?} not found in impl {:?}", destructor, generator_impl));
 
+        println!("Getting expression in method: {:?}", method);
         // Extract the body of the method
         match method.block.stmts.first() {
             Some(

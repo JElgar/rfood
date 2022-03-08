@@ -25,17 +25,17 @@ pub fn transform_trait(trait_: &ItemTrait, gamma: &Gamma) -> Vec<Item> {
 
 fn transform_destructor(trait_: &ItemTrait, destructor: &TraitItemMethod, enum_name: &Ident, gamma: &Gamma) -> Item {
     let (signature, enum_instance_name) = transform_destructor_signature(&destructor.sig, enum_name);
-    let arms: Vec<syn::Arm> = Vec::from_iter(gamma.get_generators(trait_).iter().map(|(_, generator_impl)| {
-        transform_destructor_impl(trait_, destructor, enum_name, generator_impl)
+    let arms: Vec<syn::Arm> = Vec::from_iter(gamma.get_generators(trait_).iter().map(|(generator, generator_impl)| {
+        transform_destructor_impl(generator, destructor, enum_name, generator_impl)
     }));
 
     let match_expr = ast::create::create_match_statement(&enum_instance_name, arms);
     ast::create::create_function(signature, vec![Stmt::Expr(match_expr)])
 }
 
-fn transform_destructor_impl(trait_: &ItemTrait, destructor: &TraitItemMethod, enum_name: &Ident, impl_: &ItemImpl) -> Arm {
+fn transform_destructor_impl(generator: &ItemStruct, destructor: &TraitItemMethod, enum_name: &Ident, impl_: &ItemImpl) -> Arm {
     let expr: Expr = Gamma::get_destructor_impl_for_generator(&impl_, destructor);
-    let path = ast::create::create_match_path_for_enum(&trait_.ident, enum_name);
+    let path = ast::create::create_match_path_for_enum(enum_name, &generator.ident);
     ast::create::create_match_arm(
         path, Vec::new(), expr,
     )
