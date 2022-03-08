@@ -1,6 +1,6 @@
-use syn::{Item, ItemEnum};
+use syn::{Item, ItemEnum, Ident};
 
-pub fn create_enum(name: &String, variants: Vec<syn::Variant>) -> syn::Item {
+pub fn create_enum(name: &Ident, variants: Vec<syn::Variant>) -> syn::Item {
     Item::Enum(
         ItemEnum {
             attrs: [].to_vec(),
@@ -8,7 +8,7 @@ pub fn create_enum(name: &String, variants: Vec<syn::Variant>) -> syn::Item {
             enum_token: syn::token::Enum{
                 span: syn::__private::Span::call_site(),
             },
-            ident: syn::Ident::new(name, syn::__private::Span::call_site()),
+            ident: name.clone(),
             generics: syn::Generics {
                 lt_token: None,
                 params: syn::punctuated::Punctuated::from_iter(Vec::new() as Vec<syn::GenericParam>),
@@ -23,7 +23,7 @@ pub fn create_enum(name: &String, variants: Vec<syn::Variant>) -> syn::Item {
     )
 }
 
-pub fn create_enum_variant(name: &String, mut fields: syn::Fields) -> syn::Variant {
+pub fn create_enum_variant(name: &Ident, mut fields: syn::Fields) -> syn::Variant {
     // Remove pub from fields
     if let syn::Fields::Named(enum_fields) = &fields {
     
@@ -91,7 +91,7 @@ pub fn create_enum_variant(name: &String, mut fields: syn::Fields) -> syn::Varia
 
     syn::Variant{
         attrs: Vec::new() as Vec<syn::Attribute>,
-        ident: syn::Ident::new(name, syn::__private::Span::call_site()),
+        ident: name.clone(),
         fields,
         discriminant: None,
     }
@@ -111,7 +111,7 @@ pub fn create_function(sig: syn::Signature, stmts: Vec<syn::Stmt>) -> syn::Item 
     )
 }
 
-pub fn create_match_statement(match_ident: syn::Ident, arms: Vec<syn::Arm>) -> syn::Expr {
+pub fn create_match_statement(match_ident: &syn::Ident, arms: Vec<syn::Arm>) -> syn::Expr {
     syn::Expr::Match(
         syn::ExprMatch{
             attrs: Vec::new() as Vec<syn::Attribute>,
@@ -125,7 +125,7 @@ pub fn create_match_statement(match_ident: syn::Ident, arms: Vec<syn::Arm>) -> s
                         segments: syn::punctuated::Punctuated::from_iter(
                             [
                                 syn::PathSegment{
-                                    ident: match_ident,
+                                    ident: match_ident.clone(),
                                     arguments: syn::PathArguments::None,
                                 }
                             ]
@@ -139,17 +139,17 @@ pub fn create_match_statement(match_ident: syn::Ident, arms: Vec<syn::Arm>) -> s
     )
 }
 
-pub fn create_match_path_for_enum(enum_ident: &String, variant_ident: &String) -> syn::Path {
+pub fn create_match_path_for_enum(enum_ident: &Ident, variant_ident: &Ident) -> syn::Path {
     syn::Path{
         leading_colon: None,
         segments: syn::punctuated::Punctuated::from_iter(
             [
                 syn::PathSegment{
-                    ident: syn::Ident::new(enum_ident, syn::__private::Span::call_site()),
+                    ident: enum_ident.clone(),
                     arguments: syn::PathArguments::None,
                 },
                 syn::PathSegment{
-                    ident: syn::Ident::new(variant_ident, syn::__private::Span::call_site()),
+                    ident: variant_ident.clone(),
                     arguments: syn::PathArguments::None,
                 },
             ]
@@ -187,3 +187,47 @@ pub fn create_match_arm(match_path: syn::Path, elems: Vec<syn::Ident>, body: syn
   } 
 }
 
+pub fn create_consumer_signature(reciever: &syn::Receiver, enum_name: &Ident, enum_instance_name: &Ident) -> syn::FnArg {
+    return syn::FnArg::Typed(
+        syn::PatType{
+            attrs: reciever.attrs.clone(),
+            colon_token: syn::token::Colon{
+                spans: [syn::__private::Span::call_site()],
+            },
+            pat: Box::new(
+                syn::Pat::Ident(syn::PatIdent{
+                    attrs: [].to_vec(),
+                    by_ref: None,
+                    mutability: None,
+                    ident: enum_instance_name.clone(),
+                    subpat: None,
+                })
+            ),
+            ty: Box::new(syn::Type::Reference(
+              syn::TypeReference{
+                  and_token: syn::token::And { spans: [syn::__private::Span::call_site()] },
+                  lifetime: None,
+                  mutability: None,
+                  elem: Box::new(
+                      syn::Type::Path(
+                          syn::TypePath{
+                              qself: None,
+                              path: syn::Path {
+                                  leading_colon: None,
+                                  segments: syn::punctuated::Punctuated::from_iter(
+                                      vec![
+                                        syn::PathSegment{
+                                          ident: enum_name.clone(),
+                                          arguments: syn::PathArguments::None,
+                                        }
+                                      ]
+                                  )
+                              }
+                          }
+                      )
+                  ),
+              }
+            ))
+        }
+    )
+}

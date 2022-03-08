@@ -2,7 +2,7 @@ extern crate proc_macro;
 
 use std::collections::HashMap;
 use syn::visit::{Visit, visit_item_enum, visit_item_trait, visit_item_struct, visit_item_impl};
-use syn::{ItemEnum, ItemTrait, Variant, ItemStruct, Type, Ident, TraitItem, TraitItemMethod};
+use syn::{ItemEnum, ItemTrait, Variant, ItemStruct, Type, Ident, TraitItem, TraitItemMethod, ImplItemMethod, ItemImpl, ImplItem, Expr};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
 use syn::spanned::Spanned;
@@ -20,11 +20,13 @@ pub struct Gamma {
     pub traits: Vec<ItemTrait>, // IT - Interfaces
     /// Enum variants are the constructors of a datatypes
     pub enum_variants: HashMap<ItemEnum, Vec<Variant>>, // CTR(DT) - Constructor for DT
-    /// Generators are structs with an impl for a specific trait
-    pub generators: HashMap<ItemTrait, Vec<ItemStruct>>, // GEN(IT) - Generic for IT
+    /// Generators are structs with an impl for a specific trait, this stores both the struct and
+    /// the impl
+    pub generators: HashMap<ItemTrait, Vec<(ItemStruct, ItemImpl)>>, // GEN(IT) - Generic for IT
     /// Destructor of an interface - A function in a trait
-    pub trait_methods: HashMap<ItemTrait, Vec<TraitItemMethod>>, // DTR(IT) - Destructor of IT
-    /// Consumers of an enum (datatype) - A function that takes in a DT and return some kind of match on it
+    pub destructors: HashMap<ItemTrait, Vec<TraitItemMethod>>, // DTR(IT) - Destructor of IT
+    /// Consumers of an enum (datatype) - A function that takes in a DT and return some kind of
+    /// match on it
     // TODO: Collect
     pub enum_consumers: HashMap<ItemEnum, Vec<ItemStruct>>, // CSM(DT) - Consumer of DT
 
@@ -43,7 +45,7 @@ impl Gamma {
             traits: Vec::new(),
             enum_variants: HashMap::new(),
             generators: HashMap::new(),
-            trait_methods: HashMap::new(),
+            destructors: HashMap::new(),
             enum_consumers: HashMap::new(),
 
             _structs: Vec::new(),
@@ -56,16 +58,44 @@ impl Gamma {
         gamma
     }
 
-    fn get_trait(&self, ident: &Ident) -> ItemTrait {
+    pub fn get_trait(&self, ident: &Ident) -> ItemTrait {
         self.traits.iter().find(|t| {
             t.ident == ident.clone()
         }).unwrap_or_else(|| panic!("Trait {} not found in gamma", ident)).clone()
     }
     
-    fn get_struct(&self, ident: &Ident) -> ItemStruct {
+    pub fn get_generators(&self, trait_: &ItemTrait) -> Vec<(ItemStruct, ItemImpl)> {
+        self.generators.get(&trait_).unwrap_or_else(|| panic!("Trait {:?} not found in gamma", trait_)).clone()
+    }
+    
+    pub fn get_struct_by_name(&self, ident: &Ident) -> ItemStruct {
         self._structs.iter().find(|s| {
             return s.ident == *ident 
-        }).unwrap_or_else(|| panic!("Struct {} not found in gamma", ident)).clone()
+        }).unwrap().clone()
+    }
+
+    pub fn get_destructors(&self, trait_: &ItemTrait) -> Vec<TraitItemMethod> {
+        self.destructors.get(&trait_).unwrap_or_else(|| panic!("Trait {:?} not found in gamma", trait_)).clone()
+    }
+
+    pub fn get_destructor_impl_for_generator(generator_impl: &ItemImpl, destructor: &TraitItemMethod) -> Expr {
+        // Filter all methods in the impl to find the one that matches the destructor
+        let method: ImplItemMethod = generator_impl.items.iter().find_map(|item| {
+            return match &*item {
+                ImplItem::Method(impl_item_method) if impl_item_method.sig.ident == destructor.sig.ident => Some(impl_item_method.clone()),
+                _ => None
+            }
+        })
+        // If not found raise an exception
+        .unwrap_or_else(|| panic!("Method {:?} not found in impl {:?}", destructor, generator_impl));
+
+        // Extract the body of the method
+        match method.block.stmts.first() {
+            Some(
+                syn::Stmt::Semi(syn::Expr::Return(syn::ExprReturn{expr: Some(expr), ..}), _)
+            ) => *expr.clone(),
+            _ => panic!("Could not find expression in method")
+        }
     }
 }
 
@@ -89,7 +119,7 @@ impl<'ast> Visit<'ast> for Gamma {
                 return None
             }
           ));
-        self.trait_methods.insert(i.clone(), trait_methods);
+        self.destructors.insert(i.clone(), trait_methods);
     }
 
     fn visit_item_struct(&mut self, i: &'ast ItemStruct) {
@@ -111,14 +141,15 @@ impl<'ast> Visit<'ast> for Gamma {
         } else {
             panic!("Not a path when visiting item_impl");
         };
-        let struct_ = self.get_struct(&struct_name);
+        let struct_ = self.get_struct_by_name(&struct_name);
      
         // If the generator doesnt have any generators yet add an empty list
         if !self.generators.contains_key(&trait_) {
             self.generators.insert(trait_.clone(), Vec::new());
         }
+
         // Push the struct to the traits generator list
-        self.generators.get_mut(&trait_).unwrap().push(struct_.clone());
+        self.generators.get_mut(&trait_).unwrap().push((struct_.clone(), i.clone()));
     }
 }
 

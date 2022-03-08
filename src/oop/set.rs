@@ -3,21 +3,21 @@ pub trait Set {
     fn contains(&self, i: i32) -> bool;
     fn insert(self: Box<Self>, value: i32) -> Box<dyn Set>;
     fn union(self: Box<Self>, s: Box<dyn Set>) -> Box<dyn Set>;
-    fn debug(&self) -> String;
+    // fn debug(&self) -> String;
 }
 
-impl std::fmt::Debug for dyn Set {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.debug())
-    }
-}
+// impl std::fmt::Debug for dyn Set {
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         write!(f, "{}", self.debug())
+//     }
+// }
 
 pub struct Empty{}
 impl Set for Empty {
     fn is_empty(&self) -> bool {
         return true;
     }
-    fn contains(&self,_i: i32) -> bool {
+    fn contains(&self, i: i32) -> bool {
         return false;
     }
     fn union(self: Box<Self>, s: Box<dyn Set>) -> Box<dyn Set> {
@@ -29,9 +29,9 @@ impl Set for Empty {
         }
         return Box::new(Insert{set: self, value: i});
     }
-    fn debug(&self) -> String {
-        String::from("Empty")
-    }
+    // fn debug(&self) -> String {
+    //     String::from("Empty")
+    // }
 } 
 
 pub struct Insert{
@@ -54,9 +54,9 @@ impl Set for Insert {
         }
         return Box::new(Insert{set: self, value: i});
     }
-    fn debug(&self) -> String {
-        format!("Insert( {}, {} )", self.value, self.set.debug())
-    }
+    // fn debug(&self) -> String {
+    //     format!("Insert( {}, {} )", self.value, self.set.debug())
+    // }
 }
 
 
@@ -80,9 +80,9 @@ impl Set for Union {
         }
         return Box::new(Insert{set: self, value: i});
     }
-    fn debug(&self) -> String {
-        format!("Union( {}, {} )", self.set1.debug(), self.set2.debug())
-    }
+    // fn debug(&self) -> String {
+    //     format!("Union( {}, {} )", self.set1.debug(), self.set2.debug())
+    // }
 }
 
 pub fn demo() {
@@ -97,5 +97,5 @@ pub fn demo() {
 
     let s: Box<dyn Set> = s1.insert(4);
     let s3: Box<dyn Set> = s.union(s2);
-    println!("{:?}", s3);
+    // println!("{:?}", s3);
 }
