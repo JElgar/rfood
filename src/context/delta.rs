@@ -2,51 +2,64 @@
 // https://rustc-dev-guide.rust-lang.org/thir.html
 // https://rustc-dev-guide.rust-lang.org/the-parser.html 
 
-
-extern crate rustc_typeck;
-extern crate rustc_middle;
-extern crate rustc_interface;
-extern crate rustc_parse;
-extern crate rustc_session;
-extern crate rustc_span;
-
-use std::path::Path;
 use std::collections::HashMap;
+use syn::{Ident, ItemImpl, ItemStruct, Signature, FnArg, PatType, Receiver, Type, TypePath, Path, ImplItemMethod, Pat};
 
-use rustc_middle::ty;
-use rustc_span::source_map::FilePathMapping;
-
-use rustc_session::parse::ParseSess;
-
+#[derive(Debug)]
 pub struct Delta {
-    types: HashMap<Ident, Type>,
+    pub self_ty: Option<Ident>,
+    pub types: HashMap<Ident, Ident>,
 }
 
-use syn::{Item, ItemEnum, ItemTrait, Variant, ItemStruct, Type, Ident, TraitItem, TraitItemMethod};
-use rustc_middle::ty::{TyCtxt};
+pub fn get_type_from_function_arg(arg: &FnArg) -> Ident {
+    if let FnArg::Typed(pat_type) = arg {
+        if let Type::Path(TypePath{qself: None, path: Path { segments, .. }}) = &*pat_type.ty {
+            return segments.first().unwrap().ident.clone();
+        }
+    }
 
-trait Transformable {
-    fn generate_delta(&self) -> Delta;
-    fn transform(&self, delta: Delta) -> Self;
+    // TODO This will panic for all self types
+    panic!("Could not get type from function argument");
+}
+
+pub fn get_attribute_ident_fron_function_arg(arg: &FnArg) -> Ident {
+    println!("{:?}", arg);
+    if let FnArg::Typed(PatType { pat, .. }) = arg {
+        if let Pat::Ident(pat_ident) = &**pat {
+            return pat_ident.ident.clone();
+        }
+    }
+
+    // TODO This will panic for all self types
+    panic!("Could not get attribute name from function argument");
 }
 
 impl Delta {
-    pub fn generate_for_file() {
-        // ty::TyCtxt::create_global_ctxt();
-        // ty::TyCtxt::create_and_enter(hir, ..., |tcx| {
-        //     rustc_typeck::check_crate(tcx).unwrap();
-        // });
-        
-        // let config = rustc_interface::interface::Config{};
-        // rustc_interface::interface::run_compiler(config, |compiler| {
-        //     println!("hello world");
-        // });
+    pub fn new() -> Self {
+        return Delta {
+            self_ty: None, types: HashMap::new(),
+        }
+    }
 
-        println!("Generating delta for file");
-        let path = Path::new("/home/jelgar/Documents/uni/project/hello_world/");
-        let sess = ParseSess::new(FilePathMapping::empty());
-        println!("Generated session");
-        let result = rustc_parse::parse_crate_from_file(path, &sess);
-        println!("{:?}", result);
+    pub fn collect_for_destructor_impl(&self, destructor_method_impl: &ImplItemMethod, generator: &ItemStruct) -> Self {
+        // TODO append all types from the destructor impl signature
+        return Delta {
+            self_ty: Some(generator.ident.clone()),
+            types: self.collect_for_method_sig(&destructor_method_impl.sig).types,
+        }
+    }
+
+    pub fn collect_for_method_sig(&self, signature: &Signature) -> Self {
+        let types = signature.inputs.iter().filter_map(|arg| {
+            if let FnArg::Receiver(_) = arg {
+                return None;
+            }
+            Some((get_attribute_ident_fron_function_arg(arg), get_type_from_function_arg(arg)))
+        }).into_iter().collect();
+
+        Delta {
+            self_ty: None,
+            types,
+        }
     }
 }

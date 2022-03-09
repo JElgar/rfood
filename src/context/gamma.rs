@@ -78,25 +78,16 @@ impl Gamma {
         self.destructors.get(&trait_).unwrap_or_else(|| panic!("Trait {:?} not found in gamma", trait_)).clone()
     }
 
-    pub fn get_destructor_impl_for_generator(generator_impl: &ItemImpl, destructor: &TraitItemMethod) -> Expr {
+    pub fn get_destructor_impl_for_generator(generator_impl: &ItemImpl, destructor: &TraitItemMethod) -> ImplItemMethod {
         // Filter all methods in the impl to find the one that matches the destructor
-        let method: ImplItemMethod = generator_impl.items.iter().find_map(|item| {
+        generator_impl.items.iter().find_map(|item| {
             return match &*item {
                 ImplItem::Method(impl_item_method) if impl_item_method.sig.ident == destructor.sig.ident => Some(impl_item_method.clone()),
                 _ => None
             }
         })
         // If not found raise an exception
-        .unwrap_or_else(|| panic!("Method {:?} not found in impl {:?}", destructor, generator_impl));
-
-        println!("Getting expression in method: {:?}", method);
-        // Extract the body of the method
-        match method.block.stmts.first() {
-            Some(
-                syn::Stmt::Semi(syn::Expr::Return(syn::ExprReturn{expr: Some(expr), ..}), _)
-            ) => *expr.clone(),
-            _ => panic!("Could not find expression in method")
-        }
+        .unwrap_or_else(|| panic!("Method {:?} not found in impl {:?}", destructor, generator_impl))
     }
 }
 

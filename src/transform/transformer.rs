@@ -2,6 +2,7 @@ use syn::*;
 
 use crate::context;
 use context::gamma::Gamma;
+use context::delta::Delta;
 
 use crate::ast;
 use ast::create::{create_enum_variant, create_consumer_signature};
@@ -34,11 +35,28 @@ fn transform_destructor(trait_: &ItemTrait, destructor: &TraitItemMethod, enum_n
 }
 
 fn transform_destructor_impl(generator: &ItemStruct, destructor: &TraitItemMethod, enum_name: &Ident, impl_: &ItemImpl) -> Arm {
-    let expr: Expr = Gamma::get_destructor_impl_for_generator(&impl_, destructor);
+    let method: ImplItemMethod = Gamma::get_destructor_impl_for_generator(&impl_, destructor);
+    let mut delta: Delta = Delta::new();
+    delta = delta.collect_for_destructor_impl(&method, generator);
+    print!("DELTA IS: {:?}", delta);
+
+    // Extract the body of the method
+    let mut expr: Expr  = match method.block.stmts.first() {
+        Some(
+            syn::Stmt::Semi(syn::Expr::Return(syn::ExprReturn{expr: Some(expr), ..}), _)
+        ) => *expr.clone(),
+        _ => panic!("Could not find expression in method")
+    };
+    expr = transform_destructor_expr(&expr);
+
     let path = ast::create::create_match_path_for_enum(enum_name, &generator.ident);
     ast::create::create_match_arm(
         path, Vec::new(), expr,
     )
+}
+
+fn transform_destructor_expr(expr: &Expr) -> Expr {
+    return expr.clone();
 }
 
 /// Convert signature of destructor to consumer signature
