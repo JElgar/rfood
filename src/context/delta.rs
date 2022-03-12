@@ -4,8 +4,9 @@
 
 use std::collections::HashMap;
 use syn::*;
+use syn::__private::Span;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Delta {
     pub self_ty: Option<Ident>,
     pub types: HashMap<Ident, Ident>,
@@ -43,23 +44,31 @@ pub fn get_type_from_path(Path { segments, .. }: &Path) -> Ident {
     return segment.ident.clone();
 }
 
-pub fn get_type_from_function_arg(arg: &FnArg) -> Ident {
+pub fn get_type_from_function_arg(arg: &FnArg, self_type: &Ident) -> Ident {
     if let FnArg::Typed(pat_type) = arg {
         if let Type::Path(type_path) = &*pat_type.ty {
             return get_type_from_path(&type_path.path);
         }
+    }
+    
+    if let FnArg::Receiver(_) = arg {
+        return self_type.clone();
     }
 
     // TODO This will panic for all self types
     panic!("Could not get type from function argument");
 }
 
-pub fn get_attribute_ident_fron_function_arg(arg: &FnArg) -> Ident {
+pub fn get_attribute_ident_from_function_arg(arg: &FnArg) -> Ident {
     println!("{:?}", arg);
     if let FnArg::Typed(PatType { pat, .. }) = arg {
         if let Pat::Ident(pat_ident) = &**pat {
             return pat_ident.ident.clone();
         }
+    }
+
+    if let FnArg::Receiver(_) = arg {
+        return Ident::new("self", Span::call_site());
     }
 
     // TODO This will panic for all self types
@@ -73,22 +82,23 @@ impl Delta {
         }
     }
 
+    pub fn get_type(&self, ident: Ident) -> Ident {
+        self.types.get(&ident).unwrap_or_else(|| panic!("Type {:?} not in delta. {:?}", ident, self.types)).clone()
+    }
+
     pub fn collect_for_destructor_impl(&self, destructor_method_impl: &ImplItemMethod, generator: &ItemStruct) -> Self {
-        // TODO append all types from the destructor impl signature
-        return Delta {
+        Delta {
             self_ty: Some(generator.ident.clone()),
-            types: self.collect_for_method_sig(&destructor_method_impl.sig).types,
+            types: self.collect_for_method_sig(&destructor_method_impl.sig, &generator.ident).types,
         }
     }
 
-    pub fn collect_for_method_sig(&self, signature: &Signature) -> Self {
-        let types = signature.inputs.iter().filter_map(|arg| {
-            if let FnArg::Receiver(_) = arg {
-                return None;
-            }
-            Some((get_attribute_ident_fron_function_arg(arg), get_type_from_function_arg(arg)))
+    pub fn collect_for_method_sig(&self, signature: &Signature, self_type: &Ident) -> Self {
+        let types = signature.inputs.iter().map(|arg| {
+            (get_attribute_ident_from_function_arg(arg), get_type_from_function_arg(arg, self_type))
         }).into_iter().collect();
 
+        println!("For sig: {:?} \nDelta types are: {:?}", signature, types);
         Delta {
             self_ty: None,
             types,
