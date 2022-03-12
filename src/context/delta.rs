@@ -3,7 +3,7 @@
 // https://rustc-dev-guide.rust-lang.org/the-parser.html 
 
 use std::collections::HashMap;
-use syn::{Ident, ItemImpl, ItemStruct, Signature, FnArg, PatType, Receiver, Type, TypePath, Path, ImplItemMethod, Pat};
+use syn::*;
 
 #[derive(Debug)]
 pub struct Delta {
@@ -11,10 +11,42 @@ pub struct Delta {
     pub types: HashMap<Ident, Ident>,
 }
 
+pub fn get_type_from_box(segment: &PathSegment) -> Ident {
+    // If the thing has args
+    if let PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, ..}) = &segment.arguments {
+        let arg = args.first().unwrap();
+
+        // If it is a dyn thing
+        if let GenericArgument::Type(Type::TraitObject(TypeTraitObject { bounds, .. })) = arg {
+            let bound = bounds.first().unwrap();
+            if let TypeParamBound::Trait(TraitBound { path, .. }) = bound {
+                return get_type_from_path(&path);
+            }
+        }
+
+        // If not a dyn thing
+        if let GenericArgument::Type(Type::Path(type_path)) = arg{
+            return get_type_from_path(&type_path.path);
+        }
+    }
+
+    panic!("Failed to get type from box: {:?}", segment);
+}
+
+pub fn get_type_from_path(Path { segments, .. }: &Path) -> Ident {
+    let segment = segments.first().unwrap();
+
+    if segment.ident == "Box" {
+        return get_type_from_box(segment);
+    }
+
+    return segment.ident.clone();
+}
+
 pub fn get_type_from_function_arg(arg: &FnArg) -> Ident {
     if let FnArg::Typed(pat_type) = arg {
-        if let Type::Path(TypePath{qself: None, path: Path { segments, .. }}) = &*pat_type.ty {
-            return segments.first().unwrap().ident.clone();
+        if let Type::Path(type_path) = &*pat_type.ty {
+            return get_type_from_path(&type_path.path);
         }
     }
 
