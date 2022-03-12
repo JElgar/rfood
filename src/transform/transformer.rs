@@ -1,7 +1,5 @@
 use syn::*;
 use syn::visit_mut::*;
-use syn::punctuated::Punctuated;
-use syn::__private::Span;
 
 use crate::context;
 use context::gamma::Gamma;
@@ -9,6 +7,9 @@ use context::delta::Delta;
 
 use crate::ast;
 use ast::create::{create_enum_variant, create_consumer_signature};
+
+use crate::transform;
+use transform::visitors::*;
 
 pub fn transform_trait(trait_: &ItemTrait, gamma: &Gamma) -> Vec<Item> {
     // Create enum varaint for each generator of the trait
@@ -40,7 +41,9 @@ fn transform_destructor(trait_: &ItemTrait, destructor: &TraitItemMethod, enum_n
 fn transform_destructor_impl(generator: &ItemStruct, destructor: &TraitItemMethod, enum_name: &Ident, impl_: &ItemImpl) -> Arm {
     let method: ImplItemMethod = Gamma::get_destructor_impl_for_generator(&impl_, destructor);
     let mut delta: Delta = Delta::new();
-    delta = delta.collect_for_destructor_impl(&method, generator);
+
+    // TODO include delta from the destructor
+    delta.collect_for_destructor_impl(&method, generator);
     println!("DELTA IS: {:?}", delta);
 
     // Extract the body of the method
@@ -53,54 +56,15 @@ fn transform_destructor_impl(generator: &ItemStruct, destructor: &TraitItemMetho
     )
 }
 
-/// Expr is self
-fn get_method_call_ident(expr: &Expr) -> Option<Ident> {
-    println!("Checking {:?} is self", expr);
-    if let syn::Expr::Path(syn::ExprPath{
-        path,
-        ..
-    }) = expr {
-        return Some(path.segments.first().unwrap().ident.clone());
-    }
-    return None;
-}
-
 /// Given expression for destructor covert all method calls 
 ///
 /// Replace all method calls to the destructor with the corresponding consumer function call
 fn transform_destructor_expr(expr: &Expr, delta: &Delta) -> Expr {
-    struct ReplaceMethodCalls {
-        delta: Delta,
-    }
-    impl VisitMut for ReplaceMethodCalls {
-        fn visit_expr_mut(&mut self, expr: &mut Expr) {
-            println!("Visiting expr, {:?}", expr);
-            visit_expr_mut(self, expr);
-            if let syn::Expr::Field(syn::ExprField{
-                member: syn::Member::Named(ident),
-                base,
-                ..
-            }) = expr.clone() {
-                println!("Found field expr");
-                let member_name = get_method_call_ident(&base);
-                println!("Member name is {:?}", member_name);
-                if member_name.is_none() {
-                    return;
-                }
-
-                let result_type = self.delta.get_type(member_name.unwrap());
-                *expr = syn::Expr::Unary(
-                    syn::ExprUnary {
-                        attrs: Vec::new() as Vec<syn::Attribute>,
-                        op: syn::UnOp::Deref(syn::token::Star{spans: [Span::call_site()]}),
-                        expr: Box::new(syn::Expr::Path(syn::ExprPath { attrs: Vec::new(), qself: None, path: syn::Path { leading_colon: None, segments: Punctuated::from_iter([syn::PathSegment { ident: ident.clone(), arguments: syn::PathArguments::None}]) } })),
-                    }
-                );
-            }
-        }
-    }
 
     let mut expr_clone = expr.clone();
+    let mut rfc = ReplaceFieldCalls{delta: delta.clone()};
+    rfc.visit_expr_mut(&mut expr_clone);
+
     let mut rmc = ReplaceMethodCalls{delta: delta.clone()};
     rmc.visit_expr_mut(&mut expr_clone);
     return expr_clone; 

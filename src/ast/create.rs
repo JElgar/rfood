@@ -1,12 +1,15 @@
-use syn::{Item, ItemEnum, Ident};
+use syn::*;
+use syn::punctuated::Punctuated;
+use syn::__private::Span;
+use syn::token::{Comma, Colon};
 
 pub fn create_enum(name: &Ident, variants: Vec<syn::Variant>) -> syn::Item {
     Item::Enum(
         ItemEnum {
             attrs: [].to_vec(),
-            vis: syn::Visibility::Inherited,
-            enum_token: syn::token::Enum{
-                span: syn::__private::Span::call_site(),
+            vis: Visibility::Inherited,
+            enum_token: token::Enum{
+                span: Span::call_site(),
             },
             ident: name.clone(),
             generics: syn::Generics {
@@ -191,11 +194,11 @@ pub fn create_consumer_signature(reciever: &syn::Receiver, enum_name: &Ident, en
     return syn::FnArg::Typed(
         syn::PatType{
             attrs: reciever.attrs.clone(),
-            colon_token: syn::token::Colon{
-                spans: [syn::__private::Span::call_site()],
+            colon_token: Colon{
+                spans: [Span::call_site()],
             },
             pat: Box::new(
-                syn::Pat::Ident(syn::PatIdent{
+                Pat::Ident(PatIdent{
                     attrs: [].to_vec(),
                     by_ref: None,
                     mutability: None,
@@ -204,21 +207,21 @@ pub fn create_consumer_signature(reciever: &syn::Receiver, enum_name: &Ident, en
                 })
             ),
             ty: Box::new(syn::Type::Reference(
-              syn::TypeReference{
-                  and_token: syn::token::And { spans: [syn::__private::Span::call_site()] },
+              TypeReference{
+                  and_token: syn::token::And { spans: [Span::call_site()] },
                   lifetime: None,
                   mutability: None,
                   elem: Box::new(
-                      syn::Type::Path(
-                          syn::TypePath{
+                      Type::Path(
+                          TypePath{
                               qself: None,
                               path: syn::Path {
                                   leading_colon: None,
-                                  segments: syn::punctuated::Punctuated::from_iter(
+                                  segments: Punctuated::from_iter(
                                       vec![
-                                        syn::PathSegment{
+                                        PathSegment{
                                           ident: enum_name.clone(),
-                                          arguments: syn::PathArguments::None,
+                                          arguments: PathArguments::None,
                                         }
                                       ]
                                   )
@@ -230,4 +233,20 @@ pub fn create_consumer_signature(reciever: &syn::Receiver, enum_name: &Ident, en
             ))
         }
     )
+}
+
+pub fn create_function_call(method: &Ident, args: Punctuated<Expr, Comma>) -> Expr {
+    let method_path = Expr::Path(ExprPath{attrs: Vec::new(), qself: None, path: Path{
+        leading_colon: None,
+        segments: Punctuated::from_iter(
+            vec![PathSegment{ident: method.clone(), arguments: PathArguments::None}]
+        ),
+    }});
+
+    Expr::Call(ExprCall{
+        attrs: Vec::new(),
+        paren_token: token::Paren { span: Span::call_site() },
+        func: Box::new(method_path),
+        args: args.clone(),
+    })
 }
