@@ -50,9 +50,12 @@ fn transform_destructor_impl(generator: &ItemStruct, destructor: &TraitItemMetho
     let mut expr: Expr  = Expr::Block(ExprBlock{block: method.block, attrs: Vec::new(), label: None});
     expr = transform_destructor_expr(&expr, &delta);
 
+    let mut struct_delta = Delta::new();
+    struct_delta.collect_for_struct(&generator);
+
     let path = ast::create::create_match_path_for_enum(enum_name, &generator.ident);
     ast::create::create_match_arm(
-        path, Vec::new(), expr,
+        path, Vec::from_iter(struct_delta.types.keys().cloned().collect::<Vec<Ident>>()), expr,
     )
 }
 
