@@ -12,6 +12,13 @@ pub struct Delta {
     pub types: HashMap<Ident, Ident>,
 }
 
+pub fn get_struct_attrs(struct_: &ItemStruct) -> Vec<Ident> {
+    let mut struct_delta = Delta::new();
+    struct_delta.collect_for_struct(&struct_);
+
+    Vec::from_iter(struct_delta.types.keys().cloned().collect::<Vec<Ident>>())
+}
+
 pub fn get_type_from_box(segment: &PathSegment) -> Ident {
     // If the thing has args
     if let PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, ..}) = &segment.arguments {

@@ -3,7 +3,7 @@ use syn::visit_mut::*;
 
 use crate::context;
 use context::gamma::Gamma;
-use context::delta::Delta;
+use context::delta::{Delta, get_struct_attrs};
 
 use crate::ast;
 use ast::create::{create_enum_variant, create_consumer_signature};
@@ -42,20 +42,15 @@ fn transform_destructor_impl(generator: &ItemStruct, destructor: &TraitItemMetho
     let method: ImplItemMethod = Gamma::get_destructor_impl_for_generator(&impl_, destructor);
     let mut delta: Delta = Delta::new();
 
-    // TODO include delta from the destructor
     delta.collect_for_destructor_impl(&method, generator);
-    println!("DELTA IS: {:?}", delta);
 
     // Extract the body of the method
     let mut expr: Expr  = Expr::Block(ExprBlock{block: method.block, attrs: Vec::new(), label: None});
     expr = transform_destructor_expr(&expr, &delta);
 
-    let mut struct_delta = Delta::new();
-    struct_delta.collect_for_struct(&generator);
-
     let path = ast::create::create_match_path_for_enum(enum_name, &generator.ident);
     ast::create::create_match_arm(
-        path, Vec::from_iter(struct_delta.types.keys().cloned().collect::<Vec<Ident>>()), expr,
+        path, get_struct_attrs(&generator), expr,
     )
 }
 
