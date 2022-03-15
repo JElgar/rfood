@@ -13,10 +13,7 @@ pub struct Delta {
 }
 
 pub fn get_struct_attrs(struct_: &ItemStruct) -> Vec<Ident> {
-    let mut struct_delta = Delta::new();
-    struct_delta.collect_for_struct(&struct_);
-
-    Vec::from_iter(struct_delta.types.keys().cloned().collect::<Vec<Ident>>())
+    Vec::from_iter(fields_to_delta_types(&struct_.fields).iter().map(|(field, _)| field.clone()))
 }
 
 pub fn get_type_from_box(segment: &PathSegment) -> Ident {
@@ -88,7 +85,7 @@ pub fn get_attribute_ident_from_function_arg(arg: &FnArg) -> Ident {
     panic!("Could not get attribute name from function argument");
 }
 
-fn fields_to_delta_types(fields: &Fields) -> HashMap<Ident, Ident> {
+fn fields_to_delta_types(fields: &Fields) -> Vec<(Ident, Ident)> {
     match fields {
         Fields::Named(fields_named) => {
             fields_named.named.iter().map(|field|
