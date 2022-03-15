@@ -190,7 +190,39 @@ pub fn create_match_arm(match_path: syn::Path, elems: Vec<syn::Ident>, body: syn
   } 
 }
 
-pub fn create_consumer_signature(enum_name: &Ident, enum_instance_name: &Ident) -> syn::FnArg {
+pub fn create_reference_of_type(type_: Type) -> Type {
+    Type::Reference(
+        TypeReference{
+            and_token: token::And { spans: [Span::call_site()] },
+            lifetime: None,
+            mutability: None,
+            elem: Box::new(type_.clone()),
+        }
+    )
+}
+
+pub fn create_consumer_signature(enum_name: &Ident, enum_instance_name: &Ident, reference: bool) -> syn::FnArg {
+    let mut type_ = Type::Path(
+        TypePath{
+            qself: None,
+            path: Path {
+                leading_colon: None,
+                segments: Punctuated::from_iter(
+                    vec![
+                      PathSegment{
+                        ident: enum_name.clone(),
+                        arguments: PathArguments::None,
+                      }
+                    ]
+                )
+            }
+        }
+    );
+
+    if reference {
+        type_ = create_reference_of_type(type_);
+    }
+
     return syn::FnArg::Typed(
         syn::PatType{
             attrs: Vec::new(),
@@ -206,31 +238,7 @@ pub fn create_consumer_signature(enum_name: &Ident, enum_instance_name: &Ident) 
                     subpat: None,
                 })
             ),
-            ty: Box::new(syn::Type::Reference(
-              TypeReference{
-                  and_token: syn::token::And { spans: [Span::call_site()] },
-                  lifetime: None,
-                  mutability: None,
-                  elem: Box::new(
-                      Type::Path(
-                          TypePath{
-                              qself: None,
-                              path: syn::Path {
-                                  leading_colon: None,
-                                  segments: Punctuated::from_iter(
-                                      vec![
-                                        PathSegment{
-                                          ident: enum_name.clone(),
-                                          arguments: PathArguments::None,
-                                        }
-                                      ]
-                                  )
-                              }
-                          }
-                      )
-                  ),
-              }
-            ))
+            ty: Box::new(type_)
         }
     )
 }
@@ -249,4 +257,20 @@ pub fn create_function_call(method: &Ident, args: Punctuated<Expr, Comma>) -> Ex
         func: Box::new(method_path),
         args: args.clone(),
     })
+}
+
+pub fn create_expr_path_to_ident(ident: &Ident) -> ExprPath {
+    return ExprPath{
+        attrs: Vec::new(),
+        qself: None,
+        path: Path {
+            leading_colon: None,
+            segments: Punctuated::from_iter(vec![
+                PathSegment{
+                    ident: ident.clone(),
+                    arguments: PathArguments::None,
+                }
+            ])
+        }
+    }
 }

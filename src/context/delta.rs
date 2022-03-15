@@ -38,6 +38,17 @@ pub fn get_type_from_box(segment: &PathSegment) -> Ident {
     panic!("Failed to get type from box: {:?}", segment);
 }
 
+/// Check if the provided type is a Box<T>
+pub fn is_box(type_: &Type) -> bool {
+    return match &type_ {
+        Type::Path(type_path) => {
+            let segment = type_path.path.segments.first().unwrap();
+            segment.ident == "Box"
+        }
+        _ => panic!("Other types not supported")
+    }
+}
+
 pub fn get_type_ident_from_type(type_: &Type) -> Ident {
     match type_ {
         Type::Path(type_path) => get_ident_from_path(&type_path.path),

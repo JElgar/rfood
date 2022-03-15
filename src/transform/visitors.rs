@@ -6,7 +6,7 @@ use syn::__private::Span;
 use crate::context;
 use crate::ast;
 use context::delta::Delta;
-use ast::create::create_function_call;
+use ast::create::{create_function_call, create_expr_path_to_ident};
 
 /// Expr is self
 fn get_method_call_ident(expr: &Expr) -> Option<Ident> {
@@ -58,12 +58,24 @@ impl VisitMut for ReplaceMethodCalls {
             // Extract the type of the expression that the method is being called on
             let expr_type = self.delta.get_type_of_expr(&expr_method_call.receiver);
 
-            println!("Transforming expression with type: {:?}", expr_type);
             // Create function call for method
             // TODO add previous caller to args
             let mut args = Punctuated::from_iter(vec![*expr_method_call.receiver]);
             args.extend(expr_method_call.args.clone());
             *expr = create_function_call(&expr_method_call.method, args)
+        }
+    }
+}
+
+pub struct ReplaceSelf {
+    pub enum_name: Ident,
+}
+impl VisitMut for ReplaceSelf {
+    fn visit_expr_path_mut(&mut self, i: &mut ExprPath) {
+        visit_expr_path_mut(self, i);
+        if i.path.segments.first().unwrap().ident == "self" {
+            println!("Visiting self expr path {:?}", i);
+            *i = create_expr_path_to_ident(&self.enum_name);
         }
     }
 }

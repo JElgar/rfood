@@ -40,7 +40,7 @@ pub fn transform_trait(trait_: &ItemTrait, gamma: &Gamma) -> Vec<Item> {
 fn transform_destructor(trait_: &ItemTrait, destructor: &TraitItemMethod, enum_name: &Ident, gamma: &Gamma) -> Item {
     let (signature, enum_instance_name) = transform_destructor_signature(&destructor.sig, enum_name, &gamma);
     let arms: Vec<syn::Arm> = Vec::from_iter(gamma.get_generators(trait_).iter().map(|(generator, generator_impl)| {
-        transform_destructor_impl(generator, destructor, enum_name, generator_impl)
+        transform_destructor_impl(generator, destructor, enum_name, &enum_instance_name, generator_impl)
     }));
 
     let match_expr = ast::create::create_match_statement(&enum_instance_name, arms);
@@ -53,8 +53,9 @@ fn transform_destructor(trait_: &ItemTrait, destructor: &TraitItemMethod, enum_n
 /// * `generator` - The generator that the destructor belongs to
 /// * `destructor` - The destructor that the impl is of 
 /// * `enum_name` - The name of the enum that the match arm should be created for
+/// * `enum_instance_name` - The name of the instance of the enum 
 /// * `impl_` - The implementation of the generator
-fn transform_destructor_impl(generator: &ItemStruct, destructor: &TraitItemMethod, enum_name: &Ident, impl_: &ItemImpl) -> Arm {
+fn transform_destructor_impl(generator: &ItemStruct, destructor: &TraitItemMethod, enum_name: &Ident, enum_instance_name: &Ident, impl_: &ItemImpl) -> Arm {
     // Find the implementation of the method
     let method: ImplItemMethod = Gamma::get_destructor_impl_for_generator(&impl_, destructor);
 
@@ -66,7 +67,7 @@ fn transform_destructor_impl(generator: &ItemStruct, destructor: &TraitItemMetho
     let mut expr: Expr  = Expr::Block(ExprBlock{block: method.block, attrs: Vec::new(), label: None});
 
     // Transform the body of the method
-    expr = transform_destructor_expr(&expr, &delta);
+    expr = transform_destructor_expr(&expr, &delta, enum_instance_name);
 
     // Create the arm of the match statement
     let path = ast::create::create_match_path_for_enum(enum_name, &generator.ident);
@@ -78,7 +79,7 @@ fn transform_destructor_impl(generator: &ItemStruct, destructor: &TraitItemMetho
 /// Given expression for destructor covert all method calls 
 ///
 /// Replace all method calls to the destructor with the corresponding consumer function call
-fn transform_destructor_expr(expr: &Expr, delta: &Delta) -> Expr {
+fn transform_destructor_expr(expr: &Expr, delta: &Delta, enum_name: &Ident) -> Expr {
 
     let mut expr_clone = expr.clone();
     let mut rfc = ReplaceFieldCalls{delta: delta.clone()};
@@ -86,6 +87,10 @@ fn transform_destructor_expr(expr: &Expr, delta: &Delta) -> Expr {
 
     let mut rmc = ReplaceMethodCalls{delta: delta.clone()};
     rmc.visit_expr_mut(&mut expr_clone);
+
+    let mut rs = ReplaceSelf{enum_name: enum_name.clone()};
+    rs.visit_expr_mut(&mut expr_clone);
+
     return expr_clone; 
 }
 
@@ -101,8 +106,10 @@ fn transform_destructor_expr(expr: &Expr, delta: &Delta) -> Expr {
 fn transform_destructor_signature(signature: &Signature, enum_name: &Ident, gamma: &Gamma) -> (Signature, Ident){
     let enum_instance_name = transform_type_to_name(enum_name);
     let new_inputs = syn::punctuated::Punctuated::from_iter(signature.inputs.iter().map(|item| {
-        if let syn::FnArg::Receiver(arg_data) = item {
-            return create_consumer_signature(enum_name, &enum_instance_name);
+        // Replace self with enum
+        if let syn::FnArg::Receiver(..) = item {
+            // TODO use borrow as required
+            return create_consumer_signature(enum_name, &enum_instance_name, true);
         }
         if let syn::FnArg::Typed(PatType{
             pat,
@@ -110,19 +117,23 @@ fn transform_destructor_signature(signature: &Signature, enum_name: &Ident, gamm
             ..
         }) = item {
             if let Pat::Ident(pat_ident) = &**pat {
-              println!("Got ident type {:?}", pat_ident.ident);
               // The type of the thing
               let arg_type = get_type_ident_from_type(&*ty);
-              println!("Got arg_type type {:?}", arg_type);
 
               // Check if the type is in the geneators
               if gamma.is_interface(&arg_type) {
                   // If yes transform
-                  return create_consumer_signature(enum_name, &enum_instance_name);
+                  return create_consumer_signature(
+                      // Set type
+                      if arg_type == "Self" {&enum_name} else {&arg_type},
+                      // Set name
+                      if pat_ident.ident == "self" {&enum_instance_name} else {&pat_ident.ident},
+                      // Do not use a reference
+                      false
+                  );
               }
             }
         }
-        println!("Skipped transforming signature with inputs: {:?}", signature.inputs);
         item.clone()
     }));
     

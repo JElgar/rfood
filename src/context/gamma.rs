@@ -91,6 +91,9 @@ impl Gamma {
     }
 
     pub fn is_interface(&self, ident: &Ident) -> bool {
+        if ident == "Self" {
+            return true;
+        }
         self.traits.iter().find(|generator| generator.ident == *ident).is_some()
     }
 }
