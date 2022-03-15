@@ -58,10 +58,11 @@ impl VisitMut for ReplaceMethodCalls {
             // Extract the type of the expression that the method is being called on
             let expr_type = self.delta.get_type_of_expr(&expr_method_call.receiver);
 
+            println!("Transforming expression with type: {:?}", expr_type);
             // Create function call for method
             // TODO add previous caller to args
-            let mut args = expr_method_call.args.clone();
-            args.push(*expr_method_call.receiver);
+            let mut args = Punctuated::from_iter(vec![*expr_method_call.receiver]);
+            args.extend(expr_method_call.args.clone());
             *expr = create_function_call(&expr_method_call.method, args)
         }
     }
