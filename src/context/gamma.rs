@@ -89,6 +89,10 @@ impl Gamma {
         // If not found raise an exception
         .unwrap_or_else(|| panic!("Method {:?} not found in impl {:?}", destructor, generator_impl))
     }
+
+    pub fn is_interface(&self, ident: &Ident) -> bool {
+        self.traits.iter().find(|generator| generator.ident == *ident).is_some()
+    }
 }
 
 impl<'ast> Visit<'ast> for Gamma {

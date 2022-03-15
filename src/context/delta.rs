@@ -41,7 +41,7 @@ pub fn get_type_from_box(segment: &PathSegment) -> Ident {
     panic!("Failed to get type from box: {:?}", segment);
 }
 
-fn get_type_ident_from_type(type_: &Type) -> Ident {
+pub fn get_type_ident_from_type(type_: &Type) -> Ident {
     match type_ {
         Type::Path(type_path) => get_ident_from_path(&type_path.path),
         _ => panic!("Other types not supported")
@@ -74,7 +74,6 @@ pub fn get_type_from_function_arg(arg: &FnArg, self_type: &Ident) -> Ident {
 }
 
 pub fn get_attribute_ident_from_function_arg(arg: &FnArg) -> Ident {
-    println!("{:?}", arg);
     if let FnArg::Typed(PatType { pat, .. }) = arg {
         if let Pat::Ident(pat_ident) = &**pat {
             return pat_ident.ident.clone();
@@ -127,8 +126,6 @@ impl Delta {
         let types: HashMap<Ident, Ident> = signature.inputs.iter().map(|arg| {
             (get_attribute_ident_from_function_arg(arg), get_type_from_function_arg(arg, self_type))
         }).into_iter().collect();
-
-        println!("For sig: {:?} \nDelta types are: {:?}", signature, types);
         self.types.extend(types);
     }
 

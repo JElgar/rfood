@@ -190,10 +190,10 @@ pub fn create_match_arm(match_path: syn::Path, elems: Vec<syn::Ident>, body: syn
   } 
 }
 
-pub fn create_consumer_signature(reciever: &syn::Receiver, enum_name: &Ident, enum_instance_name: &Ident) -> syn::FnArg {
+pub fn create_consumer_signature(enum_name: &Ident, enum_instance_name: &Ident) -> syn::FnArg {
     return syn::FnArg::Typed(
         syn::PatType{
-            attrs: reciever.attrs.clone(),
+            attrs: Vec::new(),
             colon_token: Colon{
                 spans: [Span::call_site()],
             },

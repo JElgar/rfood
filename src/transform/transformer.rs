@@ -3,7 +3,7 @@ use syn::visit_mut::*;
 
 use crate::context;
 use context::gamma::Gamma;
-use context::delta::{Delta, get_struct_attrs};
+use context::delta::{Delta, get_struct_attrs, get_type_ident_from_type};
 
 use crate::ast;
 use ast::create::{create_enum_variant, create_consumer_signature};
@@ -29,7 +29,7 @@ pub fn transform_trait(trait_: &ItemTrait, gamma: &Gamma) -> Vec<Item> {
 
 
 fn transform_destructor(trait_: &ItemTrait, destructor: &TraitItemMethod, enum_name: &Ident, gamma: &Gamma) -> Item {
-    let (signature, enum_instance_name) = transform_destructor_signature(&destructor.sig, enum_name);
+    let (signature, enum_instance_name) = transform_destructor_signature(&destructor.sig, enum_name, &gamma);
     let arms: Vec<syn::Arm> = Vec::from_iter(gamma.get_generators(trait_).iter().map(|(generator, generator_impl)| {
         transform_destructor_impl(generator, destructor, enum_name, generator_impl)
     }));
@@ -74,15 +74,35 @@ fn transform_destructor_expr(expr: &Expr, delta: &Delta) -> Expr {
 ///
 /// * `signature` - The signature of the trait method
 /// * `enum_name` - The name of the enum (interface) which replaces self
+/// * `gamma` - Gamma
 ///
 /// Returns the function signature and the name of the type which replaces self if self is present
-fn transform_destructor_signature(signature: &Signature, enum_name: &Ident) -> (Signature, Ident){
+fn transform_destructor_signature(signature: &Signature, enum_name: &Ident, gamma: &Gamma) -> (Signature, Ident){
     let enum_instance_name = transform_type_to_name(enum_name);
     let new_inputs = syn::punctuated::Punctuated::from_iter(signature.inputs.iter().map(|item| {
-      if let syn::FnArg::Receiver(arg_data) = item {
-          return create_consumer_signature(arg_data, enum_name, &enum_instance_name);
-      }
-      item.clone()
+        if let syn::FnArg::Receiver(arg_data) = item {
+            return create_consumer_signature(enum_name, &enum_instance_name);
+        }
+        if let syn::FnArg::Typed(PatType{
+            pat,
+            ty,
+            ..
+        }) = item {
+            if let Pat::Ident(pat_ident) = &**pat {
+              println!("Got ident type {:?}", pat_ident.ident);
+              // The type of the thing
+              let arg_type = get_type_ident_from_type(&*ty);
+              println!("Got arg_type type {:?}", arg_type);
+
+              // Check if the type is in the geneators
+              if gamma.is_interface(&arg_type) {
+                  // If yes transform
+                  return create_consumer_signature(enum_name, &enum_instance_name);
+              }
+            }
+        }
+        println!("Skipped transforming signature with inputs: {:?}", signature.inputs);
+        item.clone()
     }));
     
     (
