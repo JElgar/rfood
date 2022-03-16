@@ -23,28 +23,18 @@ use transform::transformer::transform_trait;
 
 fn print_goal() {
   // -- Print current and goal enum --//
-  let filename = "./src/test.rs";
+  let filename = "./src/examples/generics/oop.rs";
   let mut file = File::open(&filename).expect("Unable to open file");
 
   let mut src = String::new();
   file.read_to_string(&mut src).expect("Unable to read file");
 
   let syntax: syn::File = syn::parse_file(&src).expect("Unable to parse file");
-  println!("{:?}", syntax);
+  println!("{:?}\n\n", syntax);
 }
 
-fn main() {
-    // context::delta::Delta::generate_for_file();
-    // return;
-
-    // print_goal();
-    // println!();
-    // println!();
-
-    // Environemnt map
-    
+fn transform(filename: &str) {
     //-- Do the transfrom --//
-    let filename = "./src/examples/set/oop.rs";
     let mut file = File::open(&filename).expect("Unable to open file");
 
     let mut src = String::new();
@@ -63,4 +53,11 @@ fn main() {
     if write_and_fmt("outputs/output.rs", quote!(#syntax)).is_err() {
         panic!("Unable to write output file");
     }
+}
+
+fn main() {
+    transform("./src/examples/generics/oop.rs");
+
+    // examples::generics::fp::demo();
+    // examples::generics::oop::demo();
 }

@@ -19,7 +19,7 @@ pub fn transform_trait(trait_: &ItemTrait, gamma: &Gamma) -> Vec<Item> {
     let variants: Vec<syn::Variant> = Vec::from_iter(gamma.get_generators(trait_).iter().map(|(generator, _)| create_enum_variant(&generator.ident, generator.fields.clone())));
 
     // Create the enum
-    let new_enum: syn::Item = ast::create::create_enum(&trait_.ident, variants);
+    let new_enum: syn::Item = ast::create::create_enum(&trait_.ident, variants, &trait_.generics);
 
     // For each destructor of the trait create a new consumer of the enum 
     let mut consumers = Vec::from_iter(gamma.get_destructors(trait_).iter().map(|destructor| {
@@ -103,7 +103,7 @@ fn transform_destructor_expr(expr: &Expr, delta: &Delta, enum_name: &Ident) -> E
 /// * `gamma` - Gamma
 ///
 /// Returns the function signature and the name of the type which replaces self if self is present
-fn transform_destructor_signature(signature: &Signature, enum_name: &Ident, gamma: &Gamma) -> (Signature, Ident){
+fn transform_destructor_signature(signature: &Signature, enum_name: &Ident, generator_impl: &ItemImpl, gamma: &Gamma) -> (Signature, Ident){
     let enum_instance_name = transform_type_to_name(enum_name);
     let new_inputs = syn::punctuated::Punctuated::from_iter(signature.inputs.iter().map(|item| {
         // Replace self with enum
@@ -140,6 +140,7 @@ fn transform_destructor_signature(signature: &Signature, enum_name: &Ident, gamm
     (
         syn::Signature {
             inputs: new_inputs,
+            generics: generator_impl.generics.clone(),
             ..signature.clone()
         },
         enum_instance_name.clone()

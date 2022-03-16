@@ -3,7 +3,7 @@ use syn::punctuated::Punctuated;
 use syn::__private::Span;
 use syn::token::{Comma, Colon};
 
-pub fn create_enum(name: &Ident, variants: Vec<syn::Variant>) -> syn::Item {
+pub fn create_enum(name: &Ident, variants: Vec<syn::Variant>, generics: &syn::Generics) -> syn::Item {
     Item::Enum(
         ItemEnum {
             attrs: [].to_vec(),
@@ -12,12 +12,7 @@ pub fn create_enum(name: &Ident, variants: Vec<syn::Variant>) -> syn::Item {
                 span: Span::call_site(),
             },
             ident: name.clone(),
-            generics: syn::Generics {
-                lt_token: None,
-                params: syn::punctuated::Punctuated::from_iter(Vec::new() as Vec<syn::GenericParam>),
-                gt_token: None,
-                where_clause: None,
-            },
+            generics: generics.clone(),
             brace_token: syn::token::Brace{
                 span: syn::__private::Span::call_site(),
             },
@@ -109,7 +104,7 @@ pub fn create_function(sig: syn::Signature, stmts: Vec<syn::Stmt>) -> syn::Item 
             block: Box::new(syn::Block{
                 brace_token: syn::token::Brace{span: syn::__private::Span::call_site()},
                 stmts,
-            })
+            }),
         },
     )
 }
