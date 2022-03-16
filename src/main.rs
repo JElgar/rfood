@@ -11,13 +11,11 @@ extern crate rustc_typeck;
 // use std::env;
 use std::fs::File;
 use std::io::Read;
-use std::collections::HashMap;
 
 mod ast;
 mod context;
-mod fp;
-mod oop;
 mod transform;
+mod examples;
 
 use ast::print::write_and_fmt;
 use context::gamma::{Gamma, generate_gamma};
@@ -46,7 +44,7 @@ fn main() {
     // Environemnt map
     
     //-- Do the transfrom --//
-    let filename = "./src/oop/set.rs";
+    let filename = "./src/examples/set/oop.rs";
     let mut file = File::open(&filename).expect("Unable to open file");
 
     let mut src = String::new();
