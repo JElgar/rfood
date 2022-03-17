@@ -118,17 +118,7 @@ pub fn create_match_statement(match_ident: &syn::Ident, arms: Vec<syn::Arm>) -> 
                 syn::ExprPath{
                     attrs: Vec::new() as Vec<syn::Attribute>,
                     qself: None,
-                    path: syn::Path{
-                        leading_colon: None,
-                        segments: syn::punctuated::Punctuated::from_iter(
-                            [
-                                syn::PathSegment{
-                                    ident: match_ident.clone(),
-                                    arguments: syn::PathArguments::None,
-                                }
-                            ]
-                        ),
-                    },
+                    path: match_ident.clone().into(),
                 }
             )),
             arms,
@@ -226,14 +216,7 @@ pub fn create_consumer_signature(enum_name: &Ident, enum_instance_name: &Ident, 
     let mut type_ = Type::Path(
         TypePath{
             qself: None,
-            path: Path {
-                leading_colon: None,
-                segments: Punctuated::from_iter(
-                    vec![
-                        path_segment,
-                    ]
-                )
-            }
+            path: path_segment.into(),
         }
     );
 
