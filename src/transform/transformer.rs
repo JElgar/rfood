@@ -41,8 +41,7 @@ fn transform_destructor(trait_: &ItemTrait, destructor: &TraitItemMethod, enum_n
 
     // TODO Collect all the generics from all the implementations of the trait destructor
     let generics = trait_.generics.clone();
-
-    let (signature, enum_instance_name) = transform_destructor_signature(&destructor.sig, enum_name, &generics, &gamma);
+    let (signature, enum_instance_name) = transform_destructor_signature(&destructor.sig, enum_name, &generics, &generics, &gamma);
 
     let arms: Vec<syn::Arm> = Vec::from_iter(gamma.get_generators(trait_).iter().map(|(generator, generator_impl)| {
         transform_destructor_impl(generator, destructor, enum_name, &enum_instance_name, generator_impl)
@@ -108,13 +107,19 @@ fn transform_destructor_expr(expr: &Expr, delta: &Delta, enum_name: &Ident) -> E
 /// * `gamma` - Gamma
 ///
 /// Returns the function signature and the name of the type which replaces self if self is present
-fn transform_destructor_signature(signature: &Signature, enum_name: &Ident, generics: &Generics, gamma: &Gamma) -> (Signature, Ident){
+fn transform_destructor_signature(signature: &Signature, enum_name: &Ident, generics: &Generics, enum_generics: &Generics, gamma: &Gamma) -> (Signature, Ident){
     let enum_instance_name = transform_type_to_name(enum_name);
     let new_inputs = syn::punctuated::Punctuated::from_iter(signature.inputs.iter().map(|item| {
+
+        let create_self_consumer_signature = |as_ref| {
+            // Add generics to enum_name
+            create_consumer_signature(enum_name, &enum_instance_name, as_ref, &enum_generics)
+        };
+
         // Replace self with enum
         if let syn::FnArg::Receiver(..) = item {
             // TODO use borrow as required
-            return create_consumer_signature(enum_name, &enum_instance_name, true);
+            return create_self_consumer_signature(true);
         }
         if let syn::FnArg::Typed(PatType{
             pat,
@@ -127,15 +132,11 @@ fn transform_destructor_signature(signature: &Signature, enum_name: &Ident, gene
 
               // Check if the type is in the geneators
               if gamma.is_interface(&arg_type) {
-                  // If yes transform
-                  return create_consumer_signature(
-                      // Set type
-                      if arg_type == "Self" {&enum_name} else {&arg_type},
-                      // Set name
-                      if pat_ident.ident == "self" {&enum_instance_name} else {&pat_ident.ident},
-                      // Do not use a reference
-                      false
-                  );
+                  // If self
+                  if arg_type == "Self" || pat_ident.ident == "self" {
+                      return create_self_consumer_signature(false);
+                  }
+                  return create_consumer_signature(&arg_type, &pat_ident.ident, false, &enum_generics);
               }
             }
         }

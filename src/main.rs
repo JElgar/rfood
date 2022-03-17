@@ -23,7 +23,8 @@ use transform::transformer::transform_trait;
 
 fn print_goal() {
   // -- Print current and goal enum --//
-  let filename = "./src/examples/generics/oop.rs";
+  // let filename = "./src/examples/generics/oop.rs";
+  let filename = "./src/test.rs";
   let mut file = File::open(&filename).expect("Unable to open file");
 
   let mut src = String::new();
@@ -56,6 +57,7 @@ fn transform(filename: &str) {
 }
 
 fn main() {
+    // print_goal();
     transform("./src/examples/generics/oop.rs");
 
     // examples::generics::fp::demo();

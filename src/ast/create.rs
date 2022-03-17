@@ -196,7 +196,33 @@ pub fn create_reference_of_type(type_: Type) -> Type {
     )
 }
 
-pub fn create_consumer_signature(enum_name: &Ident, enum_instance_name: &Ident, reference: bool) -> syn::FnArg {
+pub fn generic_argumnet_from_generic_parameter(generic_param: GenericParam) -> GenericArgument {
+    if let GenericParam::Type(type_param) = generic_param {
+        return GenericArgument::Type(Type::Path(TypePath{
+            qself: None,
+            path: type_param.ident.clone().into(),
+        }));
+    }
+    panic!("Unsupported generic parameter, currently only type parameters are supported");
+}
+
+pub fn add_generics_to_path_segment(segmenet: PathSegment, generics: &syn::Generics) -> PathSegment {
+    let arguments = PathArguments::AngleBracketed(AngleBracketedGenericArguments{
+        colon2_token: None,
+        lt_token: token::Lt { spans: [Span::call_site()] },
+        gt_token: token::Gt { spans: [Span::call_site()] },
+        args: generics.params.iter().map(|generic_parm| generic_argumnet_from_generic_parameter(generic_parm.clone())).collect(),
+    });
+    PathSegment { arguments, ..segmenet }
+}
+
+pub fn create_consumer_signature(enum_name: &Ident, enum_instance_name: &Ident, reference: bool, enum_generics: &Generics) -> syn::FnArg {
+
+    let path_segment = add_generics_to_path_segment(PathSegment{
+        ident: enum_name.clone(),
+        arguments: PathArguments::None,
+    }, enum_generics);
+
     let mut type_ = Type::Path(
         TypePath{
             qself: None,
@@ -204,10 +230,7 @@ pub fn create_consumer_signature(enum_name: &Ident, enum_instance_name: &Ident, 
                 leading_colon: None,
                 segments: Punctuated::from_iter(
                     vec![
-                      PathSegment{
-                        ident: enum_name.clone(),
-                        arguments: PathArguments::None,
-                      }
+                        path_segment,
                     ]
                 )
             }
