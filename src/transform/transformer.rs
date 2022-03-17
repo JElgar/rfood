@@ -38,7 +38,12 @@ pub fn transform_trait(trait_: &ItemTrait, gamma: &Gamma) -> Vec<Item> {
 /// * `enum_ident` - The ident of the enum that the new generator should be created for 
 /// * `gamma` - The gamma context
 fn transform_destructor(trait_: &ItemTrait, destructor: &TraitItemMethod, enum_name: &Ident, gamma: &Gamma) -> Item {
-    let (signature, enum_instance_name) = transform_destructor_signature(&destructor.sig, enum_name, &gamma);
+
+    // TODO Collect all the generics from all the implementations of the trait destructor
+    let generics = trait_.generics.clone();
+
+    let (signature, enum_instance_name) = transform_destructor_signature(&destructor.sig, enum_name, &generics, &gamma);
+
     let arms: Vec<syn::Arm> = Vec::from_iter(gamma.get_generators(trait_).iter().map(|(generator, generator_impl)| {
         transform_destructor_impl(generator, destructor, enum_name, &enum_instance_name, generator_impl)
     }));
@@ -103,7 +108,7 @@ fn transform_destructor_expr(expr: &Expr, delta: &Delta, enum_name: &Ident) -> E
 /// * `gamma` - Gamma
 ///
 /// Returns the function signature and the name of the type which replaces self if self is present
-fn transform_destructor_signature(signature: &Signature, enum_name: &Ident, generator_impl: &ItemImpl, gamma: &Gamma) -> (Signature, Ident){
+fn transform_destructor_signature(signature: &Signature, enum_name: &Ident, generics: &Generics, gamma: &Gamma) -> (Signature, Ident){
     let enum_instance_name = transform_type_to_name(enum_name);
     let new_inputs = syn::punctuated::Punctuated::from_iter(signature.inputs.iter().map(|item| {
         // Replace self with enum
@@ -140,7 +145,7 @@ fn transform_destructor_signature(signature: &Signature, enum_name: &Ident, gene
     (
         syn::Signature {
             inputs: new_inputs,
-            generics: generator_impl.generics.clone(),
+            generics: generics.clone(),
             ..signature.clone()
         },
         enum_instance_name.clone()
