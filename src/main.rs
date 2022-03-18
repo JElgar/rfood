@@ -21,6 +21,7 @@ use ast::print::write_and_fmt;
 use context::gamma::{Gamma, generate_gamma};
 use transform::transformer::transform_trait;
 
+#[allow(dead_code)]
 fn print_goal() {
   // -- Print current and goal enum --//
   // let filename = "./src/examples/generics/oop.rs";
