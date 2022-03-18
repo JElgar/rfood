@@ -17,7 +17,7 @@ impl Set for Empty {
     fn is_empty(&self) -> bool {
         return true;
     }
-    fn contains(&self, i: i32) -> bool {
+    fn contains(&self, _i: i32) -> bool {
         return false;
     }
     fn union(self: Box<Self>, s: Box<dyn Set>) -> Box<dyn Set> {
@@ -103,6 +103,6 @@ pub fn demo() {
     });
 
     let s: Box<dyn Set> = s1.insert(4);
-    let s3: Box<dyn Set> = s.union(s2);
+    let _s3: Box<dyn Set> = s.union(s2);
     // println!("{:?}", s3);
 }

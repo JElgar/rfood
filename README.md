@@ -2,6 +2,10 @@
 
 ## TODO
 
+### General
+
+- [ ] Update the demo function (or any other functions) to correctly use the updated traits. (Probably do this with visit)
+
 ### Typing 
 
 - [ ] Correct return types in function signature
@@ -17,6 +21,12 @@
 
 ## Docs
 
+### Context
+
+For now gamma is collect globally. I.e. gamma is only populated for items at the root of the file. A future extension of this project would be to scope the collection of these items as well as the delta in the transformations.
+
+#### Gamma
+
 The first step of the transformer is collect gamma. Gamma is the global context and has the following attributes:
 
 - **Enums** - The enums in the file (these are the Datatypes)
@@ -26,4 +36,26 @@ The first step of the transformer is collect gamma. Gamma is the global context 
 - **Destructors** - These are the methods in the trait
 - **Consumers** - Methods that take an enum as the first argument and return any
 
-For now gamma is collect globally. I.e. gamma is only populated for items at the root of the file. A future extension of this project would be to scope the collection of these items as well as the delta in the transformations.
+#### Delta 
+
+TODO
+
+### The transformations
+
+The transformer currently only transforms traits. Firstly it parses the provided file, it then generates gamma for it and uses gamma to transform each trait. A trait is transformed as follows:
+
+1. For each of the trait's generators an enum variant is created.
+2. An enum is then created with the same name and generics as the original trait and with the variants created in step 1.
+3. For each destructor of the trait a consumer is then created this is done by the following steps:
+  1. Transform the signature with the following steps:
+  2. For each of the generators of the enum create a match statement arm with the following steps:
+    1. Find the implementation of the method in the generator implementation
+    2. Generate delta for the method (more info [here](#Delta))
+    3. Extract the body of the method and transform it as follows:
+      1. TODO (all the visitor stuff)
+    4. Generate a match arm that matches on the enum type (with all the args exposed) with the transformed body as the reponse.
+  3. Create a match statement with the arms created in step 3.2.
+  4. Create a function with the signature from 3.1 and the arms for 3.2.
+4. Return the new enum and consumers as a list of items
+
+
