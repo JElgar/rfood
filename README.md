@@ -47,15 +47,15 @@ The transformer currently only transforms traits. Firstly it parses the provided
 1. For each of the trait's generators an enum variant is created.
 2. An enum is then created with the same name and generics as the original trait and with the variants created in step 1.
 3. For each destructor of the trait a consumer is then created this is done by the following steps:
-  1. Transform the signature with the following steps:
-  2. For each of the generators of the enum create a match statement arm with the following steps:
-    1. Find the implementation of the method in the generator implementation
-    2. Generate delta for the method (more info [here](#Delta))
-    3. Extract the body of the method and transform it as follows:
-      1. TODO (all the visitor stuff)
-    4. Generate a match arm that matches on the enum type (with all the args exposed) with the transformed body as the reponse.
-  3. Create a match statement with the arms created in step 3.2.
-  4. Create a function with the signature from 3.1 and the arms for 3.2.
+   1. Transform the signature with the following steps:
+   2. For each of the generators of the enum create a match statement arm with the following steps:
+      1. Find the implementation of the method in the generator implementation
+      2. Generate delta for the method (more info [here](#Delta))
+      3. Extract the body of the method and transform it as follows:
+         1. TODO (all the visitor stuff)
+      4. Generate a match arm that matches on the enum type (with all the args exposed) with the transformed body as the reponse.
+   3. Create a match statement with the arms created in step 3.2.
+   4. Create a function with the signature from 3.1 and the arms for 3.2.
 4. Return the new enum and consumers as a list of items
 
 
