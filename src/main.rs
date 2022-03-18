@@ -59,7 +59,8 @@ fn transform(filename: &str) {
 
 fn main() {
     // print_goal();
-    transform("./src/examples/generics/oop.rs");
+    // transform("./src/examples/generics/oop.rs");
+    transform("./src/examples/set/oop.rs");
 
     // examples::generics::fp::demo();
     // examples::generics::oop::demo();

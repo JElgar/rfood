@@ -109,8 +109,9 @@ fn transform_destructor_expr(expr: &Expr, delta: &Delta, enum_name: &Ident) -> E
 /// Returns the function signature and the name of the type which replaces self if self is present
 fn transform_destructor_signature(signature: &Signature, enum_name: &Ident, generics: &Generics, enum_generics: &Generics, gamma: &Gamma) -> (Signature, Ident){
     let enum_instance_name = transform_type_to_name(enum_name);
-    let new_inputs = syn::punctuated::Punctuated::from_iter(signature.inputs.iter().map(|item| {
 
+    // Transform arguments
+    let new_inputs = syn::punctuated::Punctuated::from_iter(signature.inputs.iter().map(|item| {
         let create_self_consumer_signature = |as_ref| {
             // Add generics to enum_name
             create_consumer_signature(enum_name, &enum_instance_name, as_ref, &enum_generics)
@@ -142,6 +143,9 @@ fn transform_destructor_signature(signature: &Signature, enum_name: &Ident, gene
         }
         item.clone()
     }));
+
+    // TODO Transform return type 
+    // If it returns a box of itself, replace it with the enum
     
     (
         syn::Signature {

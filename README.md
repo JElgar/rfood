@@ -23,8 +23,6 @@
 
 ### Context
 
-For now gamma is collect globally. I.e. gamma is only populated for items at the root of the file. A future extension of this project would be to scope the collection of these items as well as the delta in the transformations.
-
 #### Gamma
 
 The first step of the transformer is collect gamma. Gamma is the global context and has the following attributes:
@@ -36,9 +34,23 @@ The first step of the transformer is collect gamma. Gamma is the global context 
 - **Destructors** - These are the methods in the trait
 - **Consumers** - Methods that take an enum as the first argument and return any
 
+For now gamma is collect globally. I.e. gamma is only populated for items at the root of the file. A future extension of this project would be to scope the collection of these items as well as the delta in the transformations.
+
+##### Restrictions
+
+This implementation focuses on specific types of these implementations. Although this could be extended to support different implementation styles of references for now the basic cases are implemented as a proof of concept.
+
+For this reasons the following restrictions are inplace:
+
+- If a trait returns an instance of it self it must be a dyn box
+- Trait/generator method implementations must have a single return statement (TODO: Extend this)
+- If enums contain instances of them selves is must be a box (recursive definiton)
+
 #### Delta 
 
-TODO
+Delta contains the type information during the transfomration. In this implementation this is currently very limited. This is a clear scope for extension of this project.
+
+The delta contains a hashmap of varaiables to types. 
 
 ### The transformations
 
