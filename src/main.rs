@@ -12,17 +12,18 @@ extern crate rustc_typeck;
 use std::fs::File;
 use std::io::Read;
 use std::path::PathBuf;
-
 use clap::Parser;
 
 mod ast;
 mod context;
 mod transform;
 mod examples;
+mod cli;
 
 use ast::print::write_and_fmt;
 use context::gamma::{Gamma, generate_gamma};
 use transform::transformer::transform_trait;
+use cli::{Cli, Commands};
 
 #[allow(dead_code)]
 fn print_goal() {
@@ -58,37 +59,6 @@ fn transform(path: &PathBuf) {
     if write_and_fmt("outputs/output.rs", quote!(#syntax)).is_err() {
         panic!("Unable to write output file");
     }
-}
-
-#[derive(Parser)]
-#[clap(name = "git")]
-#[clap(about = "A fictional versioning CLI", long_about = None)]
-struct Cli {
-    #[clap(subcommand)]
-    command: Commands,
-}
-
-#[derive(Parser)]
-#[clap(name = "rfood")]
-#[clap(bin_name = "rfood")]
-enum Commands {
-    #[clap()]
-    PrintTest,
-    #[clap(arg_required_else_help = true)]
-    Transform{
-        /// The path of the file to transform
-        #[clap(required = true, parse(from_os_str))]
-        path: PathBuf,
-    },
-}
-
-#[derive(clap::Args)]
-#[clap(author, version, about, long_about = None)]
-struct PrintTest {}
-
-#[derive(clap::Args)]
-#[clap(author, version, about, long_about = None)]
-struct Transform {
 }
 
 fn main() {
