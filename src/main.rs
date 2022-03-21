@@ -11,6 +11,9 @@ extern crate rustc_typeck;
 // use std::env;
 use std::fs::File;
 use std::io::Read;
+use std::path::PathBuf;
+
+use clap::Parser;
 
 mod ast;
 mod context;
@@ -35,9 +38,9 @@ fn print_goal() {
   println!("{:#?}\n\n", syntax);
 }
 
-fn transform(filename: &str) {
+fn transform(path: &PathBuf) {
     //-- Do the transfrom --//
-    let mut file = File::open(&filename).expect("Unable to open file");
+    let mut file = File::open(path).expect("Unable to open file");
 
     let mut src = String::new();
     file.read_to_string(&mut src).expect("Unable to read file");
@@ -57,11 +60,42 @@ fn transform(filename: &str) {
     }
 }
 
-fn main() {
-    // print_goal();
-    // transform("./src/examples/generics/oop.rs");
-    transform("./src/examples/set/oop.rs");
+#[derive(Parser)]
+#[clap(name = "git")]
+#[clap(about = "A fictional versioning CLI", long_about = None)]
+struct Cli {
+    #[clap(subcommand)]
+    command: Commands,
+}
 
-    // examples::generics::fp::demo();
-    // examples::generics::oop::demo();
+#[derive(Parser)]
+#[clap(name = "rfood")]
+#[clap(bin_name = "rfood")]
+enum Commands {
+    #[clap()]
+    PrintTest,
+    #[clap(arg_required_else_help = true)]
+    Transform{
+        /// The path of the file to transform
+        #[clap(required = true, parse(from_os_str))]
+        path: PathBuf,
+    },
+}
+
+#[derive(clap::Args)]
+#[clap(author, version, about, long_about = None)]
+struct PrintTest {}
+
+#[derive(clap::Args)]
+#[clap(author, version, about, long_about = None)]
+struct Transform {
+}
+
+fn main() {
+    let args = Cli::parse();
+
+    match &args.command {
+        Commands::PrintTest => print_goal(),
+        Commands::Transform{path} => transform(path),
+    }
 }

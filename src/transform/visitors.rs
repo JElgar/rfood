@@ -83,6 +83,7 @@ impl VisitMut for ReplaceSelf {
 pub struct ReplaceDynBoxDestructorReturnStatements;
 impl VisitMut for ReplaceDynBoxDestructorReturnStatements {
     fn visit_expr_return_mut(&mut self, i: &mut ExprReturn) {
+
         // If the return statement is a Box::new, remove the box call
         if let Expr::Call(ExprCall{
             func,

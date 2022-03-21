@@ -303,3 +303,6 @@ pub fn create_expression_block(stmts: Vec<syn::Stmt>) -> Expr {
         }
     })
 }
+
+pub fn create_deref_of_expr(expr: &Expr) {
+}
