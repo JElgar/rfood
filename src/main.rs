@@ -32,7 +32,7 @@ fn print_goal() {
   file.read_to_string(&mut src).expect("Unable to read file");
 
   let syntax: syn::File = syn::parse_file(&src).expect("Unable to parse file");
-  println!("{:?}\n\n", syntax);
+  println!("{:#?}\n\n", syntax);
 }
 
 fn transform(filename: &str) {

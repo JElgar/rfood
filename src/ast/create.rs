@@ -275,3 +275,31 @@ pub fn create_expr_path_to_ident(ident: &Ident) -> ExprPath {
         }
     }
 }
+
+/// Given an ident create a type for it
+pub fn create_type_from_ident(ident: &Ident) -> Type {
+    Type::Path(TypePath{
+        qself: None,
+        path: ident.clone().into(),
+    })
+}
+
+pub fn create_return_type_from_ident(ident: &Ident) -> ReturnType {
+    ReturnType::Type(
+        token::RArrow { spans: [Span::call_site(), Span::call_site()] },
+        Box::new(create_type_from_ident(ident))
+    )
+}
+
+pub fn create_expression_block(stmts: Vec<syn::Stmt>) -> Expr {
+    Expr::Block(ExprBlock{
+        attrs: Vec::new(),
+        label: None,
+        block: Block {
+            brace_token: syn::token::Brace{
+                span: syn::__private::Span::call_site(),
+            },
+            stmts
+        }
+    })
+}

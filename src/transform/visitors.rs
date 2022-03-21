@@ -6,7 +6,7 @@ use syn::__private::Span;
 use crate::context;
 use crate::ast;
 use context::delta::Delta;
-use ast::create::{create_function_call, create_expr_path_to_ident};
+use ast::create::*;
 
 /// Expr is self
 fn get_method_call_ident(expr: &Expr) -> Option<Ident> {
@@ -76,6 +76,34 @@ impl VisitMut for ReplaceSelf {
         if i.path.segments.first().unwrap().ident == "self" {
             println!("Visiting self expr path {:?}", i);
             *i = create_expr_path_to_ident(&self.enum_name);
+        }
+    }
+}
+
+pub struct ReplaceDynBoxDestructorReturnStatements;
+impl VisitMut for ReplaceDynBoxDestructorReturnStatements {
+    fn visit_expr_return_mut(&mut self, i: &mut ExprReturn) {
+        // If the return statement is a Box::new, remove the box call
+        if let Expr::Call(ExprCall{
+            func,
+            args,
+            ..
+        }) = &**i.expr.as_ref().unwrap() {
+            if let Expr::Path(ExprPath{
+                path: Path{
+                    segments,
+                    ..
+                },
+                ..
+            }) = &**func {
+                if segments.first().unwrap().ident == "Box" {
+                    // Block
+                    // i.expr = Some(Box::new(create_expression_block(
+                    //     Vec::from_iter(args.iter().cloned().map(|expr| Stmt::Expr(expr)))))
+                    // );
+                    i.expr = Some(Box::new(args.first().unwrap().clone()));
+                }
+            }
         }
     }
 }

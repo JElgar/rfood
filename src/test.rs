@@ -1,2 +1,3 @@
-fn insert(set: Set<T>) {
+fn insert() {
+    return Box::new(1);
 }

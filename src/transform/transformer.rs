@@ -3,10 +3,10 @@ use syn::visit_mut::*;
 
 use crate::context;
 use context::gamma::Gamma;
-use context::delta::{Delta, get_struct_attrs, get_type_ident_from_type};
+use context::delta::*;
 
 use crate::ast;
-use ast::create::{create_enum_variant, create_consumer_signature};
+use ast::create::*;
 
 use crate::transform;
 use transform::visitors::*;
@@ -41,14 +41,36 @@ fn transform_destructor(trait_: &ItemTrait, destructor: &TraitItemMethod, enum_n
 
     // TODO Collect all the generics from all the implementations of the trait destructor
     let generics = trait_.generics.clone();
-    let (signature, enum_instance_name) = transform_destructor_signature(&destructor.sig, enum_name, &generics, &generics, &gamma);
+    let (mut signature, enum_instance_name) = transform_destructor_signature(&destructor.sig, enum_name, &generics, &generics, &gamma);
 
     let arms: Vec<syn::Arm> = Vec::from_iter(gamma.get_generators(trait_).iter().map(|(generator, generator_impl)| {
         transform_destructor_impl(generator, destructor, enum_name, &enum_instance_name, generator_impl)
     }));
 
-    let match_expr = ast::create::create_match_statement(&enum_instance_name, arms);
+    let mut match_expr = ast::create::create_match_statement(&enum_instance_name, arms);
+   
+    
+    if is_dyn_box_generator_return(&signature, gamma) {
+        println!("It is a dynbox generator");
+        // TODO change return type
+        signature = Signature {
+            output: transform_dyn_box_destructor_signature_output(&signature.output),
+            ..signature
+        };
+
+        // TODO Change every return statement
+        let mut rdbdrs = ReplaceDynBoxDestructorReturnStatements;
+        rdbdrs.visit_expr_mut(&mut match_expr);
+    }
+
     ast::create::create_function(signature, vec![Stmt::Expr(match_expr)])
+}
+
+pub fn transform_dyn_box_destructor_signature_output(output: &ReturnType) -> ReturnType {
+    if let ReturnType::Type(_, type_) = output {
+        return create_return_type_from_ident(&get_type_ident_from_type(type_));
+    }
+    panic!("Unsupported return type for destructor");
 }
 
 /// Transform a function implementation of a destructor into an arm of the consumers match

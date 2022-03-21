@@ -5,6 +5,9 @@
 use std::collections::HashMap;
 use syn::*;
 use syn::__private::Span;
+use crate::context::*;
+use gamma::Gamma;
+use errors::*;
 
 #[derive(Debug, Clone)]
 pub struct Delta {
@@ -16,7 +19,7 @@ pub fn get_struct_attrs(struct_: &ItemStruct) -> Vec<Ident> {
     Vec::from_iter(fields_to_delta_types(&struct_.fields).iter().map(|(field, _)| field.clone()))
 }
 
-pub fn get_type_from_box(segment: &PathSegment) -> Ident {
+pub fn get_type_from_box(segment: &PathSegment) -> std::result::Result<Ident, NotABoxType> {
     // If the thing has args
     if let PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, ..}) = &segment.arguments {
         let arg = args.first().unwrap();
@@ -25,17 +28,17 @@ pub fn get_type_from_box(segment: &PathSegment) -> Ident {
         if let GenericArgument::Type(Type::TraitObject(TypeTraitObject { bounds, .. })) = arg {
             let bound = bounds.first().unwrap();
             if let TypeParamBound::Trait(TraitBound { path, .. }) = bound {
-                return get_ident_from_path(&path);
+                return Ok(get_ident_from_path(&path));
             }
         }
 
         // If not a dyn thing
         if let GenericArgument::Type(Type::Path(type_path)) = arg{
-            return get_ident_from_path(&type_path.path);
+            return Ok(get_ident_from_path(&type_path.path));
         }
     }
 
-    panic!("Failed to get type from box: {:?}", segment);
+    Err(NotABoxType{segment: segment.clone()})
 }
 
 /// Check if the provided type is a Box<T>
@@ -49,6 +52,21 @@ pub fn is_box(type_: &Type) -> bool {
     }
 }
 
+pub fn is_dyn_box_generator_return(signature: &Signature, gamma: &Gamma) -> bool {
+    if let ReturnType::Type(
+        _, type_
+    ) = &signature.output {
+        if let Type::Path(
+            TypePath { path: Path{ segments, .. } , .. }
+        ) = &**type_ {
+            if let Ok(ident) = get_type_from_box(segments.first().unwrap()) {
+                return gamma.is_trait(&ident);
+            }
+        }
+    }
+    return false;
+}
+
 pub fn get_type_ident_from_type(type_: &Type) -> Ident {
     match type_ {
         Type::Path(type_path) => get_ident_from_path(&type_path.path),
@@ -60,7 +78,7 @@ pub fn get_ident_from_path(Path { segments, .. }: &Path) -> Ident {
     let segment = segments.first().unwrap();
 
     if segment.ident == "Box" {
-        return get_type_from_box(segment);
+        return get_type_from_box(segment).unwrap();
     }
 
     return segment.ident.clone();

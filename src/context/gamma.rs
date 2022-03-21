@@ -3,6 +3,8 @@ extern crate proc_macro;
 use std::collections::HashMap;
 use syn::visit::{Visit, visit_item_enum, visit_item_trait, visit_item_struct, visit_item_impl};
 use syn::{ItemEnum, ItemTrait, Variant, ItemStruct, Type, Ident, TraitItem, TraitItemMethod, ImplItemMethod, ItemImpl, ImplItem, Expr};
+use crate::context::*;
+use errors::*;
 
 trait GammaExpr {
     fn get_signature(&self) -> (Type, Vec<Type>);
@@ -55,10 +57,17 @@ impl Gamma {
         gamma
     }
 
-    pub fn get_trait(&self, ident: &Ident) -> ItemTrait {
-        self.traits.iter().find(|t| {
+    pub fn is_trait(&self, ident: &Ident) -> bool {
+        return self.get_trait(ident).is_ok();
+    }
+
+    pub fn get_trait(&self, ident: &Ident) -> std::result::Result<ItemTrait, NotFound> {
+        match self.traits.iter().find(|t| {
             t.ident == ident.clone()
-        }).unwrap_or_else(|| panic!("Trait {} not found in gamma", ident)).clone()
+        }) {
+            Some(t) => Ok(t.clone()),
+            None => Err(NotFound{item_name: ident.to_string(), type_name: "trait".to_string()}),
+        }
     }
     
     pub fn get_generators(&self, trait_: &ItemTrait) -> Vec<(ItemStruct, ItemImpl)> {
@@ -129,7 +138,7 @@ impl<'ast> Visit<'ast> for Gamma {
         // Find the trait that is being implemented
         let trait_ = self.get_trait(
             &i.trait_.as_ref().unwrap().1.segments.first().unwrap().ident
-        );
+        ).unwrap();
 
         // Find the struct that the impl is for
         let struct_name: &Ident = if let Type::Path(type_path) = &*i.self_ty {
