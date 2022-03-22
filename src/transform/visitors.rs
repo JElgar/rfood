@@ -105,6 +105,9 @@ impl VisitMut for ReplaceDynBoxDestructorReturnStatements {
                     i.expr = Some(Box::new(args.first().unwrap().clone()));
                 }
             }
+        // Otherwise deref the return value
+        } else {
+            i.expr = Some(Box::new(create_reference_of_expr(i.expr.as_ref().unwrap())));
         }
     }
 }

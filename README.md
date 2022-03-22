@@ -8,7 +8,7 @@
 
 ### Typing 
 
-- [ ] Correct return types in function signature
+- [x] Correct return types in function signature
 - [ ] Correct return types from method returns (for now if box dereference). If explicitly wrapping response in box then remove this wrapping.
 - [ ] Fix constructors of enums to ensure boxes are created as required
  

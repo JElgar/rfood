@@ -186,6 +186,14 @@ pub fn create_reference_of_type(type_: Type) -> Type {
     )
 }
 
+pub fn create_reference_of_expr(expr: &Expr) -> Expr {
+    Expr::Unary(ExprUnary{
+        attrs: Vec::new(),
+        expr: Box::new(expr.clone()),
+        op: UnOp::Deref(token::Star { spans: [Span::call_site()] }),
+    })
+}
+
 pub fn generic_argumnet_from_generic_parameter(generic_param: GenericParam) -> GenericArgument {
     if let GenericParam::Type(type_param) = generic_param {
         return GenericArgument::Type(Type::Path(TypePath{
