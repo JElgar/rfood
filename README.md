@@ -4,7 +4,9 @@
 
 ### General
 
+- [ ] FP -> OOP 
 - [ ] Update the demo function (or any other functions) to correctly use the updated traits. (Probably do this with visit)
+- [ ] Support local parms in delta
 
 ### Typing 
 
@@ -14,7 +16,7 @@
  
 ### Generics
 
-- [ ] Get basic generics working for traits
+- [x] Get basic generics working for traits
 - [ ] Get basic generics working for methods 
 - [ ] Support extra generics for the structs (that are not in the trait) 
 - [ ] Support generics in both cases 
