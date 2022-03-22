@@ -204,6 +204,20 @@ pub fn generic_argumnet_from_generic_parameter(generic_param: GenericParam) -> G
     panic!("Unsupported generic parameter, currently only type parameters are supported");
 }
 
+pub fn generic_parameter_from_generic_argument(generic_argument: &GenericArgument) -> GenericParam {
+    if let GenericArgument::Type(Type::Path(TypePath {path, ..})) = generic_argument {
+        return GenericParam::Type(TypeParam{
+            attrs: Vec::new(),
+            ident: path.segments.last().unwrap().ident.clone(),
+            colon_token: None,
+            bounds: Punctuated::new(),
+            eq_token: None,
+            default: None,
+        });
+    }
+    panic!("Unsupported generic parameter, currently only type parameters are supported");
+}
+
 pub fn add_generics_to_path_segment(segmenet: PathSegment, generics: &syn::Generics) -> PathSegment {
     let arguments = PathArguments::AngleBracketed(AngleBracketedGenericArguments{
         colon2_token: None,
@@ -310,7 +324,4 @@ pub fn create_expression_block(stmts: Vec<syn::Stmt>) -> Expr {
             stmts
         }
     })
-}
-
-pub fn create_deref_of_expr(expr: &Expr) {
 }

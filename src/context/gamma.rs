@@ -2,12 +2,38 @@ extern crate proc_macro;
 
 use std::collections::HashMap;
 use syn::visit::{Visit, visit_item_enum, visit_item_trait, visit_item_struct, visit_item_impl};
-use syn::{ItemEnum, ItemTrait, Variant, ItemStruct, Type, Ident, TraitItem, TraitItemMethod, ImplItemMethod, ItemImpl, ImplItem, Expr};
+use syn::*;
 use crate::context::*;
+use crate::ast::create::generic_parameter_from_generic_argument;
 use errors::*;
 
-trait GammaExpr {
-    fn get_signature(&self) -> (Type, Vec<Type>);
+pub fn get_generics_from_type(type_: &Type) -> Generics {
+    if let Type::Path(TypePath{
+        path: Path{
+            segments,
+            ..
+        },
+        ..
+    }) = type_ {
+        return get_generics_from_path_segment(segments.first().unwrap());
+    }
+
+    panic!("Not implemented. Cannot get generics from type.");
+}
+
+pub fn get_generics_from_path_segment(segment: &PathSegment) -> Generics {
+    if let PathArguments::AngleBracketed(AngleBracketedGenericArguments {
+        args,
+        ..
+    }) = &segment.arguments {
+        let mut generics = Generics::default();
+        for arg in args {
+            generics.params.push(generic_parameter_from_generic_argument(arg));
+        }
+        return generics;
+    }
+
+    panic!("Cannot get generics from unsupported path segment");
 }
 
 /// Global context

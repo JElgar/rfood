@@ -9,12 +9,14 @@
 ### Typing 
 
 - [x] Correct return types in function signature
-- [ ] Correct return types from method returns (for now if box dereference). If explicitly wrapping response in box then remove this wrapping.
+- [x] Correct return types from method returns (for now if box dereference). If explicitly wrapping response in box then remove this wrapping.
 - [ ] Fix constructors of enums to ensure boxes are created as required
  
 ### Generics
 
-- [ ] Get basic generics working for methods and traits
+- [ ] Get basic generics working for traits
+- [ ] Get basic generics working for methods 
+- [ ] Support extra generics for the structs (that are not in the trait) 
 - [ ] Support generics in both cases 
 - [ ] Handle generics shadowing 
 - [ ] Look into GADT 
@@ -69,5 +71,13 @@ The transformer currently only transforms traits. Firstly it parses the provided
    3. Create a match statement with the arms created in step 3.2.
    4. Create a function with the signature from 3.1 and the arms for 3.2.
 4. Return the new enum and consumers as a list of items
+
+### Generics
+
+First step is supporting generics in traits. 
+When creating the enum add the generics from the trait to the enum.
+When creating the consumer add in the generics from the trait, into both the method and the consumers argument.
+
+Then extend to supoort additional generics in the structs that are not in the trait.
 
 

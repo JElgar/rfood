@@ -1,8 +1,10 @@
 use syn::*;
 use syn::visit_mut::*;
+use syn::punctuated::Punctuated;
+use syn::token::{Comma, Colon};
 
 use crate::context;
-use context::gamma::Gamma;
+use context::gamma::{Gamma, get_generics_from_path_segment};
 use context::delta::*;
 
 use crate::ast;
@@ -39,9 +41,24 @@ pub fn transform_trait(trait_: &ItemTrait, gamma: &Gamma) -> Vec<Item> {
 /// * `gamma` - The gamma context
 fn transform_destructor(trait_: &ItemTrait, destructor: &TraitItemMethod, enum_name: &Ident, gamma: &Gamma) -> Item {
 
-    // TODO Collect all the generics from all the implementations of the trait destructor
-    let generics = trait_.generics.clone();
-    let (mut signature, enum_instance_name) = transform_destructor_signature(&destructor.sig, enum_name, &generics, &generics, &gamma);
+    // Collect all the generics from all the implementations of the trait destructor
+    let mut generics = trait_.generics.clone();
+    let enum_generics = trait_.generics.clone();
+    for (_, generator_impl) in gamma.get_generators(trait_) {
+        // For the implementation find the generics for the trait
+        let trait_generics = get_generics_from_path_segment(&*generator_impl.trait_.unwrap().1.segments.first().unwrap());
+
+        // For the implementation find all the generics 
+        let impl_generics = generator_impl.generics;
+
+        // Remove the generics that are from the trait from all the generics of the implementation
+        let struct_generics: Vec<GenericParam> = Vec::from_iter(impl_generics.params.iter().filter(|param| !trait_generics.params.iter().any(|trait_param| trait_param == *param)).cloned());
+
+        // Add the generics that a just for the struct (not from the trait) to the list of generics
+        generics.params.extend(struct_generics);
+    }
+
+    let (mut signature, enum_instance_name) = transform_destructor_signature(&destructor.sig, enum_name, &generics, &enum_generics, &gamma);
 
     let arms: Vec<syn::Arm> = Vec::from_iter(gamma.get_generators(trait_).iter().map(|(generator, generator_impl)| {
         transform_destructor_impl(generator, destructor, enum_name, &enum_instance_name, generator_impl)
