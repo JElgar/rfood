@@ -91,16 +91,13 @@ impl Set for Union {
 }
 
 pub fn demo() {
-    let s1: Box<dyn Set> = Box::new(Insert {
-        set: Box::new(Empty{}),
-        value: 1
-    });
-    let s2: Box<dyn Set> = Box::new(Insert {
+    let empty = Box::new(Empty{});
+    let set = empty.insert(1);
+
+    let set2 = Box::new(Insert {
         set: Box::new(Empty{}),
         value: 1
     });
 
-    let s: Box<dyn Set> = s1.insert(4);
-    let _s3: Box<dyn Set> = s.union(s2);
-    // println!("{:?}", s3);
+    let _set3 = set.union(set2);
 }

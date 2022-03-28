@@ -127,7 +127,7 @@ pub fn create_match_statement(match_ident: &syn::Ident, arms: Vec<syn::Arm>) -> 
     )
 }
 
-pub fn create_match_path_for_enum(enum_ident: &Ident, variant_ident: &Ident) -> syn::Path {
+pub fn create_path_for_enum(enum_ident: &Ident, variant_ident: &Ident) -> syn::Path {
     syn::Path{
         leading_colon: None,
         segments: syn::punctuated::Punctuated::from_iter(

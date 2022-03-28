@@ -26,7 +26,4 @@ pub fn demo() {
         l: Box::new(Lit{n: 2}),
         r: Box::new(Lit{n: 1})
     });
-
-    pub struct Lit2;
-    println!("{}", e.eval());
 }

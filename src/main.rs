@@ -22,7 +22,7 @@ mod cli;
 
 use ast::print::write_and_fmt;
 use context::gamma::{Gamma, generate_gamma};
-use transform::transformer::transform_trait;
+use transform::transformer::{transform_trait, transform_item};
 use cli::{Cli, Commands};
 
 #[allow(dead_code)]
@@ -39,6 +39,11 @@ fn print_goal() {
   println!("{:#?}\n\n", syntax);
 }
 
+fn remove_item_from_syntax(syntax: &mut syn::File, item: syn::Item) {
+    let index = syntax.items.iter().position(|sitem| *sitem == item).unwrap();
+    syntax.items.remove(index);
+}
+
 fn transform(path: &PathBuf) {
     //-- Do the transfrom --//
     let mut file = File::open(path).expect("Unable to open file");
@@ -46,17 +51,35 @@ fn transform(path: &PathBuf) {
     let mut src = String::new();
     file.read_to_string(&mut src).expect("Unable to read file");
     let mut syntax: syn::File = syn::parse_file(&src).expect("Unable to parse file");
-   
+    let mut transformed_syntax = syn::File{
+        items: Vec::new(),
+        ..syntax.clone()
+    };
+
     // Generate global gamma context
     let gamma: Gamma = generate_gamma(&syntax);
    
     // Transform all the interfaces 
     for trait_ in &gamma.traits {
-        syntax.items.append(&mut transform_trait(&trait_, &gamma));
+        // Add the transformed items to the transformed syntax
+        transformed_syntax.items.append(&mut transform_trait(&trait_, &gamma));
+
+        // Remove the original trait from the syntax
+        for (item_struct, item_impl) in gamma.get_generators(trait_) {
+            remove_item_from_syntax(&mut syntax, syn::Item::Struct(item_struct));
+            remove_item_from_syntax(&mut syntax, syn::Item::Impl(item_impl));
+        }
+        remove_item_from_syntax(&mut syntax, syn::Item::Trait(trait_.clone()));
+    }
+
+    for item in &syntax.items {
+        println!("Transforming item: {:#?}", item);
+        transformed_syntax.items.push(transform_item(item, &gamma));
+        println!("Transformed item");
     }
 
     // Write output to file
-    if write_and_fmt("outputs/output.rs", quote!(#syntax)).is_err() {
+    if write_and_fmt("outputs/output.rs", quote!(#transformed_syntax)).is_err() {
         panic!("Unable to write output file");
     }
 }

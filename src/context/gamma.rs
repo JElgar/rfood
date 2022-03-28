@@ -21,23 +21,27 @@ pub fn get_generics_from_type(type_: &Type) -> Generics {
     panic!("Not implemented. Cannot get generics from type.");
 }
 
+pub fn create_generics_from_args(args: &AngleBracketedGenericArguments) -> Generics {
+    let mut generics = Generics::default();
+    for arg in &args.args {
+        generics.params.push(generic_parameter_from_generic_argument(arg));
+    }
+    return generics;
+}
+
 pub fn get_generics_from_path_segment(segment: &PathSegment) -> Generics {
-    if let PathArguments::AngleBracketed(AngleBracketedGenericArguments {
-        args,
-        ..
-    }) = &segment.arguments {
-        let mut generics = Generics::default();
-        for arg in args {
-            generics.params.push(generic_parameter_from_generic_argument(arg));
-        }
-        return generics;
+    if let PathArguments::AngleBracketed(args) = &segment.arguments {
+        return create_generics_from_args(args);
+    }
+    if let PathArguments::None = &segment.arguments {
+        return Generics::default();
     }
 
-    panic!("Cannot get generics from unsupported path segment");
+    panic!("Cannot get generics from unsupported path segment, {:?}", segment);
 }
 
 /// Global context
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Gamma {
     /// Enums are the datatypes
     pub enums: Vec<ItemEnum>, // DT - Datatypes
@@ -61,6 +65,8 @@ pub struct Gamma {
     // Helpers
     /// All structs found in the ast -> Note these may not be inscope!
     _structs: Vec<ItemStruct>,
+
+    pub functions: Vec<ItemFn>, // F - Functions, top level functions to transform
 }
 
 impl Gamma {
@@ -74,6 +80,7 @@ impl Gamma {
             enum_consumers: HashMap::new(),
 
             _structs: Vec::new(),
+            functions: Vec::new(),
         }
     }
 
@@ -99,6 +106,16 @@ impl Gamma {
     pub fn get_generators(&self, trait_: &ItemTrait) -> Vec<(ItemStruct, ItemImpl)> {
         self.generators.get(&trait_).unwrap_or_else(|| panic!("Trait {:?} not found in gamma", trait_)).clone()
     }
+
+    pub fn get_all_generators(&self) -> Vec<(ItemStruct, ItemImpl)> {
+        self.generators.iter().flat_map(|(_, v)| v.clone()).collect()
+    }
+
+    /// Check if the type is a generator, this can either be a struct or a trait name
+    pub fn is_generator_type(&self, type_ident: &Ident) -> bool {
+        self.get_all_generators().iter().any(|(struct_, _)| struct_.ident == *type_ident)
+            || self.get_trait(type_ident).is_ok()
+    }
     
     pub fn get_struct_by_name(&self, ident: &Ident) -> ItemStruct {
         self._structs.iter().find(|s| {
@@ -110,16 +127,39 @@ impl Gamma {
         self.destructors.get(&trait_).unwrap_or_else(|| panic!("Trait {:?} not found in gamma", trait_)).clone()
     }
 
-    pub fn get_destructor_impl_for_generator(generator_impl: &ItemImpl, destructor: &TraitItemMethod) -> ImplItemMethod {
+    pub fn get_generator(&self, generator_ident: &Ident) -> ItemTrait {
+        self.generators.iter().find_map(|(trait_, generators)| {
+            return generators.iter().find_map(|(generator_struct, _)| {
+                generator_struct.ident == *generator_ident;
+                Some(trait_.clone())
+            })
+        }).unwrap()
+    }
+    
+    pub fn get_destructor_signature(&self, generator_ident: &Ident, destructor_ident: &Ident) -> Signature {
+        let traits = self.get_traits_for_generator(&generator_ident);
+        self.traits.iter().find_map(|trait_| {
+            self.get_destructors(&trait_).iter().find_map(|trait_item_method| {
+                if trait_item_method.sig.ident == *destructor_ident {
+                    return Some(
+                        trait_item_method.sig.clone()
+                    );
+                }
+                return None;
+            })
+        }).unwrap()
+    }
+
+    pub fn get_destructor_impl_for_generator(generator_impl: &ItemImpl, destructor_ident: &Ident) -> ImplItemMethod {
         // Filter all methods in the impl to find the one that matches the destructor
         generator_impl.items.iter().find_map(|item| {
             return match &*item {
-                ImplItem::Method(impl_item_method) if impl_item_method.sig.ident == destructor.sig.ident => Some(impl_item_method.clone()),
+                ImplItem::Method(impl_item_method) if impl_item_method.sig.ident == *destructor_ident => Some(impl_item_method.clone()),
                 _ => None
             }
         })
         // If not found raise an exception
-        .unwrap_or_else(|| panic!("Method {:?} not found in impl {:?}", destructor, generator_impl))
+        .unwrap_or_else(|| panic!("Method {:?} not found in impl {:?}", destructor_ident, generator_impl))
     }
 
     pub fn is_interface(&self, ident: &Ident) -> bool {
@@ -127,6 +167,15 @@ impl Gamma {
             return true;
         }
         self.traits.iter().find(|generator| generator.ident == *ident).is_some()
+    }
+
+    /// This method returns all the traits a struct implements
+    ///
+    /// This means if a struct implements 2 traits, it will return both of them
+    pub fn get_traits_for_generator(&self, generator_ident: &Ident) -> Vec<ItemTrait> {
+        Vec::from_iter(self.traits.iter().filter(|trait_| {
+            self.get_generators(trait_).iter().any(|(generator_struct, _)| generator_struct.ident == *generator_ident)
+        }).cloned())
     }
 }
 
@@ -181,6 +230,10 @@ impl<'ast> Visit<'ast> for Gamma {
 
         // Push the struct to the traits generator list
         self.generators.get_mut(&trait_).unwrap().push((struct_.clone(), i.clone()));
+    }
+
+    fn visit_item_fn(&mut self, i: &'ast ItemFn) {
+        self.functions.push(i.clone());
     }
 }
 

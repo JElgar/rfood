@@ -33,13 +33,13 @@ fn union(left: Set, right: Set) -> Set {
 }
 
 pub fn demo() {
-    let mut set: Set = Set::Empty{};
-    set = insert(set, 1);
-    let set2 = Set::Insert{set: Box::new(Set::Empty{}), value: 1};
+    let empty = Box::new(Set::Empty{});
+    let set = insert(*empty, 1);
 
-    println!("{:?}", set);
-    println!("{:?}", set2);
-
-    let set3 = union(set, set2);
-    println!("{:?}", set3);
+    let set2 = Box::new(Set::Insert{
+        set: Box::new(Set::Empty{}),
+        value: 1
+    });
+    
+    let _set3 = union(set, *set2);
 }

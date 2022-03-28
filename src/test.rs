@@ -1,3 +1,3 @@
 fn insert() {
-    return *1;
+    Box::new(1);
 }

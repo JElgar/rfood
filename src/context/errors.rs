@@ -21,3 +21,13 @@ impl fmt::Display for NotFound {
         write!(f, "Failed to find {:?} of type {:?}", self.item_name, self.type_name)
     }
 }
+
+#[derive(Debug, Clone)]
+pub struct InvalidType {
+    pub message: String,
+}
+impl fmt::Display for InvalidType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self.message)
+    }
+}

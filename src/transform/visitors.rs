@@ -5,7 +5,8 @@ use syn::__private::Span;
 
 use crate::context;
 use crate::ast;
-use context::delta::Delta;
+use context::delta::{Delta, get_ident_from_path, new_box_call_expr};
+use context::gamma::Gamma;
 use ast::create::*;
 
 /// Expr is self
@@ -50,13 +51,14 @@ impl VisitMut for ReplaceFieldCalls {
 
 pub struct ReplaceMethodCalls {
     pub delta: Delta,
+    pub gamma: Gamma,
 }
 impl VisitMut for ReplaceMethodCalls {
     fn visit_expr_mut(&mut self, expr: &mut Expr) {
         visit_expr_mut(self, expr);
         if let syn::Expr::MethodCall(expr_method_call) = expr.clone() {
             // Extract the type of the expression that the method is being called on
-            let expr_type = self.delta.get_type_of_expr(&expr_method_call.receiver);
+            let expr_type = self.delta.get_type_of_expr(&expr_method_call.receiver, &self.gamma);
 
             // Create function call for method
             // TODO add previous caller to args
@@ -85,29 +87,30 @@ impl VisitMut for ReplaceDynBoxDestructorReturnStatements {
     fn visit_expr_return_mut(&mut self, i: &mut ExprReturn) {
 
         // If the return statement is a Box::new, remove the box call
-        if let Expr::Call(ExprCall{
-            func,
-            args,
-            ..
-        }) = &**i.expr.as_ref().unwrap() {
-            if let Expr::Path(ExprPath{
-                path: Path{
-                    segments,
-                    ..
-                },
-                ..
-            }) = &**func {
-                if segments.first().unwrap().ident == "Box" {
-                    // Block
-                    // i.expr = Some(Box::new(create_expression_block(
-                    //     Vec::from_iter(args.iter().cloned().map(|expr| Stmt::Expr(expr)))))
-                    // );
-                    i.expr = Some(Box::new(args.first().unwrap().clone()));
-                }
+        match new_box_call_expr(&Expr::Return(i.clone())) {
+            Ok(expr) => i.expr = Some(Box::new(expr)),
+            _ => i.expr = Some(Box::new(create_reference_of_expr(i.expr.as_ref().unwrap())))
+        }
+    }
+}
+
+// Replace all generators (structs) with constructors (enums)
+pub struct TransformGenerators {
+    gamma: Gamma,
+    trait_: ItemTrait,
+}
+impl VisitMut for TransformGenerators {
+    fn visit_expr_mut(&mut self, i: &mut Expr) {
+        // If the expression is a generator
+        if let Expr::Struct(expr_struct) = i {
+            let expr_ident: Ident = get_ident_from_path(&expr_struct.path);
+            // If the struct is a generator of the trait
+            if self.gamma.get_generators(&self.trait_).iter().any(|(struct_, _)| struct_.ident == expr_ident) {
+                // Add path to the enum
+                let enum_path = create_path_for_enum(&self.trait_.ident, &expr_ident);
+
+                expr_struct.path = enum_path;
             }
-        // Otherwise deref the return value
-        } else {
-            i.expr = Some(Box::new(create_reference_of_expr(i.expr.as_ref().unwrap())));
         }
     }
 }
