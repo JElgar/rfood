@@ -5,8 +5,10 @@ extern crate proc_macro;
 #[macro_use]
 extern crate quote;
 
-extern crate rustc_ast;
-extern crate rustc_typeck;
+// extern crate rustc_ast;
+// extern crate rustc_typeck;
+
+use rfood::*;
 
 // use std::env;
 use std::fs::File;
@@ -14,14 +16,8 @@ use std::io::Read;
 use std::path::PathBuf;
 use clap::Parser;
 
-mod ast;
-mod context;
-mod transform;
-mod examples;
-mod cli;
-
 use ast::print::write_and_fmt;
-use context::gamma::{Gamma, generate_gamma};
+use rfood::context::gamma::{Gamma, generate_gamma};
 use transform::transformer::{transform_trait, transform_item};
 use cli::{Cli, Commands};
 
@@ -40,8 +36,10 @@ fn print_goal() {
 }
 
 fn remove_item_from_syntax(syntax: &mut syn::File, item: syn::Item) {
-    let index = syntax.items.iter().position(|sitem| *sitem == item).unwrap();
-    syntax.items.remove(index);
+    let index = syntax.items.iter().position(|sitem| *sitem == item);
+    if index.is_some() {
+        syntax.items.remove(index.unwrap());
+    }
 }
 
 fn transform(path: &PathBuf) {

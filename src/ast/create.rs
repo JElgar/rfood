@@ -151,22 +151,42 @@ pub fn create_match_arm(match_path: syn::Path, elems: Vec<syn::Ident>, body: syn
 
   syn::Arm {
     attrs: Vec::new() as Vec<syn::Attribute>,
-    pat: syn::Pat::TupleStruct(syn::PatTupleStruct{
+    pat: syn::Pat::Struct(syn::PatStruct{
         attrs: Vec::new() as Vec<syn::Attribute>,
         path: match_path,
-        pat: syn::PatTuple {
-            attrs: Vec::new() as Vec<syn::Attribute>,
-            paren_token: syn::token::Paren{span: syn::__private::Span::call_site()},
-            elems: syn::punctuated::Punctuated::from_iter(elems.iter().map(|item| {
-              syn::Pat::Ident(syn::PatIdent{
-                attrs: Vec::new() as Vec<syn::Attribute>,
-                by_ref: None,
-                mutability: None,
-                subpat: None,
-                ident: item.clone(),
-              })
-            })),
-        },
+        fields: Punctuated::from_iter(
+            elems.iter().map(|item| {
+                syn::FieldPat{
+                    attrs: Vec::new() as Vec<syn::Attribute>,
+                    colon_token: None,
+                    member: Member::Named(item.clone()),
+                    pat: Box::new(Pat::Ident(
+                        syn::PatIdent{
+                            attrs: Vec::new() as Vec<syn::Attribute>,
+                            by_ref: None,
+                            mutability: None,
+                            ident: item.clone(),
+                            subpat: None,
+                        }
+                    ))  
+                }
+            })
+        ),
+        brace_token: syn::token::Brace{span: syn::__private::Span::call_site()},
+        dot2_token: None,
+        // pat: syn::PatTuple {
+        //     attrs: Vec::new() as Vec<syn::Attribute>,
+        //     paren_token: syn::token::Paren{span: syn::__private::Span::call_site()},
+        //     elems: syn::punctuated::Punctuated::from_iter(elems.iter().map(|item| {
+        //       syn::Pat::Ident(syn::PatIdent{
+        //         attrs: Vec::new() as Vec<syn::Attribute>,
+        //         by_ref: None,
+        //         mutability: None,
+        //         subpat: None,
+        //         ident: item.clone(),
+        //       })
+        //     })),
+        // },
     }),
     guard: None,
     fat_arrow_token: syn::token::FatArrow{spans: [syn::__private::Span::call_site(), syn::__private::Span::call_site()]},
@@ -186,12 +206,24 @@ pub fn create_reference_of_type(type_: Type) -> Type {
     )
 }
 
-pub fn create_reference_of_expr(expr: &Expr) -> Expr {
+pub fn create_dereference_of_expr(expr: &Expr) -> Expr {
     Expr::Unary(ExprUnary{
         attrs: Vec::new(),
         expr: Box::new(expr.clone()),
         op: UnOp::Deref(token::Star { spans: [Span::call_site()] }),
     })
+}
+
+pub fn create_reference_of_expr(expr: &Expr) -> Expr {
+    Expr::Reference(
+        ExprReference{
+            attrs: Vec::new(),
+            and_token: token::And { spans: [Span::call_site()] },
+            mutability: None,
+            raw: syn::reserved::Reserved::default(),
+            expr: Box::new(expr.clone()),
+        }
+    )
 }
 
 pub fn generic_argumnet_from_generic_parameter(generic_param: GenericParam) -> GenericArgument {

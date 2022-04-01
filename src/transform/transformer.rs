@@ -69,6 +69,7 @@ fn transform_destructor(trait_: &ItemTrait, destructor: &TraitItemMethod, enum_n
     
     if is_dyn_box_generator_return(&signature, gamma) {
         println!("It is a dynbox generator");
+
         // TODO change return type
         signature = Signature {
             output: transform_dyn_box_destructor_signature_output(&signature.output),
@@ -123,8 +124,8 @@ fn transform_destructor_impl(generator: &ItemStruct, destructor: &TraitItemMetho
 ///
 /// Replace all method calls to the destructor with the corresponding consumer function call
 fn transform_destructor_expr(expr: &Expr, delta: &Delta, gamma: &Gamma, enum_name: &Ident) -> Expr {
-
     let mut expr_clone = expr.clone();
+    
     let mut rfc = ReplaceFieldCalls{delta: delta.clone()};
     rfc.visit_expr_mut(&mut expr_clone);
 
@@ -203,10 +204,14 @@ fn transform_destructor_signature(signature: &Signature, enum_name: &Ident, gene
 /// # Examples
 ///
 /// ```
+/// use syn::Ident;
+/// use syn::__private::Span;
+/// use rfood::transform::transformer::transform_type_to_name;
+///
 /// let type_ = Ident::new("Something", Span::call_site());
-/// assert_eq!(transform_type_to_name(type_).to_string(), "something");
+/// assert_eq!(transform_type_to_name(&type_).to_string(), "something");
 /// ```
-fn transform_type_to_name(type_ident: &Ident) -> Ident {
+pub fn transform_type_to_name(type_ident: &Ident) -> Ident {
     Ident::new(&type_ident.to_string().to_lowercase(), type_ident.span())
 }
 
@@ -234,25 +239,60 @@ fn transform_function(func: &ItemFn, gamma: &Gamma) -> syn::ItemFn {
     }
 }
 
+fn transform_struct_instantiation_path_for_enum(expr_struct: &ExprStruct, gamma: &Gamma, delta: &Delta) -> Path {
+    // Get the name of the enum
+    let trait_name = gamma.get_generator_trait(&get_type_from_path(&expr_struct.path).name).unwrap();
+    // Add the enum in front of the struct
+    let mut new_path_vec = vec![PathSegment{ident: trait_name.ident.clone(), arguments: PathArguments::None}];
+    new_path_vec.append(&mut Vec::from_iter(expr_struct.path.segments.clone().iter().cloned()));
+
+    // Add it to the front of the struct path segments
+    Path {
+        segments: Punctuated::from_iter(new_path_vec),
+        ..expr_struct.path.clone()
+    }
+}
+
 fn transform_expr(expr: &Expr, gamma: &Gamma, delta: &mut Delta) -> Expr {
     match expr {
         Expr::MethodCall(ExprMethodCall{method, receiver, args, ..})
-            if gamma.is_generator_type(&delta.get_type_of_expr(receiver, gamma).name) 
+            if gamma.is_generator_type(&delta.get_type_of_expr(receiver, gamma).unwrap().name) 
         => {
-            let mut new_args = Punctuated::from_iter(vec![*receiver.clone()]);
+            let receiver_expr = if delta.get_type_of_expr(&receiver, gamma).unwrap().is_box {
+                create_dereference_of_expr(&receiver)
+            } else {
+                *receiver.clone()
+            };
+            let mut new_args = Punctuated::from_iter(vec![receiver_expr]);
             new_args.extend(args.clone());
-            return create_function_call(&method, new_args)
+            create_function_call(&method, new_args)
         },
-        Expr::Call(expr_call) if new_box_call_expr(expr).is_ok() => {
-            return Expr::Call(ExprCall{
+        Expr::Call(expr_call) => {
+            Expr::Call(ExprCall{
                 func: Box::new(transform_expr(&expr_call.func, gamma, delta)),
                 args: Punctuated::from_iter(expr_call.args.iter().map(|arg| transform_expr(arg, gamma, delta))),
                 ..expr_call.clone()
             })
         },
+        Expr::Return(expr_return) if expr_return.expr.is_some() => {
+            Expr::Return(ExprReturn{
+                expr: Some(Box::new(transform_expr(&expr_return.clone().expr.unwrap(), gamma, delta))),
+                ..expr_return.clone()
+            })
+        }
+        Expr::Struct(expr_struct) if gamma.get_generator_trait(&get_type_from_path(&expr_struct.path).name).is_some() => {
+            Expr::Struct(ExprStruct{
+                path: transform_struct_instantiation_path_for_enum(expr_struct, gamma, delta),
+                fields: Punctuated::from_iter(expr_struct.fields.iter().map(|field| FieldValue{
+                    expr: transform_expr(&field.expr, gamma, delta),
+                    ..field.clone()
+                })),
+                ..expr_struct.clone()
+            })
+        },
         _ => {
             println!("Skipping unsupported {:?} with delta {:?}", expr, delta);
-            return expr.clone()
+            expr.clone()
         }
     }
 }

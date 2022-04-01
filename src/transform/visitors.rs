@@ -58,11 +58,18 @@ impl VisitMut for ReplaceMethodCalls {
         visit_expr_mut(self, expr);
         if let syn::Expr::MethodCall(expr_method_call) = expr.clone() {
             // Extract the type of the expression that the method is being called on
-            let expr_type = self.delta.get_type_of_expr(&expr_method_call.receiver, &self.gamma);
+
+            // Check if the type being transformed is a trait 
+            // let expr_type = self.delta.get_type_of_expr(&expr_method_call.receiver, &self.gamma);
+            // if !(expr_type.is_ok() && self.gamma.is_trait(&expr_type.unwrap().name)) {
+            //     // If not no transformation is needed
+            //     
+            //     return;
+            // }
 
             // Create function call for method
-            // TODO add previous caller to args
-            let mut args = Punctuated::from_iter(vec![*expr_method_call.receiver]);
+            let expr_ref = create_reference_of_expr(&*expr_method_call.receiver.clone());
+            let mut args = Punctuated::from_iter(vec![expr_ref]);
             args.extend(expr_method_call.args.clone());
             *expr = create_function_call(&expr_method_call.method, args)
         }
@@ -85,11 +92,22 @@ impl VisitMut for ReplaceSelf {
 pub struct ReplaceDynBoxDestructorReturnStatements;
 impl VisitMut for ReplaceDynBoxDestructorReturnStatements {
     fn visit_expr_return_mut(&mut self, i: &mut ExprReturn) {
+        visit_expr_return_mut(self, i);
+
+        if i.expr.is_none() {
+            return;
+        }
 
         // If the return statement is a Box::new, remove the box call
-        match new_box_call_expr(&Expr::Return(i.clone())) {
-            Ok(expr) => i.expr = Some(Box::new(expr)),
-            _ => i.expr = Some(Box::new(create_reference_of_expr(i.expr.as_ref().unwrap())))
+        match new_box_call_expr(&i.clone().expr.unwrap()) {
+            Ok(expr) => {
+                println!("Replacing box new expr in return statement");
+                i.expr = Some(Box::new(expr))
+            },
+            _ => {
+                println!("Not replacing box new expr in return statement: {:?}", i);
+                i.expr = Some(Box::new(create_dereference_of_expr(i.expr.as_ref().unwrap())))
+            }
         }
     }
 }

@@ -102,9 +102,13 @@ impl Gamma {
             None => Err(NotFound{item_name: ident.to_string(), type_name: "trait".to_string()}),
         }
     }
-    
+
     pub fn get_generators(&self, trait_: &ItemTrait) -> Vec<(ItemStruct, ItemImpl)> {
         self.generators.get(&trait_).unwrap_or_else(|| panic!("Trait {:?} not found in gamma", trait_)).clone()
+    }
+
+    pub fn is_generator_of_trait(&self, trait_ident: &Ident) -> bool {
+        self.get_generators(&self.get_trait(trait_ident).unwrap()).iter().any(|(struct_, _)| struct_.ident == *trait_ident)
     }
 
     pub fn get_all_generators(&self) -> Vec<(ItemStruct, ItemImpl)> {
@@ -115,6 +119,16 @@ impl Gamma {
     pub fn is_generator_type(&self, type_ident: &Ident) -> bool {
         self.get_all_generators().iter().any(|(struct_, _)| struct_.ident == *type_ident)
             || self.get_trait(type_ident).is_ok()
+    }
+
+    /// For a given generator (struct) find the trait that it implements
+    ///
+    /// This could be a many to many relationship. For now we only return the first one and
+    /// restrict the user to only have one trait per generator.
+    pub fn get_generator_trait(&self, generator_ident: &Ident) -> Option<ItemTrait> {
+        self.traits.iter().find(|t| {
+            self.get_generators(t).iter().any(|(struct_, _)| struct_.ident == *generator_ident)
+        }).cloned()
     }
     
     pub fn get_struct_by_name(&self, ident: &Ident) -> ItemStruct {

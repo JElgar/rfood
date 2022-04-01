@@ -6,7 +6,7 @@
 
 - [ ] FP -> OOP 
 - [ ] Update the demo function (or any other functions) to correctly use the updated traits. (Probably do this with visit)
-- [ ] Support local parms in delta
+- [x] Support local parms in delta
 
 ### Typing 
 
@@ -22,6 +22,10 @@
 - [ ] Support generics in both cases 
 - [ ] Handle generics shadowing 
 - [ ] Look into GADT 
+
+### Inheritance
+
+- [ ] Wildcard pattern for basic types
 
 ## Docs
 
@@ -56,7 +60,9 @@ Delta contains the type information during the transfomration. In this implement
 
 The delta contains a hashmap of varaiables to types. 
 
-### The transformations
+### Transformations 
+
+#### Trait transformations 
 
 The transformer currently only transforms traits. Firstly it parses the provided file, it then generates gamma for it and uses gamma to transform each trait. A trait is transformed as follows:
 
@@ -73,6 +79,22 @@ The transformer currently only transforms traits. Firstly it parses the provided
    3. Create a match statement with the arms created in step 3.2.
    4. Create a function with the signature from 3.1 and the arms for 3.2.
 4. Return the new enum and consumers as a list of items
+
+#### Type considerations
+
+The rust type system is significantly stricter than that of scalas. For this reason extensions to the transformation rules, as well as the restrictions had to be included.
+
+#### Other transformations 
+
+Having transformed the trait, the next stage is to transform other items in the ast. In reality a recursive approach to transformations throughout would be better and allow all transform to respect the current scope. To test this hypothesis we use this recursive approach for the transformation of other items. 
+
+An important consideration when parsing recursivly is which values are avaialable in the current scope (order does not matter for traits for example). For this implementation we have not included items which are defined after the value we are currently transformed. This is an acceptable limitation given all the types have already been transformed in previous stages.
+
+The approach is as follows:
+
+Trasform each item in the ast that has not already been transformed.
+
+If it is a function, transform each epxression, adding to delta for each let expression. The type of each varaible in the let expression is extracted by a crude type inference which could be extended by linking into the exisitng type inference in the rust compiler. When transforming an expression, recursivly transform any subexpressions.
 
 ### Generics
 

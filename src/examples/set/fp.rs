@@ -16,8 +16,8 @@ fn is_empty(set: &Set) -> bool {
 fn contains(set: &Set, target: i32) -> bool {
     return match set {
         Set::Empty{} => false,
-        Set::Insert{set, value} => *value == target || contains(&set, target),
-        Set::Union{s1, s2} => contains(&s1, target) && contains(&s2, target)
+        Set::Insert{set, value} => *value == target || contains(set, target),
+        Set::Union{s1, s2} => contains(s1, target) && contains(s2, target)
     }
 }
 

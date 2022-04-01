@@ -31,3 +31,13 @@ impl fmt::Display for InvalidType {
         write!(f, "{:?}", self.message)
     }
 }
+
+#[derive(Debug, Clone)]
+pub struct TypeInferenceFailed {
+    pub expr: Expr,
+}
+impl fmt::Display for TypeInferenceFailed {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Type inference failed for type {:?}", self.expr)
+    }
+}

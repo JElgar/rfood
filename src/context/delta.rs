@@ -54,13 +54,41 @@ pub fn is_box(type_: &Type) -> bool {
             let segment = type_path.path.segments.first().unwrap();
             segment.ident == "Box"
         }
-        _ => panic!("Other types not supported")
+        _ => false 
     }
 }
 
 /// Get the expr inside a Box::new() expression
 ///
 /// If the expr is not a Box::new() expression, resturn failure
+///
+/// # Examples
+///
+/// Working example:
+/// ```
+/// use syn::*;
+/// use rfood::context::delta::new_box_call_expr;
+///
+/// let expr = parse_str::<syn::Expr>(r#"Box::new(1)"#).unwrap();
+/// let expr = new_box_call_expr(&expr).unwrap();
+/// assert!(
+///     if let Expr::Lit(ExprLit{lit: Lit::Int(lit_int), ..}) = expr {
+///         lit_int.base10_digits() == "1"
+///     } else {
+///         false
+///     }
+/// );
+/// ```
+///
+/// Non box should return failure:
+/// ```
+/// use syn::*;
+/// use rfood::context::delta::new_box_call_expr;
+///
+/// let expr = parse_str::<syn::Expr>(r#"1"#).unwrap();
+/// let result = new_box_call_expr(&expr);
+/// assert!(matches!(result, std::result::Result::Err(_)));
+/// ```
 pub fn new_box_call_expr(expr: &Expr) -> std::result::Result<Expr, InvalidType> {
     if let Expr::Call(ExprCall{
         func,
@@ -101,7 +129,9 @@ pub fn is_dyn_box_generator_return(signature: &Signature, gamma: &Gamma) -> bool
 pub fn get_delta_type_from_type(type_: &Type) -> DeltaType {
     match type_ {
         Type::Path(type_path) => DeltaType{name: get_ident_from_path(&type_path.path), is_box: is_box(&type_)},
-        _ => panic!("Other types not supported")
+        // TODO for now all references are assumed to be Self
+        Type::Reference(..) => DeltaType{name: Ident::new("Self", Span::call_site()), is_box: false},
+        _ => panic!("Other types not supported, {:?}", type_)
     }
 }
 
@@ -115,10 +145,26 @@ pub fn get_ident_from_path(Path { segments, .. }: &Path) -> Ident {
     return segment.ident.clone();
 }
 
+pub fn get_type_from_path(Path { segments, .. }: &Path) -> DeltaType {
+    let segment = segments.first().unwrap();
+
+    if segment.ident == "Box" {
+        return DeltaType{name: get_type_from_box(segment).unwrap(), is_box: true};
+    }
+
+    return DeltaType{name: segment.ident.clone(), is_box: false};
+}
+
 pub fn get_type_from_function_arg(arg: &FnArg, self_type: Option<&Ident>) -> DeltaType{
     if let FnArg::Typed(pat_type) = arg {
-        if let Type::Path(type_path) = &*pat_type.ty {
-            return DeltaType{name: get_ident_from_path(&type_path.path), is_box: false};
+        match &*pat_type.ty {
+            Type::Path(type_path) => return DeltaType{name: get_ident_from_path(&type_path.path), is_box: false},
+            Type::Reference(TypeReference { elem, .. }) => {
+                if let Type::Path(type_path) = &**elem {
+                    return DeltaType{name: get_ident_from_path(&type_path.path), is_box: false};
+                }
+            },
+            _ => ()
         }
     }
     
@@ -130,7 +176,7 @@ pub fn get_type_from_function_arg(arg: &FnArg, self_type: Option<&Ident>) -> Del
     }
 
     // TODO This will panic for all self types
-    panic!("Could not get type from function argument");
+    panic!("Could not get type from function argument, {:?}", arg);
 }
 
 pub fn get_attribute_ident_from_function_arg(arg: &FnArg) -> Ident {
@@ -206,32 +252,40 @@ impl Delta {
                 panic!("A let expression must have a body or a type");
             }
             let expr = &init.as_ref().unwrap().1;
-            self.types.insert(ident.clone(), self.get_type_of_expr(expr, gamma));
+            self.types.insert(ident.clone(), self.get_type_of_expr(expr, gamma).unwrap());
         }
     }
 
-    pub fn get_type_of_expr(&self, expr: &Expr, gamma: &Gamma) -> DeltaType {
+    pub fn get_type_of_expr(&self, expr: &Expr, gamma: &Gamma) -> std::result::Result<DeltaType, TypeInferenceFailed> {
         match expr {
             // TODO Match self.thing here so we can do in any order
-            Expr::Unary(ExprUnary { expr, .. }) => self.get_type_of_expr(expr, gamma),
-            Expr::Path(ExprPath { path, .. }) => self.get_type(get_ident_from_path(path)),
+            Expr::Unary(ExprUnary { expr, .. }) => Ok(self.get_type_of_expr(expr, gamma).unwrap()),
+            Expr::Path(ExprPath { path, .. }) => Ok(self.get_type(get_ident_from_path(path))),
             Expr::Call(ExprCall {func, ..}) if new_box_call_expr(expr).is_ok() => {
-                DeltaType{name: self.get_type_of_expr(&new_box_call_expr(expr).unwrap(), gamma).name, is_box: true}
+                let inner_expr_type_name = self.get_type_of_expr(&new_box_call_expr(expr).unwrap(), gamma);
+                if inner_expr_type_name.is_err() {
+                    return inner_expr_type_name;
+                }
+                Ok(DeltaType{name: inner_expr_type_name.unwrap().name, is_box: true})
             },
-            Expr::Struct(ExprStruct {path, .. }) => DeltaType{
+            Expr::Struct(ExprStruct {path, .. }) => Ok(DeltaType{
                 name: path.segments.first().unwrap().ident.clone(),
                 is_box: false
-            },
+            }),
             Expr::MethodCall(ExprMethodCall { receiver, method, ..}) => {
-                let receiver_type = self.get_type_of_expr(&receiver, gamma).name;
+                let receiver_type = self.get_type_of_expr(&receiver, gamma);
+                if receiver_type.is_err() {
+                    return receiver_type;
+                }
+
                 // TODO trait does not exist
-                let method_sig = gamma.get_destructor_signature(&receiver_type, &method);
+                let method_sig = gamma.get_destructor_signature(&receiver_type.unwrap().name, &method);
                 match method_sig.output {
                     ReturnType::Default => panic!("Method {:?} has no return type", method),
-                    ReturnType::Type(_, type_) => get_delta_type_from_type(&type_)
+                    ReturnType::Type(_, type_) => Ok(get_delta_type_from_type(&type_))
                 }
             },
-            _ => panic!("Unsupported expression: {:?}", expr),
+            _ => Err(TypeInferenceFailed{expr: expr.clone()}),
         }
     }
 }

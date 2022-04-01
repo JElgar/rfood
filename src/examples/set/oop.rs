@@ -1,7 +1,7 @@
 pub trait Set {
     fn is_empty(&self) -> bool;
     fn contains(&self, i: i32) -> bool;
-    fn insert(self: Box<Self>, value: i32) -> Box<dyn Set>;
+    fn insert(self: Box<Self>, i: i32) -> Box<dyn Set>;
     fn union(self: Box<Self>, s: Box<dyn Set>) -> Box<dyn Set>;
     // fn debug(&self) -> String;
 }
