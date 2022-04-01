@@ -101,11 +101,9 @@ impl VisitMut for ReplaceDynBoxDestructorReturnStatements {
         // If the return statement is a Box::new, remove the box call
         match new_box_call_expr(&i.clone().expr.unwrap()) {
             Ok(expr) => {
-                println!("Replacing box new expr in return statement");
                 i.expr = Some(Box::new(expr))
             },
             _ => {
-                println!("Not replacing box new expr in return statement: {:?}", i);
                 i.expr = Some(Box::new(create_dereference_of_expr(i.expr.as_ref().unwrap())))
             }
         }

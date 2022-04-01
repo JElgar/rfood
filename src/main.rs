@@ -21,7 +21,6 @@ use rfood::context::gamma::{Gamma, generate_gamma};
 use transform::transformer::{transform_trait, transform_item};
 use cli::{Cli, Commands};
 
-#[allow(dead_code)]
 fn print_goal() {
   // -- Print current and goal enum --//
   // let filename = "./src/examples/generics/oop.rs";
@@ -71,9 +70,7 @@ fn transform(path: &PathBuf) {
     }
 
     for item in &syntax.items {
-        println!("Transforming item: {:#?}", item);
         transformed_syntax.items.push(transform_item(item, &gamma));
-        println!("Transformed item");
     }
 
     // Write output to file

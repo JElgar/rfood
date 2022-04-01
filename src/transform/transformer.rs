@@ -259,10 +259,12 @@ fn transform_expr(expr: &Expr, gamma: &Gamma, delta: &mut Delta) -> Expr {
             if gamma.is_generator_type(&delta.get_type_of_expr(receiver, gamma).unwrap().name) 
         => {
             let receiver_expr = if delta.get_type_of_expr(&receiver, gamma).unwrap().is_box {
+                println!("Found an expr of the type Box<T> {:?}", receiver);
                 create_dereference_of_expr(&receiver)
             } else {
                 *receiver.clone()
             };
+
             let mut new_args = Punctuated::from_iter(vec![receiver_expr]);
             new_args.extend(args.clone());
             create_function_call(&method, new_args)
