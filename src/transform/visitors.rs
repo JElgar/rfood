@@ -37,7 +37,7 @@ impl VisitMut for ReplaceFieldCalls {
                 return;
             }
 
-            let result_type = self.delta.get_type(member_name.unwrap());
+            let result_type = self.delta.get_type(&member_name.unwrap());
             *expr = syn::Expr::Unary(
                 syn::ExprUnary {
                     attrs: Vec::new() as Vec<syn::Attribute>,
@@ -83,7 +83,6 @@ impl VisitMut for ReplaceSelf {
     fn visit_expr_path_mut(&mut self, i: &mut ExprPath) {
         visit_expr_path_mut(self, i);
         if i.path.segments.first().unwrap().ident == "self" {
-            println!("Visiting self expr path {:?}", i);
             *i = create_expr_path_to_ident(&self.enum_name);
         }
     }
@@ -104,7 +103,8 @@ impl VisitMut for ReplaceDynBoxDestructorReturnStatements {
                 i.expr = Some(Box::new(expr))
             },
             _ => {
-                i.expr = Some(Box::new(create_dereference_of_expr(i.expr.as_ref().unwrap())))
+                // TODO find out what I was thinking here with the create_dereference_of_expr
+                // i.expr = Some(Box::new(create_dereference_of_expr(i.expr.as_ref().unwrap())))
             }
         }
     }

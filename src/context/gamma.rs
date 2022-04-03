@@ -47,8 +47,6 @@ pub struct Gamma {
     pub enums: Vec<ItemEnum>, // DT - Datatypes
     /// Traits are the interfaces
     pub traits: Vec<ItemTrait>, // IT - Interfaces
-    /// Enum variants are the constructors of a datatypes
-    pub enum_variants: HashMap<ItemEnum, Vec<Variant>>, // CTR(DT) - Constructor for DT
     /// Generators are structs with an impl for a specific trait, this stores both the struct and
     /// the impl
     pub generators: HashMap<ItemTrait, Vec<(ItemStruct, ItemImpl)>>, // GEN(IT) - Generic for IT
@@ -57,7 +55,7 @@ pub struct Gamma {
     /// Consumers of an enum (datatype) - A function that takes in a DT and return some kind of
     /// match on it
     // TODO: Collect
-    pub enum_consumers: HashMap<ItemEnum, Vec<ItemStruct>>, // CSM(DT) - Consumer of DT
+    pub enum_consumers: HashMap<ItemEnum, HashMap<Ident, ItemFn>>, // CSM(DT) - Consumer of DT
 
     // This is replaced with .signature
     // pub signatures: HashMap<Ident, Type>, // SIG(F) - Signature of F
@@ -74,7 +72,6 @@ impl Gamma {
         return Gamma {
             enums: Vec::new(),
             traits: Vec::new(),
-            enum_variants: HashMap::new(),
             generators: HashMap::new(),
             destructors: HashMap::new(),
             enum_consumers: HashMap::new(),
@@ -101,6 +98,22 @@ impl Gamma {
             Some(t) => Ok(t.clone()),
             None => Err(NotFound{item_name: ident.to_string(), type_name: "trait".to_string()}),
         }
+    }
+    
+    pub fn get_enum(&self, ident: &Ident) -> std::result::Result<ItemEnum, NotFound> {
+        match self.enums.iter().find(|e| {
+            e.ident == ident.clone()
+        }) {
+            Some(e) => Ok(e.clone()),
+            None => Err(NotFound{item_name: ident.to_string(), type_name: "enum".to_string()}),
+        }
+    }
+    
+    pub fn get_enum_variant(&self, enum_ident: &Ident, enum_variant_ident: &Ident) -> Variant {
+        let enum_ = self.get_enum(&self.get_base_type_name_from_type_name(enum_ident)).unwrap();
+        enum_.variants.clone().iter().find(|v| {
+            v.ident == enum_variant_ident.clone()
+        }).unwrap().clone()
     }
 
     pub fn get_generators(&self, trait_: &ItemTrait) -> Vec<(ItemStruct, ItemImpl)> {
@@ -191,13 +204,37 @@ impl Gamma {
             self.get_generators(trait_).iter().any(|(generator_struct, _)| generator_struct.ident == *generator_ident)
         }).cloned())
     }
+
+    pub fn add_enum(&mut self, enum_: &ItemEnum) {
+        self.enums.push(enum_.clone());
+    }
+
+    pub fn add_enum_consumer(&mut self, enum_: &ItemEnum, consumer_ident: &Ident, consumer: &ItemFn) {
+        self.enum_consumers.entry(enum_.clone()).or_insert_with(HashMap::new).insert(consumer_ident.clone(), consumer.clone());
+    }
+
+    /// Given a struct/enum varaient name, get the base type name (trait/enum)
+    pub fn get_base_type_name_from_type_name(&self, type_name: &Ident) -> Ident{
+        if !self.is_trait(type_name) {
+            self.get_generator_trait(type_name).unwrap().ident
+        } else {
+            type_name.clone()
+        }
+    }
+    
+    pub fn get_transformed_destructor_signature(&self, generator_ident: &Ident, destructor_ident: &Ident) -> Signature {
+        // If the provided generator_ident is not a trait, find its trait 
+        let enum_ident = self.get_base_type_name_from_type_name(generator_ident);
+        // Get the enum
+        self.enum_consumers.get(&self.get_enum(&enum_ident).unwrap()).unwrap().get(&destructor_ident).unwrap().sig.clone()
+
+    }
 }
 
 impl<'ast> Visit<'ast> for Gamma {
     fn visit_item_enum(&mut self, i: &'ast ItemEnum) {
         visit_item_enum(self, i);
         self.enums.push(i.clone());
-        self.enum_variants.insert(i.clone(), Vec::from_iter(i.variants.clone()));
     }
 
     fn visit_item_trait(&mut self, i: &'ast ItemTrait) {

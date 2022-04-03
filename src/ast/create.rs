@@ -3,22 +3,20 @@ use syn::punctuated::Punctuated;
 use syn::__private::Span;
 use syn::token::{Comma, Colon};
 
-pub fn create_enum(name: &Ident, variants: Vec<syn::Variant>, generics: &syn::Generics) -> syn::Item {
-    Item::Enum(
-        ItemEnum {
-            attrs: [].to_vec(),
-            vis: Visibility::Inherited,
-            enum_token: token::Enum{
-                span: Span::call_site(),
-            },
-            ident: name.clone(),
-            generics: generics.clone(),
-            brace_token: syn::token::Brace{
-                span: syn::__private::Span::call_site(),
-            },
-            variants: syn::punctuated::Punctuated::from_iter(variants),
+pub fn create_enum(name: &Ident, variants: Vec<syn::Variant>, generics: &syn::Generics) -> ItemEnum {
+    ItemEnum {
+        attrs: [].to_vec(),
+        vis: Visibility::Inherited,
+        enum_token: token::Enum{
+            span: Span::call_site(),
         },
-    )
+        ident: name.clone(),
+        generics: generics.clone(),
+        brace_token: syn::token::Brace{
+            span: syn::__private::Span::call_site(),
+        },
+        variants: syn::punctuated::Punctuated::from_iter(variants),
+    }
 }
 
 pub fn create_enum_variant(name: &Ident, mut fields: syn::Fields) -> syn::Variant {
@@ -95,18 +93,16 @@ pub fn create_enum_variant(name: &Ident, mut fields: syn::Fields) -> syn::Varian
     }
 }
 
-pub fn create_function(sig: syn::Signature, stmts: Vec<syn::Stmt>) -> syn::Item {
-    syn::Item::Fn(
-        syn::ItemFn{
-            sig,
-            vis: syn::Visibility::Inherited,
-            attrs: Vec::new() as Vec<syn::Attribute>,
-            block: Box::new(syn::Block{
-                brace_token: syn::token::Brace{span: syn::__private::Span::call_site()},
-                stmts,
-            }),
-        },
-    )
+pub fn create_function(sig: syn::Signature, stmts: Vec<syn::Stmt>) -> ItemFn {
+   syn::ItemFn{
+       sig,
+       vis: syn::Visibility::Inherited,
+       attrs: Vec::new() as Vec<syn::Attribute>,
+       block: Box::new(syn::Block{
+           brace_token: syn::token::Brace{span: syn::__private::Span::call_site()},
+           stmts,
+       }),
+   }
 }
 
 pub fn create_match_statement(match_ident: &syn::Ident, arms: Vec<syn::Arm>) -> syn::Expr {
@@ -114,13 +110,13 @@ pub fn create_match_statement(match_ident: &syn::Ident, arms: Vec<syn::Arm>) -> 
         syn::ExprMatch{
             attrs: Vec::new() as Vec<syn::Attribute>,
             match_token: syn::token::Match{span: syn::__private::Span::call_site()},
-            expr: Box::new(syn::Expr::Path(
+            expr: Box::new(create_reference_of_expr(&Expr::Path(
                 syn::ExprPath{
                     attrs: Vec::new() as Vec<syn::Attribute>,
                     qself: None,
                     path: match_ident.clone().into(),
                 }
-            )),
+            ))),
             arms,
             brace_token: syn::token::Brace{span: syn::__private::Span::call_site()},
         },
@@ -222,6 +218,39 @@ pub fn create_reference_of_expr(expr: &Expr) -> Expr {
             mutability: None,
             raw: syn::reserved::Reserved::default(),
             expr: Box::new(expr.clone()),
+        }
+    )
+}
+
+pub fn create_box_of_expr(expr: &Expr) -> Expr {
+    Expr::Call(
+        ExprCall {
+            attrs: Vec::new(),
+            paren_token: syn::token::Paren{span: syn::__private::Span::call_site()},
+            args: Punctuated::from_iter(
+                vec![expr.clone()]
+            ),
+            func: Box::new(Expr::Path(
+                syn::ExprPath{
+                    attrs: Vec::new(),
+                    qself: None,
+                    path: syn::Path{
+                        leading_colon: None,
+                        segments: syn::punctuated::Punctuated::from_iter(
+                            [
+                                syn::PathSegment{
+                                    arguments: syn::PathArguments::None,
+                                    ident: Ident::new("Box", Span::call_site()),
+                                },
+                                syn::PathSegment{
+                                    arguments: syn::PathArguments::None,
+                                    ident: Ident::new("new", Span::call_site()),
+                                }
+                            ]
+                        )
+                    }
+                }
+            )),
         }
     )
 }

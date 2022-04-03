@@ -27,7 +27,7 @@ impl Set for Empty {
         if self.contains(i) {
             return self;
         }
-        return Box::new(Insert{set: self, value: i});
+        return Box::new(Insert{set1: self, value: i});
         // return if self.contains(i) {
         //     self
         // } else {
@@ -40,7 +40,7 @@ impl Set for Empty {
 } 
 
 pub struct Insert{
-    pub set: Box<dyn Set>,
+    pub set1: Box<dyn Set>,
     pub value: i32,
 }
 impl Set for Insert {
@@ -48,7 +48,7 @@ impl Set for Insert {
         return false;
     }
     fn contains(&self, i: i32) -> bool {
-        return self.value == i || self.set.contains(i);
+        return self.value == i || self.set1.contains(i);
     }
     fn union(self: Box<Self>, s: Box<dyn Set>) -> Box<dyn Set> {
         return Box::new(Union{set1: self, set2: s});
@@ -57,7 +57,7 @@ impl Set for Insert {
         if self.contains(i) {
             return self;
         }
-        return Box::new(Insert{set: self, value: i});
+        return Box::new(Insert{set1: self, value: i});
     }
     // fn debug(&self) -> String {
     //     format!("Insert( {}, {} )", self.value, self.set.debug())
@@ -83,7 +83,7 @@ impl Set for Union {
         if self.contains(i) {
             return self;
         }
-        return Box::new(Insert{set: self, value: i});
+        return Box::new(Insert{set1: self, value: i});
     }
     // fn debug(&self) -> String {
     //     format!("Union( {}, {} )", self.set1.debug(), self.set2.debug())
@@ -95,7 +95,7 @@ pub fn demo() {
     let set = empty.insert(1);
 
     let set2 = Box::new(Insert {
-        set: Box::new(Empty{}),
+        set1: Box::new(Empty{}),
         value: 1
     });
 

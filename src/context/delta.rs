@@ -9,7 +9,7 @@ use crate::context::*;
 use gamma::Gamma;
 use errors::*;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct DeltaType {
     pub name: Ident,
     pub is_box: bool,
@@ -47,14 +47,30 @@ pub fn get_type_from_box(segment: &PathSegment) -> std::result::Result<Ident, No
     Err(NotABoxType{segment: segment.clone()})
 }
 
-/// Check if the provided type is a Box<T>
-pub fn is_box(type_: &Type) -> bool {
-    return match &type_ {
-        Type::Path(type_path) => {
-            let segment = type_path.path.segments.first().unwrap();
-            segment.ident == "Box"
+pub trait IsBox {
+    fn is_box(&self) -> bool;
+}
+
+impl IsBox for Type {
+    fn is_box(&self) -> bool {
+        return match &self {
+            Type::Path(type_path) => {
+                let segment = type_path.path.segments.first().unwrap();
+                segment.ident == "Box"
+            }
+            _ => false 
         }
-        _ => false 
+    }
+}
+
+impl IsBox for FnArg {
+    fn is_box(&self) -> bool {
+        match self {
+            FnArg::Typed(type_pat) => {
+                type_pat.ty.is_box()
+            }
+            FnArg::Receiver(_) => panic!("IsBox for FnArg::Receiver not implemented"),
+        }
     }
 }
 
@@ -128,7 +144,7 @@ pub fn is_dyn_box_generator_return(signature: &Signature, gamma: &Gamma) -> bool
 
 pub fn get_delta_type_from_type(type_: &Type) -> DeltaType {
     match type_ {
-        Type::Path(type_path) => DeltaType{name: get_ident_from_path(&type_path.path), is_box: is_box(&type_)},
+        Type::Path(type_path) => DeltaType{name: get_ident_from_path(&type_path.path), is_box: type_.is_box()},
         // TODO for now all references are assumed to be Self
         Type::Reference(..) => DeltaType{name: Ident::new("Self", Span::call_site()), is_box: false},
         _ => panic!("Other types not supported, {:?}", type_)
@@ -201,7 +217,7 @@ fn fields_to_delta_types(fields: &Fields) -> Vec<(Ident, DeltaType)> {
                 (field.ident.clone().unwrap(), get_delta_type_from_type(&field.ty))
             ).into_iter().collect()
         },
-        _ => panic!("Unanmed structs are not supported")
+        _ => panic!("Unanmed structs/enums are not supported")
     }
 }
 
@@ -212,11 +228,17 @@ impl Delta {
         }
     }
 
-    pub fn get_type(&self, ident: Ident) -> DeltaType {
+    pub fn get_type(&self, ident: &Ident) -> DeltaType {
         self.types.get(&ident).unwrap_or_else(|| panic!("Type {:?} not in delta. {:?}", ident, self.types)).clone()
     }
 
-    pub fn get_return_type(method_ident: Ident, gamma: &Gamma) {
+    pub fn get_type_of_member(self, member: &Member) -> DeltaType {
+        match member {
+            Member::Named(member_named) => {
+                self.get_type(member_named)
+            },
+            _ => panic!("Unanmed structs/enums are not supported")
+        }
     }
 
     pub fn collect_for_struct(&mut self, struct_: &ItemStruct) {
@@ -224,11 +246,21 @@ impl Delta {
             fields_to_delta_types(&struct_.fields)
         );
     }
-
-    pub fn collect_for_destructor_impl(&mut self, destructor_method_impl: &ImplItemMethod, generator: &ItemStruct) {
-        self.self_ty = Some(generator.ident.clone());
-        self.collect_for_sig(&destructor_method_impl.sig, Some(&generator.ident));
+    
+    pub fn collect_for_enum_variant(&mut self, enum_variant: &Variant) {
+        self.types.extend(
+            fields_to_delta_types(&enum_variant.fields)
+        );
+    }
+    
+    pub fn collect_new_for_destructor_impl(&mut self, new_sig: &Signature, generator: &ItemStruct) {
+        self.collect_for_sig(&new_sig, None);
         self.collect_for_struct(&generator);
+    }
+
+    pub fn collect_old_for_destructor_impl(&mut self, old_sig: &Signature, generator: &ItemStruct) {
+        self.self_ty = Some(generator.ident.clone());
+        self.collect_for_sig(old_sig, Some(&generator.ident));
     }
 
     pub fn collect_for_sig(&mut self, signature: &Signature, self_type: Option<&Ident>) {
@@ -260,7 +292,7 @@ impl Delta {
         match expr {
             // TODO Match self.thing here so we can do in any order
             Expr::Unary(ExprUnary { expr, .. }) => Ok(self.get_type_of_expr(expr, gamma).unwrap()),
-            Expr::Path(ExprPath { path, .. }) => Ok(self.get_type(get_ident_from_path(path))),
+            Expr::Path(ExprPath { path, .. }) => Ok(self.get_type(&get_ident_from_path(path))),
             Expr::Call(ExprCall {func, ..}) if new_box_call_expr(expr).is_ok() => {
                 let inner_expr_type_name = self.get_type_of_expr(&new_box_call_expr(expr).unwrap(), gamma);
                 if inner_expr_type_name.is_err() {
@@ -279,10 +311,20 @@ impl Delta {
                 }
 
                 // TODO trait does not exist
-                let method_sig = gamma.get_destructor_signature(&receiver_type.unwrap().name, &method);
-                match method_sig.output {
+                let method_sig = gamma.get_transformed_destructor_signature(&receiver_type.unwrap().name, &method);
+                match &method_sig.output {
                     ReturnType::Default => panic!("Method {:?} has no return type", method),
-                    ReturnType::Type(_, type_) => Ok(get_delta_type_from_type(&type_))
+                    ReturnType::Type(_, type_) => {
+                        Ok(get_delta_type_from_type(&type_))
+                    }
+                }
+            },
+            Expr::Lit(ExprLit{lit, ..}) => {
+                match lit {
+                    Lit::Int(_) => Ok(DeltaType{name: Ident::new("i32", Span::call_site()), is_box: false}),
+                    Lit::Float(_) => Ok(DeltaType{name: Ident::new("f32", Span::call_site()), is_box: false}),
+                    Lit::Bool(_) => Ok(DeltaType{name: Ident::new("bool", Span::call_site()), is_box: false}),
+                    _ => panic!("Unsupported literal {:?}", lit)
                 }
             },
             _ => Err(TypeInferenceFailed{expr: expr.clone()}),

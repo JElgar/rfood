@@ -54,15 +54,16 @@ fn transform(path: &PathBuf) {
     };
 
     // Generate global gamma context
-    let gamma: Gamma = generate_gamma(&syntax);
+    let mut gamma: Gamma = generate_gamma(&syntax);
+    let gamma_mut_borrow = &mut gamma;
    
     // Transform all the interfaces 
-    for trait_ in &gamma.traits {
+    for trait_ in gamma_mut_borrow.traits.clone() {
         // Add the transformed items to the transformed syntax
-        transformed_syntax.items.append(&mut transform_trait(&trait_, &gamma));
+        transformed_syntax.items.append(&mut transform_trait(&trait_, gamma_mut_borrow));
 
         // Remove the original trait from the syntax
-        for (item_struct, item_impl) in gamma.get_generators(trait_) {
+        for (item_struct, item_impl) in gamma_mut_borrow.get_generators(&trait_) {
             remove_item_from_syntax(&mut syntax, syn::Item::Struct(item_struct));
             remove_item_from_syntax(&mut syntax, syn::Item::Impl(item_impl));
         }

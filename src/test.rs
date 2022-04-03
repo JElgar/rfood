@@ -1,3 +1,3 @@
 fn insert() {
-    Empty{a: 1}
+    Box::new(1);
 }
