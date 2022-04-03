@@ -22,7 +22,7 @@ impl Exp for Sub {
 }
 
 pub fn demo() {
-    let e: Box<dyn Exp> = Box::new(Sub{
+    let e = Box::new(Sub{
         l: Box::new(Lit{n: 2}),
         r: Box::new(Lit{n: 1})
     });
