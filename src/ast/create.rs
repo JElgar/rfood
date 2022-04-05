@@ -141,6 +141,22 @@ pub fn create_path_for_enum(enum_ident: &Ident, variant_ident: &Ident) -> syn::P
     }
 }
 
+pub fn create_wildcard_match_arm(body: syn::Expr) -> syn::Arm {
+    syn::Arm{
+        attrs: Vec::new() as Vec<syn::Attribute>,
+        pat: Pat::Wild(
+            syn::PatWild{
+                attrs: Vec::new() as Vec<syn::Attribute>,
+                underscore_token: token::Underscore::default(),
+            }
+        ),
+        guard: None,
+        fat_arrow_token: syn::token::FatArrow::default(),
+        body: Box::new(body),
+        comma: None,
+    }
+}
+
 pub fn create_match_arm(match_path: syn::Path, elems: Vec<syn::Ident>, body: syn::Expr) -> syn::Arm {
 
   // Replace any call to self in the body and remember which methods are used

@@ -177,16 +177,30 @@ impl Gamma {
         }).unwrap()
     }
 
-    pub fn get_destructor_impl_for_generator(generator_impl: &ItemImpl, destructor_ident: &Ident) -> ImplItemMethod {
+    pub fn get_destructor_impl_for_generator(generator_impl: &ItemImpl, destructor_ident: &Ident) -> std::result::Result<ImplItemMethod, NotFound> {
         // Filter all methods in the impl to find the one that matches the destructor
-        generator_impl.items.iter().find_map(|item| {
+        match generator_impl.items.iter().find_map(|item| {
             return match &*item {
                 ImplItem::Method(impl_item_method) if impl_item_method.sig.ident == *destructor_ident => Some(impl_item_method.clone()),
                 _ => None
             }
-        })
-        // If not found raise an exception
-        .unwrap_or_else(|| panic!("Method {:?} not found in impl {:?}", destructor_ident, generator_impl))
+        }) {
+            Some(impl_item_method) => Ok(impl_item_method),
+            None => Err(NotFound{item_name: destructor_ident.to_string(), type_name: "destructor".to_string()}),
+        }
+    }
+    
+    pub fn get_destructor_impl_for_trait(trait_: &ItemTrait, destructor_ident: &Ident) -> std::result::Result<TraitItemMethod, NotFound> {
+        // Filter all methods in the impl to find the one that matches the destructor
+        match trait_.items.iter().find_map(|item| {
+            return match &*item {
+                TraitItem::Method(impl_item_method) if impl_item_method.sig.ident == *destructor_ident => Some(impl_item_method.clone()),
+                _ => None
+            }
+        }) {
+            Some(impl_item_method) => Ok(impl_item_method),
+            None => Err(NotFound{item_name: destructor_ident.to_string(), type_name: "destructor".to_string()}),
+        }
     }
 
     pub fn is_interface(&self, ident: &Ident) -> bool {

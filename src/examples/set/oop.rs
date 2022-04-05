@@ -4,6 +4,9 @@ pub trait Set {
     fn insert(self: Box<Self>, i: i32) -> Box<dyn Set>;
     fn union(self: Box<Self>, s: Box<dyn Set>) -> Box<dyn Set>;
     // fn debug(&self) -> String;
+    fn type_id(&self) -> i32 {
+        0
+    }
 }
 
 // impl std::fmt::Debug for dyn Set {
@@ -33,6 +36,9 @@ impl Set for Empty {
         // } else {
         //     Box::new(Insert{set: self, value: i})
         // };
+    }
+    fn type_id(&self) -> i32 {
+        return 10;
     }
     // fn debug(&self) -> String {
     //     String::from("Empty")

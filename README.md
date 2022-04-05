@@ -5,14 +5,15 @@
 ### General
 
 - [ ] FP -> OOP 
-- [ ] Update the demo function (or any other functions) to correctly use the updated traits. (Probably do this with visit)
+- [x] Update the demo function (or any other functions) to correctly use the updated traits. (Probably do this with visit)
 - [x] Support local parms in delta
+- [ ] Shadowing for consumer args and march arm params
 
 ### Typing 
 
 - [x] Correct return types in function signature
 - [x] Correct return types from method returns (for now if box dereference). If explicitly wrapping response in box then remove this wrapping.
-- [ ] Fix constructors of enums to ensure boxes are created as required
+- [x] Fix constructors of enums to ensure boxes are created as required
  
 ### Generics
 

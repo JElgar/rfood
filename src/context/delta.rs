@@ -255,6 +255,7 @@ impl Delta {
     
     pub fn collect_new_for_destructor_impl(&mut self, new_sig: &Signature, generator: &ItemStruct) {
         self.collect_for_sig(&new_sig, None);
+        // TODO Catch any overwritting and rename as required
         self.collect_for_struct(&generator);
     }
 

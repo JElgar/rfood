@@ -1,3 +1,5 @@
 fn insert() {
-    Box::new(1);
+    match a {
+        _ => 1
+    }
 }
