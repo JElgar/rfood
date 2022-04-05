@@ -41,7 +41,7 @@ fn remove_item_from_syntax(syntax: &mut syn::File, item: syn::Item) {
     }
 }
 
-fn transform(path: &PathBuf) {
+fn transform(path: &PathBuf, transform_type: &TransformType) {
     //-- Do the transfrom --//
     let mut file = File::open(path).expect("Unable to open file");
 
@@ -56,22 +56,30 @@ fn transform(path: &PathBuf) {
     // Generate global gamma context
     let mut gamma: Gamma = generate_gamma(&syntax);
     let gamma_mut_borrow = &mut gamma;
-   
-    // Transform all the interfaces 
-    for trait_ in gamma_mut_borrow.traits.clone() {
-        // Add the transformed items to the transformed syntax
-        transformed_syntax.items.append(&mut transform_trait(&trait_, gamma_mut_borrow));
+  
+    match transform_type {
+        TransformType::OOPToFP => {
+            // Transform all the interfaces 
+            for trait_ in gamma_mut_borrow.traits.clone() {
+                // Add the transformed items to the transformed syntax
+                transformed_syntax.items.append(&mut transform_trait(&trait_, gamma_mut_borrow));
 
-        // Remove the original trait from the syntax
-        for (item_struct, item_impl) in gamma_mut_borrow.get_generators(&trait_) {
-            remove_item_from_syntax(&mut syntax, syn::Item::Struct(item_struct));
-            remove_item_from_syntax(&mut syntax, syn::Item::Impl(item_impl));
+                // Remove the original trait from the syntax
+                for (item_struct, item_impl) in gamma_mut_borrow.get_generators(&trait_) {
+                    remove_item_from_syntax(&mut syntax, syn::Item::Struct(item_struct));
+                    remove_item_from_syntax(&mut syntax, syn::Item::Impl(item_impl));
+                }
+                remove_item_from_syntax(&mut syntax, syn::Item::Trait(trait_.clone()));
+            }
+        }, 
+        TransformType::FPToOOP => {
+            // Transform all the enums
+            
+            // Transform all the consumers
         }
-        remove_item_from_syntax(&mut syntax, syn::Item::Trait(trait_.clone()));
     }
-
     for item in &syntax.items {
-        transformed_syntax.items.push(transform_item(item, &TransformType::OOPtoFP, &gamma));
+        transformed_syntax.items.push(transform_item(item, &transform_type, &gamma));
     }
 
     // Write output to file
@@ -85,6 +93,6 @@ fn main() {
 
     match &args.command {
         Commands::PrintTest => print_goal(),
-        Commands::Transform{path} => transform(path),
+        Commands::Transform{path, transform_type} => transform(path, transform_type),
     }
 }

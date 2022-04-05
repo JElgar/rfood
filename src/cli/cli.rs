@@ -1,6 +1,8 @@
 use clap::Parser;
 use std::path::PathBuf;
 
+use crate::transform::transformer::TransformType;
+
 #[derive(Parser)]
 #[clap(name = "git")]
 #[clap(about = "A fictional versioning CLI", long_about = None)]
@@ -20,5 +22,7 @@ pub enum Commands {
         /// The path of the file to transform
         #[clap(required = true, parse(from_os_str))]
         path: PathBuf,
+        #[clap(arg_enum, default_value_t = TransformType::OOPToFP)]
+        transform_type: TransformType,
     },
 }

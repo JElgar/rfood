@@ -14,9 +14,10 @@ use ast::create::*;
 use crate::transform;
 use transform::visitors::*;
 
+#[derive(clap::ArgEnum, Clone)]
 pub enum TransformType {
-    OOPtoFP,
-    FPtoOOP,
+    OOPToFP,
+    FPToOOP,
 }
 
 /// Transform a interface (trait) into a datatype (enum)
@@ -175,7 +176,7 @@ fn transform_destructor_expr(expr: &Expr, old_delta: &Delta, new_delta: &Delta, 
     let mut rs = ReplaceSelf{enum_name: enum_name.clone()};
     rs.visit_expr_mut(&mut expr_clone);
 
-    expr_clone = transform_expr(&mut expr_clone, &TransformType::OOPtoFP, gamma, &new_delta);
+    expr_clone = transform_expr(&mut expr_clone, &TransformType::OOPToFP, gamma, &new_delta);
     return expr_clone; 
 }
 
