@@ -41,6 +41,24 @@ pub fn transform_trait(trait_: &ItemTrait, gamma: &mut Gamma) -> Vec<Item> {
     return items;
 }
 
+pub fn transform_consumer_fn_to_trait_item(consumer: &ItemFn) -> TraitItem {
+    TraitItem::Method(TraitItemMethod{
+        attrs: consumer.attrs.clone(),
+        sig: transform_consumer_signature(&consumer.sig),
+        default: None,
+        semi_token: Some(token::Semi::default()),
+    })
+}
+
+pub fn transform_enum(enum_: &ItemEnum, gamma: &mut Gamma) -> Item {
+
+    let items = Vec::from_iter(gamma.get_enum_consumers(enum_).iter().map(|consumer| {
+        transform_consumer_fn_to_trait_item(&consumer)
+    }));
+
+    Item::Trait(create_trait(&enum_.ident, items))
+}
+
 /// Transforms a destructor of a trait into a consumer of the enum
 ///
 /// * `trait_` - The trait that the destructor belongs to
@@ -201,7 +219,7 @@ fn transform_destructor_signature(signature: &Signature, enum_name: &Ident, gene
 
         // Replace self with enum
         if let syn::FnArg::Receiver(..) = item {
-            // TODO use borrow as required
+            // TODO use borrow as required and check this is acutally self
             return create_self_consumer_signature(true);
         }
         if let syn::FnArg::Typed(PatType{
@@ -239,6 +257,20 @@ fn transform_destructor_signature(signature: &Signature, enum_name: &Ident, gene
     )
 }
 
+pub fn transform_consumer_signature(signature: &Signature) -> Signature {
+    let new_inputs = syn::punctuated::Punctuated::from_iter(signature.inputs.iter().map(|item| {
+        // TODO make the first argument self
+        //
+        // TODO make all args with type of enum, Box<dyn T>
+        item.clone()
+    }));
+
+    Signature {
+        inputs: new_inputs,
+        ..signature.clone()
+    }
+}
+
 /// Given the name of a type get a sensible name for the object
 ///
 /// * `type_ident` - The name of the type e.g. Foo
@@ -261,7 +293,7 @@ pub fn transform_item(item: &syn::Item, transform_type: &TransformType, gamma: &
     match item {
         Item::Fn(item_fn) => Item::Fn(transform_function(item_fn, transform_type, gamma)),
         _ => {
-            println!("Skipping unsupported {:?}", item);
+            // println!("Skipping unsupported {:?}", item);
             item.clone()
         },
     }
@@ -394,7 +426,7 @@ fn transform_expr(expr: &Expr, transform_type: &TransformType, gamma: &Gamma, de
             })
         },
         _ => {
-            println!("Skipping unsupported {:?} with delta {:?}", expr, delta);
+            // println!("Skipping unsupported {:?} with delta {:?}", expr, delta);
             expr.clone()
         }
     }

@@ -53,8 +53,7 @@ pub struct Gamma {
     /// Destructor of an interface - A function in a trait
     pub destructors: HashMap<ItemTrait, Vec<TraitItemMethod>>, // DTR(IT) - Destructor of IT
     /// Consumers of an enum (datatype) - A function that takes in a DT and return some kind of
-    /// match on it
-    // TODO: Collect
+    /// match on it. This stores the enum and all the itemfns
     pub enum_consumers: HashMap<ItemEnum, HashMap<Ident, ItemFn>>, // CSM(DT) - Consumer of DT
 
     // This is replaced with .signature
@@ -89,6 +88,10 @@ impl Gamma {
 
     pub fn is_trait(&self, ident: &Ident) -> bool {
         return self.get_trait(ident).is_ok();
+    }
+
+    pub fn is_enum(&self, ident: &Ident) -> bool {
+        return self.get_enum(ident).is_ok();
     }
 
     pub fn get_trait(&self, ident: &Ident) -> std::result::Result<ItemTrait, NotFound> {
@@ -235,6 +238,14 @@ impl Gamma {
             type_name.clone()
         }
     }
+
+    pub fn get_enum_consumers(&self, enum_: &ItemEnum) -> Vec<ItemFn> {
+        if self.enum_consumers.contains_key(enum_) {
+            Vec::from_iter(self.enum_consumers.get(enum_).unwrap().values().cloned())
+        } else {
+            Vec::new()
+        }
+    }
     
     pub fn get_transformed_destructor_signature(&self, generator_ident: &Ident, destructor_ident: &Ident) -> Signature {
         // If the provided generator_ident is not a trait, find its trait 
@@ -299,6 +310,19 @@ impl<'ast> Visit<'ast> for Gamma {
 
     fn visit_item_fn(&mut self, i: &'ast ItemFn) {
         self.functions.push(i.clone());
+
+        println!("We have found a function! {:?}", i.sig.ident);
+
+        // If the first argument of the function is an enum, then it is a consumer so add it to the
+        // enum consumers
+        if let Some(FnArg::Typed(PatType{ty, ..})) = i.sig.inputs.first() {
+            let first_arg_type = delta::get_delta_type_from_type(ty).name;
+            println!("We have found a consumer, {:?}" , first_arg_type);
+            println!("Type: {:?}" , ty);
+            if self.is_enum(&first_arg_type) {
+                self.add_enum_consumer(&self.get_enum(&first_arg_type).unwrap(), &i.sig.ident, i);
+            }
+        }
     }
 }
 

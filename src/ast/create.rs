@@ -19,6 +19,27 @@ pub fn create_enum(name: &Ident, variants: Vec<syn::Variant>, generics: &syn::Ge
     }
 }
 
+pub fn create_trait(name: &Ident, items: Vec<TraitItem>) -> ItemTrait {
+    ItemTrait {
+        attrs: Vec::new(),
+        vis: Visibility::Inherited,
+        unsafety: None,
+        auto_token: None,
+        trait_token: token::Trait::default(),
+        ident: name.clone(),
+        generics: Generics {
+            lt_token: None,
+            params: Punctuated::new(),
+            gt_token: None,
+            where_clause: None,
+        },
+        colon_token: None,
+        supertraits: Punctuated::new(),
+        brace_token: token::Brace::default(),
+        items,
+    }
+}
+
 pub fn create_enum_variant(name: &Ident, mut fields: syn::Fields) -> syn::Variant {
     // Remove pub from fields
     if let syn::Fields::Named(enum_fields) = &fields {

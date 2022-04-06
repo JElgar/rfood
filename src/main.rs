@@ -18,7 +18,7 @@ use clap::Parser;
 
 use ast::print::write_and_fmt;
 use rfood::context::gamma::{Gamma, generate_gamma};
-use transform::transformer::{transform_trait, transform_item, TransformType};
+use transform::transformer::{transform_trait, transform_enum, transform_item, TransformType};
 use cli::{Cli, Commands};
 
 fn print_goal() {
@@ -74,6 +74,16 @@ fn transform(path: &PathBuf, transform_type: &TransformType) {
         }, 
         TransformType::FPToOOP => {
             // Transform all the enums
+            for enum_ in gamma_mut_borrow.enums.clone() {
+                // Get the consumers for the enum 
+                let consumers = gamma_mut_borrow.get_enum_consumers(&enum_);
+                for val in consumers.iter() {
+                    print!("Creating a thing for the consumer: {:#?}\n", val.sig.ident);
+                }
+
+                // Create a trait 
+                transformed_syntax.items.push(transform_enum(&enum_, gamma_mut_borrow));
+            }
             
             // Transform all the consumers
         }

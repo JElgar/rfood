@@ -1,5 +1,2 @@
-fn insert() {
-    match a {
-        _ => 1
-    }
+fn test(exp: &Exp) {
 }

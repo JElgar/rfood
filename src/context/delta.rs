@@ -145,8 +145,9 @@ pub fn is_dyn_box_generator_return(signature: &Signature, gamma: &Gamma) -> bool
 pub fn get_delta_type_from_type(type_: &Type) -> DeltaType {
     match type_ {
         Type::Path(type_path) => DeltaType{name: get_ident_from_path(&type_path.path), is_box: type_.is_box()},
-        // TODO for now all references are assumed to be Self
-        Type::Reference(..) => DeltaType{name: Ident::new("Self", Span::call_site()), is_box: false},
+        Type::Reference(TypeReference { elem, .. }) => {
+            get_delta_type_from_type(&*elem)
+        }
         _ => panic!("Other types not supported, {:?}", type_)
     }
 }
