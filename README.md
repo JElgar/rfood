@@ -5,6 +5,9 @@
 ### General
 
 - [ ] FP -> OOP 
+    - [ ] Collect consumers and enums in gamma
+    - [ ] Transform enums
+    - [ ] Transform consumers
 - [x] Update the demo function (or any other functions) to correctly use the updated traits. (Probably do this with visit)
 - [x] Support local parms in delta
 - [ ] Shadowing for consumer args and march arm params
