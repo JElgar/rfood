@@ -82,7 +82,7 @@ fn transform(path: &PathBuf, transform_type: &TransformType) {
                 }
 
                 // Create a trait 
-                transformed_syntax.items.push(transform_enum(&enum_, gamma_mut_borrow));
+                transformed_syntax.items.extend(transform_enum(&enum_, gamma_mut_borrow));
             }
             
             // Transform all the consumers

@@ -50,13 +50,23 @@ pub fn transform_consumer_fn_to_trait_item(consumer: &ItemFn) -> TraitItem {
     })
 }
 
-pub fn transform_enum(enum_: &ItemEnum, gamma: &mut Gamma) -> Item {
+pub fn transform_enum(enum_: &ItemEnum, gamma: &mut Gamma) -> Vec<Item> {
 
+    // Create a trait
     let items = Vec::from_iter(gamma.get_enum_consumers(enum_).iter().map(|consumer| {
         transform_consumer_fn_to_trait_item(&consumer)
     }));
 
-    Item::Trait(create_trait(&enum_.ident, items))
+
+    let mut items = vec![Item::Trait(create_trait(&enum_.ident, items))];
+
+    // For each variant of the enum create a struct and an impl
+    let mut structs = Vec::from_iter(enum_.variants.iter().map(|variant| {
+        Item::Struct(create_struct(&enum_.ident, variant.fields.clone()))
+    }));
+
+    items.append(&mut structs);
+    return items;
 }
 
 /// Transforms a destructor of a trait into a consumer of the enum
@@ -146,7 +156,7 @@ fn transform_destructor(trait_: &ItemTrait, destructor: &TraitItemMethod, enum_:
 
 pub fn transform_dyn_box_destructor_signature_output(output: &ReturnType) -> ReturnType {
     if let ReturnType::Type(_, type_) = output {
-        return create_return_type_from_ident(&get_delta_type_from_type(type_).name);
+        return create_return_type_from_ident(&type_.get_delta_type().name);
     }
     panic!("Unsupported return type for destructor");
 }
@@ -170,7 +180,6 @@ fn transform_destructor_impl(generator: &ItemStruct, destructor: &TraitItemMetho
 
     // Transform the body of the method
     expr = transform_destructor_expr(&expr, &old_delta, &new_delta, gamma, enum_instance_name);
-    println!("\n\n");
 
     // Create the arm of the match statement
     let path = ast::create::create_path_for_enum(enum_name, &generator.ident);
@@ -229,7 +238,7 @@ fn transform_destructor_signature(signature: &Signature, enum_name: &Ident, gene
         }) = item {
             if let Pat::Ident(pat_ident) = &**pat {
               // The type of the thing
-              let arg_type = get_delta_type_from_type(&*ty);
+              let arg_type = ty.get_delta_type();
 
               // Check if the type is in the geneators
               if gamma.is_interface(&arg_type.name) {
@@ -258,15 +267,18 @@ fn transform_destructor_signature(signature: &Signature, enum_name: &Ident, gene
 }
 
 pub fn transform_consumer_signature(signature: &Signature) -> Signature {
-    let new_inputs = syn::punctuated::Punctuated::from_iter(signature.inputs.iter().map(|item| {
+    let mut inputs = signature.inputs.clone();
+    let consumer_arg: FnArg = inputs.pop().unwrap().value().clone();
+    let mut new_inputs = Vec::from_iter(inputs.iter().map(|item| {
         // TODO make the first argument self
         //
         // TODO make all args with type of enum, Box<dyn T>
         item.clone()
     }));
+    new_inputs.insert(0, create_self_fn_arg(consumer_arg.get_ref_type() == RefType::Ref));
 
     Signature {
-        inputs: new_inputs,
+        inputs: syn::punctuated::Punctuated::from_iter(new_inputs),
         ..signature.clone()
     }
 }
@@ -330,9 +342,9 @@ fn transform_struct_instantiation_path_for_enum(expr_struct: &ExprStruct, gamma:
 fn transform_expr_type(expr: &Expr, current_type: &DeltaType, required_type: &DeltaType) -> Expr {
     if current_type == required_type {
         expr.clone()
-    } else if current_type.is_box && !required_type.is_box {
+    } else if current_type.ref_type == RefType::Box && required_type.ref_type == RefType::None {
         create_dereference_of_expr(expr)
-    } else if !current_type.is_box && required_type.is_box {
+    } else if current_type.ref_type == RefType::None && required_type.ref_type == RefType::Box {
         create_box_of_expr(expr)
     } else {
         panic!("Cannot transform {:?} to {:?}", current_type, required_type)
@@ -351,7 +363,7 @@ fn transform_method_call_arguments(method_call: &ExprMethodCall, gamma: &Gamma, 
     // signatures (as the self arg is handled separately)
     Punctuated::from_iter(method_call.args.iter().zip(old_signature.inputs.iter().skip(1)).zip(transformed_signature.inputs.iter().skip(1)).map(|((arg, old_fn_arg), new_fn_arg)| {
         // If the old arg is a box type and the new arg is not
-        if old_fn_arg.is_box() && !new_fn_arg.is_box() {
+        if old_fn_arg.get_ref_type() == RefType::Box && new_fn_arg.get_ref_type() == RefType::None {
             create_dereference_of_expr(&arg.clone())
         } else {
             arg.clone()
@@ -367,7 +379,7 @@ fn transform_expr(expr: &Expr, transform_type: &TransformType, gamma: &Gamma, de
             if gamma.is_generator_type(&delta.get_type_of_expr(&expr_method_call.receiver, gamma).unwrap().name) 
         => {
             let ExprMethodCall { receiver, method, .. } = expr_method_call;
-            let receiver_expr = if delta.get_type_of_expr(&receiver, gamma).unwrap().is_box {
+            let receiver_expr = if delta.get_type_of_expr(&receiver, gamma).unwrap().ref_type == RefType::Box {
                 create_dereference_of_expr(&receiver)
             } else {
                 *receiver.clone()
@@ -391,7 +403,6 @@ fn transform_expr(expr: &Expr, transform_type: &TransformType, gamma: &Gamma, de
             })
         }
         Expr::Struct(expr_struct) if gamma.get_generator_trait(&get_type_from_path(&expr_struct.path).name).is_some() => {
-            println!("Transform struct!");
             Expr::Struct(ExprStruct{
                 path: transform_struct_instantiation_path_for_enum(expr_struct, gamma, &delta),
                 fields: Punctuated::from_iter(expr_struct.fields.iter().map(|field| {

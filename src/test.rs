@@ -1,2 +1,3 @@
-fn test(exp: &Exp) {
+struct Thing {
+    field: Box<Trait>
 }

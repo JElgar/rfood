@@ -10,9 +10,16 @@ use gamma::Gamma;
 use errors::*;
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum RefType {
+    Box,
+    Ref,
+    None,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct DeltaType {
     pub name: Ident,
-    pub is_box: bool,
+    pub ref_type: RefType,
 }
 
 #[derive(Debug, Clone)]
@@ -47,29 +54,56 @@ pub fn get_type_from_box(segment: &PathSegment) -> std::result::Result<Ident, No
     Err(NotABoxType{segment: segment.clone()})
 }
 
-pub trait IsBox {
-    fn is_box(&self) -> bool;
+pub trait GetDeltaType {
+    fn get_delta_type(&self) -> DeltaType;
 }
 
-impl IsBox for Type {
-    fn is_box(&self) -> bool {
-        return match &self {
-            Type::Path(type_path) => {
-                let segment = type_path.path.segments.first().unwrap();
-                segment.ident == "Box"
+impl GetDeltaType for Type {
+    fn get_delta_type(&self) -> DeltaType {
+        match self {
+            Type::Path(type_path) => DeltaType{name: get_ident_from_path(&type_path.path), ref_type: self.get_ref_type()},
+            Type::Reference(TypeReference { elem, .. }) => {
+                elem.get_delta_type()
             }
-            _ => false 
+            _ => panic!("Other types not supported, {:?}", self)
         }
     }
 }
 
-impl IsBox for FnArg {
-    fn is_box(&self) -> bool {
+pub trait GetRefType {
+    fn get_ref_type(&self) -> RefType;
+}
+
+impl GetRefType for Type {
+    fn get_ref_type(&self) -> RefType {
+        // TODO add in reference types
+        return match &self {
+            Type::Path(type_path) => {
+                let segment = type_path.path.segments.first().unwrap();
+                if segment.ident == "Box" {
+                    RefType::Box
+                } else {
+                    RefType::None
+                }
+            },
+            Type::Reference(_) => RefType::Ref,
+            _ => RefType::None,
+        }
+    }
+}
+
+impl GetRefType for FnArg {
+    fn get_ref_type(&self) -> RefType {
         match self {
             FnArg::Typed(type_pat) => {
-                type_pat.ty.is_box()
+                type_pat.ty.get_ref_type()
             }
-            FnArg::Receiver(_) => panic!("IsBox for FnArg::Receiver not implemented"),
+            FnArg::Receiver(Receiver { reference, .. }) => {
+                match reference {
+                    Some(_) => RefType::Ref,
+                    None => RefType::None,
+                }
+            },
         }
     }
 }
@@ -142,16 +176,6 @@ pub fn is_dyn_box_generator_return(signature: &Signature, gamma: &Gamma) -> bool
     return false;
 }
 
-pub fn get_delta_type_from_type(type_: &Type) -> DeltaType {
-    match type_ {
-        Type::Path(type_path) => DeltaType{name: get_ident_from_path(&type_path.path), is_box: type_.is_box()},
-        Type::Reference(TypeReference { elem, .. }) => {
-            get_delta_type_from_type(&*elem)
-        }
-        _ => panic!("Other types not supported, {:?}", type_)
-    }
-}
-
 pub fn get_ident_from_path(Path { segments, .. }: &Path) -> Ident {
     let segment = segments.first().unwrap();
 
@@ -166,19 +190,20 @@ pub fn get_type_from_path(Path { segments, .. }: &Path) -> DeltaType {
     let segment = segments.first().unwrap();
 
     if segment.ident == "Box" {
-        return DeltaType{name: get_type_from_box(segment).unwrap(), is_box: true};
+        return DeltaType{name: get_type_from_box(segment).unwrap(), ref_type: RefType::Box};
     }
 
-    return DeltaType{name: segment.ident.clone(), is_box: false};
+    return DeltaType{name: segment.ident.clone(), ref_type: RefType::None};
 }
 
 pub fn get_type_from_function_arg(arg: &FnArg, self_type: Option<&Ident>) -> DeltaType{
+    // TODO add in reference types
     if let FnArg::Typed(pat_type) = arg {
         match &*pat_type.ty {
-            Type::Path(type_path) => return DeltaType{name: get_ident_from_path(&type_path.path), is_box: false},
+            Type::Path(type_path) => return DeltaType{name: get_ident_from_path(&type_path.path), ref_type: RefType::None},
             Type::Reference(TypeReference { elem, .. }) => {
                 if let Type::Path(type_path) = &**elem {
-                    return DeltaType{name: get_ident_from_path(&type_path.path), is_box: false};
+                    return DeltaType{name: get_ident_from_path(&type_path.path), ref_type: RefType::None};
                 }
             },
             _ => ()
@@ -189,7 +214,7 @@ pub fn get_type_from_function_arg(arg: &FnArg, self_type: Option<&Ident>) -> Del
         if self_type.is_none() {
             panic!("Receiver not supported when self type is None");
         }
-        return DeltaType{name: self_type.unwrap().clone(), is_box: false};
+        return DeltaType{name: self_type.unwrap().clone(), ref_type: RefType::None};
     }
 
     // TODO This will panic for all self types
@@ -215,7 +240,7 @@ fn fields_to_delta_types(fields: &Fields) -> Vec<(Ident, DeltaType)> {
     match fields {
         Fields::Named(fields_named) => {
             fields_named.named.iter().map(|field|
-                (field.ident.clone().unwrap(), get_delta_type_from_type(&field.ty))
+                (field.ident.clone().unwrap(), field.ty.get_delta_type())
             ).into_iter().collect()
         },
         _ => panic!("Unanmed structs/enums are not supported")
@@ -276,7 +301,7 @@ impl Delta {
         // If the type is specified, use that
         if let Local { pat: Pat::Type(PatType{pat, ty, ..}), .. } = local {
             if let Pat::Ident(PatIdent{ident, ..}) = &**pat {
-                self.types.insert(ident.clone(), get_delta_type_from_type(ty));
+                self.types.insert(ident.clone(), ty.get_delta_type());
             }
         }
         
@@ -295,16 +320,19 @@ impl Delta {
             // TODO Match self.thing here so we can do in any order
             Expr::Unary(ExprUnary { expr, .. }) => Ok(self.get_type_of_expr(expr, gamma).unwrap()),
             Expr::Path(ExprPath { path, .. }) => Ok(self.get_type(&get_ident_from_path(path))),
-            Expr::Call(ExprCall {func, ..}) if new_box_call_expr(expr).is_ok() => {
+            Expr::Call(ExprCall {..}) if new_box_call_expr(expr).is_ok() => {
                 let inner_expr_type_name = self.get_type_of_expr(&new_box_call_expr(expr).unwrap(), gamma);
                 if inner_expr_type_name.is_err() {
                     return inner_expr_type_name;
                 }
-                Ok(DeltaType{name: inner_expr_type_name.unwrap().name, is_box: true})
+                Ok(DeltaType{name: inner_expr_type_name.unwrap().name, ref_type: RefType::Box})
             },
+            Expr::Call(ExprCall {..}) => {
+                panic!("Calls are currently unsupported for type inference {:?}", expr)
+            }
             Expr::Struct(ExprStruct {path, .. }) => Ok(DeltaType{
                 name: path.segments.first().unwrap().ident.clone(),
-                is_box: false
+                ref_type: RefType::None
             }),
             Expr::MethodCall(ExprMethodCall { receiver, method, ..}) => {
                 let receiver_type = self.get_type_of_expr(&receiver, gamma);
@@ -317,15 +345,15 @@ impl Delta {
                 match &method_sig.output {
                     ReturnType::Default => panic!("Method {:?} has no return type", method),
                     ReturnType::Type(_, type_) => {
-                        Ok(get_delta_type_from_type(&type_))
+                        Ok(type_.get_delta_type())
                     }
                 }
             },
             Expr::Lit(ExprLit{lit, ..}) => {
                 match lit {
-                    Lit::Int(_) => Ok(DeltaType{name: Ident::new("i32", Span::call_site()), is_box: false}),
-                    Lit::Float(_) => Ok(DeltaType{name: Ident::new("f32", Span::call_site()), is_box: false}),
-                    Lit::Bool(_) => Ok(DeltaType{name: Ident::new("bool", Span::call_site()), is_box: false}),
+                    Lit::Int(_) => Ok(DeltaType{name: Ident::new("i32", Span::call_site()), ref_type: RefType::None}),
+                    Lit::Float(_) => Ok(DeltaType{name: Ident::new("f32", Span::call_site()), ref_type: RefType::None}),
+                    Lit::Bool(_) => Ok(DeltaType{name: Ident::new("bool", Span::call_site()), ref_type: RefType::None}),
                     _ => panic!("Unsupported literal {:?}", lit)
                 }
             },

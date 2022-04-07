@@ -3,6 +3,8 @@ use syn::punctuated::Punctuated;
 use syn::__private::Span;
 use syn::token::{Comma, Colon};
 
+use crate::context::delta::{GetDeltaType, RefType};
+
 pub fn create_enum(name: &Ident, variants: Vec<syn::Variant>, generics: &syn::Generics) -> ItemEnum {
     ItemEnum {
         attrs: [].to_vec(),
@@ -111,6 +113,67 @@ pub fn create_enum_variant(name: &Ident, mut fields: syn::Fields) -> syn::Varian
         ident: name.clone(),
         fields,
         discriminant: None,
+    }
+}
+
+pub fn create_struct(ident: &Ident, mut fields: Fields) -> ItemStruct {
+    match &mut fields {
+        Fields::Named(fields) => {
+            ItemStruct {
+                attrs: Vec::new(),
+                vis: Visibility::Inherited,
+                struct_token: token::Struct::default(),
+                fields: Fields::Named(FieldsNamed{
+                    brace_token: token::Brace::default(),
+                    named: Punctuated::from_iter(fields.named.iter_mut().map(|field| {
+                        let delta_type = field.ty.get_delta_type();
+                        // If a field is a box of the self type then make it dyn
+                        if delta_type.ref_type == RefType::Box && delta_type.name == *ident {
+                            // Parse the box
+                            if let Field{ty: Type::Path(TypePath{path: Path{ref mut segments, ..}, ..}), ..} = field {
+                                if let Some(segment) = segments.iter_mut().next() {
+                                    if segment.ident.to_string() == "Box" {
+                                        // Go into the generics of the box
+                                        if let PathArguments::AngleBracketed(angle_bracket_args) = &mut segment.arguments {
+                                            angle_bracket_args.args = syn::punctuated::Punctuated::from_iter(angle_bracket_args.args.iter().map(|arg| {
+                                                // If the type is not dyn then make it dyn
+                                                if let GenericArgument::Type(Type::Path(TypePath{path, ..})) = arg {
+                                                    GenericArgument::Type(
+                                                        Type::TraitObject(
+                                                            TypeTraitObject{
+                                                                dyn_token: Some(token::Dyn::default()),
+                                                                bounds: Punctuated::from_iter(vec![
+                                                                    TypeParamBound::Trait(
+                                                                        TraitBound{
+                                                                            paren_token: None,
+                                                                            lifetimes: None,
+                                                                            modifier: TraitBoundModifier::None,
+                                                                            path: path.clone(),
+                                                                        }
+                                                                    )
+                                                                ]),
+                                                            }
+                                                        )
+                                                    )
+                                                // Otherwise return the original
+                                                } else {
+                                                    arg.clone()
+                                                }
+                                            }));
+                                        }
+                                    }
+                                }
+                            }
+                        } 
+                        field.clone()
+                    }))
+                }),
+                ident: ident.clone(),
+                generics: Generics::default(),
+                semi_token: Some(token::Semi::default()),
+            }
+        }
+        _ => panic!("Unsupported fields type")
     }
 }
 
@@ -360,6 +423,17 @@ pub fn create_consumer_signature(enum_name: &Ident, enum_instance_name: &Ident, 
                 })
             ),
             ty: Box::new(type_)
+        }
+    )
+}
+
+pub fn create_self_fn_arg(reference: bool) -> FnArg {
+    FnArg::Receiver(
+        Receiver{
+            attrs: Vec::new(),
+            reference: if reference {Some((token::And::default(), None))} else {None},
+            mutability: None,
+            self_token: token::SelfValue::default(),
         }
     )
 }

@@ -29,7 +29,12 @@
 
 ### Inheritance
 
-- [ ] Wildcard pattern for basic types
+- [x] Wildcard pattern for basic types
+
+### Extras 
+
+- [ ] Select which types to transform
+- [ ] Enums with same names
 
 ## Docs
 

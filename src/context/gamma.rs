@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use syn::visit::{Visit, visit_item_enum, visit_item_trait, visit_item_struct, visit_item_impl};
 use syn::*;
 use crate::context::*;
+use crate::context::delta::GetDeltaType;
 use crate::ast::create::generic_parameter_from_generic_argument;
 use errors::*;
 
@@ -316,7 +317,7 @@ impl<'ast> Visit<'ast> for Gamma {
         // If the first argument of the function is an enum, then it is a consumer so add it to the
         // enum consumers
         if let Some(FnArg::Typed(PatType{ty, ..})) = i.sig.inputs.first() {
-            let first_arg_type = delta::get_delta_type_from_type(ty).name;
+            let first_arg_type = ty.get_delta_type().name;
             println!("We have found a consumer, {:?}" , first_arg_type);
             println!("Type: {:?}" , ty);
             if self.is_enum(&first_arg_type) {
