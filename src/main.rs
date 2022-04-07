@@ -83,11 +83,16 @@ fn transform(path: &PathBuf, transform_type: &TransformType) {
 
                 // Create a trait 
                 transformed_syntax.items.extend(transform_enum(&enum_, gamma_mut_borrow));
+
+                // For all the consumers, for each arm create a method in each impl
+                for consumer in consumers {
+                }
             }
             
             // Transform all the consumers
         }
     }
+
     for item in &syntax.items {
         transformed_syntax.items.push(transform_item(item, &transform_type, &gamma));
     }

@@ -177,7 +177,40 @@ pub fn create_struct(ident: &Ident, mut fields: Fields) -> ItemStruct {
     }
 }
 
-pub fn create_function(sig: syn::Signature, stmts: Vec<syn::Stmt>) -> ItemFn {
+pub fn create_impl(trait_ident: &Ident, struct_ident: &Ident, items: Vec<ImplItem>) -> ItemImpl {
+    ItemImpl {
+        attrs: Vec::new(),
+        brace_token: token::Brace::default(),
+        defaultness: None,
+        generics: Generics::default(),
+        impl_token: token::Impl::default(),
+        items,
+        trait_: Some((
+            None,
+            trait_ident.clone().into(),
+            token::For::default()
+        )),
+        self_ty: Box::new(
+            Type::Path(TypePath{
+                qself: None,
+                path: struct_ident.clone().into(),
+            })
+        ),
+        unsafety: None,
+    }
+}
+
+pub fn create_impl_method(sig: &Signature, block: &Block) -> ImplItemMethod {
+    ImplItemMethod {
+        attrs: Vec::new(),
+        vis: Visibility::Inherited,
+        defaultness: None,
+        sig: sig.clone(),
+        block: block.clone(),
+    }
+}
+
+pub fn create_function(sig: Signature, stmts: Vec<Stmt>) -> ItemFn {
    syn::ItemFn{
        sig,
        vis: syn::Visibility::Inherited,

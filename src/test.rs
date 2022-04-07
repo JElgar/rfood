@@ -1,3 +1,2 @@
-struct Thing {
-    field: Box<Trait>
+impl A for B {
 }

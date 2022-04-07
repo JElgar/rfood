@@ -4,7 +4,7 @@ use syn::punctuated::Punctuated;
 use syn::token::{Comma, Colon};
 
 use crate::context;
-use context::gamma::{Gamma, get_generics_from_path_segment};
+use context::gamma::{Gamma, get_generics_from_path_segment, get_match_expr_for_enum};
 use context::delta::*;
 use context::errors::*;
 
@@ -53,19 +53,32 @@ pub fn transform_consumer_fn_to_trait_item(consumer: &ItemFn) -> TraitItem {
 pub fn transform_enum(enum_: &ItemEnum, gamma: &mut Gamma) -> Vec<Item> {
 
     // Create a trait
-    let items = Vec::from_iter(gamma.get_enum_consumers(enum_).iter().map(|consumer| {
+    let consumers = gamma.get_enum_consumers(enum_);
+    let traits: Vec<TraitItem> = Vec::from_iter(consumers.iter().map(|consumer| {
         transform_consumer_fn_to_trait_item(&consumer)
     }));
 
 
-    let mut items = vec![Item::Trait(create_trait(&enum_.ident, items))];
+    let mut items = vec![Item::Trait(create_trait(&enum_.ident, traits))];
 
     // For each variant of the enum create a struct and an impl
-    let mut structs = Vec::from_iter(enum_.variants.iter().map(|variant| {
-        Item::Struct(create_struct(&enum_.ident, variant.fields.clone()))
-    }));
+    for variant in enum_.variants.iter() {
+        // Create the struct
+        items.push(Item::Struct(create_struct(&enum_.ident, variant.fields.clone())));
 
-    items.append(&mut structs);
+        // Collect methods
+        let impl_items = consumers.iter().map(|consumer| {
+            let expr = get_match_expr_for_enum(consumer, &variant.ident);
+            ImplItem::Method(create_impl_method(&consumer.sig, &Block{
+                brace_token: token::Brace::default(),
+                stmts: vec![Stmt::Expr(expr)],
+            }))
+        });
+
+        // Create the impl
+        items.push(Item::Impl(create_impl(&enum_.ident, &variant.ident, Vec::from_iter(impl_items))));
+    }
+
     return items;
 }
 

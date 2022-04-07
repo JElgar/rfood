@@ -41,6 +41,33 @@ pub fn get_generics_from_path_segment(segment: &PathSegment) -> Generics {
     panic!("Cannot get generics from unsupported path segment, {:?}", segment);
 }
 
+pub fn get_consumer_match_statement(consumer: &ItemFn) -> std::result::Result<ExprMatch, NotFound> {
+    if let Some(stmt) = consumer.block.stmts.last() {
+        if let Stmt::Expr(Expr::Match(expr_match)) = stmt {
+            return Ok(expr_match.clone());
+        }
+        else if let Stmt::Expr(Expr::Return(ExprReturn{expr: Some(inner_expr), ..})) = &stmt {
+            if let Expr::Match(expr_match) = &**inner_expr {
+                return Ok(expr_match.clone());
+            }
+        }
+    }
+    return Err(NotFound{item_name: "Consumer match statement".to_string(), type_name: "ExprMatch".to_string()});
+}
+
+pub fn get_match_expr_for_enum(consumer: &ItemFn, enum_variant_ident: &Ident) -> Expr {
+    let match_expr: ExprMatch = get_consumer_match_statement(consumer).unwrap();
+    match_expr.arms.iter().find_map(|arm| {
+        // If the arm pat is the enum
+        if let syn::Pat::Struct(PatStruct{path: Path{segments, ..}, ..}) = &arm.pat {
+            if segments.last().unwrap().ident == *enum_variant_ident {
+                return Some(*arm.body.clone());
+            }
+        }
+        return None;
+    }).unwrap()
+}
+
 /// Global context
 #[derive(Debug, Clone)]
 pub struct Gamma {
