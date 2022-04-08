@@ -3,7 +3,7 @@ use syn::punctuated::Punctuated;
 use syn::__private::Span;
 use syn::token::{Comma, Colon};
 
-use crate::context::delta::{GetDeltaType, RefType};
+use crate::context::delta::{GetDeltaType, RefType, get_ident_from_path};
 
 pub fn create_enum(name: &Ident, variants: Vec<syn::Variant>, generics: &syn::Generics) -> ItemEnum {
     ItemEnum {
@@ -21,7 +21,7 @@ pub fn create_enum(name: &Ident, variants: Vec<syn::Variant>, generics: &syn::Ge
     }
 }
 
-pub fn create_trait(name: &Ident, items: Vec<TraitItem>) -> ItemTrait {
+pub fn create_trait(name: &Ident, items: &Vec<TraitItem>) -> ItemTrait {
     ItemTrait {
         attrs: Vec::new(),
         vis: Visibility::Inherited,
@@ -38,7 +38,7 @@ pub fn create_trait(name: &Ident, items: Vec<TraitItem>) -> ItemTrait {
         colon_token: None,
         supertraits: Punctuated::new(),
         brace_token: token::Brace::default(),
-        items,
+        items: items.clone(),
     }
 }
 
@@ -116,7 +116,7 @@ pub fn create_enum_variant(name: &Ident, mut fields: syn::Fields) -> syn::Varian
     }
 }
 
-pub fn create_struct(ident: &Ident, mut fields: Fields) -> ItemStruct {
+pub fn create_struct(ident: &Ident, trait_ident: &Ident, mut fields: Fields) -> ItemStruct {
     match &mut fields {
         Fields::Named(fields) => {
             ItemStruct {
@@ -128,7 +128,7 @@ pub fn create_struct(ident: &Ident, mut fields: Fields) -> ItemStruct {
                     named: Punctuated::from_iter(fields.named.iter_mut().map(|field| {
                         let delta_type = field.ty.get_delta_type();
                         // If a field is a box of the self type then make it dyn
-                        if delta_type.ref_type == RefType::Box && delta_type.name == *ident {
+                        if delta_type.ref_type == RefType::Box && delta_type.name == *trait_ident {
                             // Parse the box
                             if let Field{ty: Type::Path(TypePath{path: Path{ref mut segments, ..}, ..}), ..} = field {
                                 if let Some(segment) = segments.iter_mut().next() {
@@ -471,6 +471,51 @@ pub fn create_self_fn_arg(reference: bool) -> FnArg {
     )
 }
 
+pub fn create_self_path() -> Path {
+    Path{
+        leading_colon: None,
+        segments: Punctuated::from_iter(
+            [
+                PathSegment{
+                    ident: Ident::new("self", Span::call_site()),
+                    arguments: PathArguments::None,
+                }
+            ]
+        )
+    }
+}
+
+pub fn create_self_expr() -> Expr {
+    Expr::Path(
+        ExprPath{
+            attrs: Vec::new(),
+            qself: None,
+            path: create_self_path(),
+        }
+    )
+}
+
+pub fn create_self_field_call(field_name: &Ident) -> Expr {
+    Expr::Field(ExprField{
+        attrs: Vec::new() as Vec<syn::Attribute>,
+        base: Box::new(Expr::Path(
+            ExprPath {
+                attrs: Vec::new() as Vec<syn::Attribute>,
+                qself: None,
+                path: syn::Path {
+                    leading_colon: None,
+                    segments: Punctuated::from_iter([syn::PathSegment {
+                        ident: Ident::new("self", Span::call_site()),
+                        arguments: syn::PathArguments::None
+                    }])
+                }
+            }
+        )),
+        member: syn::Member::Named(field_name.clone()),
+        dot_token: token::Dot::default(),
+    })
+}
+
 pub fn create_function_call(method: &Ident, args: Punctuated<Expr, Comma>) -> Expr {
     let method_path = Expr::Path(ExprPath{attrs: Vec::new(), qself: None, path: Path{
         leading_colon: None,
@@ -484,6 +529,31 @@ pub fn create_function_call(method: &Ident, args: Punctuated<Expr, Comma>) -> Ex
         paren_token: token::Paren { span: Span::call_site() },
         func: Box::new(method_path),
         args: args.clone(),
+    })
+}
+
+pub fn create_self_method_call(method: &Ident, args: Punctuated<Expr, Comma>) -> Expr {
+    create_method_call(method, &create_self_expr(), &args)
+}
+
+pub fn add_self_to_path(exp: &Expr) -> Expr {
+    match exp {
+        Expr::Path(expr_path) => {
+            create_self_field_call(&get_ident_from_path(&expr_path.path))
+        },
+        _ => panic!("Unsupported expression type for adding self"),
+    }
+}
+
+pub fn create_method_call(method: &Ident, receiver: &Expr, args: &Punctuated<Expr, Comma>) -> Expr {
+    Expr::MethodCall(ExprMethodCall{
+        attrs: Vec::new(),
+        receiver: Box::new(receiver.clone()),
+        dot_token: token::Dot { spans: [Span::call_site()] },
+        method: method.clone(),
+        args: args.clone(),
+        paren_token: token::Paren::default(),
+        turbofish: None,
     })
 }
 

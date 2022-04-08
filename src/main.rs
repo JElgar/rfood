@@ -1,4 +1,4 @@
-#![feature(rustc_private)]
+#![feature(rustc_private, box_patterns)]
 
 extern crate syn;
 extern crate proc_macro;
@@ -86,7 +86,9 @@ fn transform(path: &PathBuf, transform_type: &TransformType) {
 
                 // For all the consumers, for each arm create a method in each impl
                 for consumer in consumers {
+                    remove_item_from_syntax(&mut syntax, syn::Item::Fn(consumer.clone()));
                 }
+                remove_item_from_syntax(&mut syntax, syn::Item::Enum(enum_.clone()));
             }
             
             // Transform all the consumers

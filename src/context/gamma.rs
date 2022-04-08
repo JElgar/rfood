@@ -55,9 +55,13 @@ pub fn get_consumer_match_statement(consumer: &ItemFn) -> std::result::Result<Ex
     return Err(NotFound{item_name: "Consumer match statement".to_string(), type_name: "ExprMatch".to_string()});
 }
 
-pub fn get_match_expr_for_enum(consumer: &ItemFn, enum_variant_ident: &Ident) -> Expr {
-    let match_expr: ExprMatch = get_consumer_match_statement(consumer).unwrap();
-    match_expr.arms.iter().find_map(|arm| {
+pub fn get_match_expr_for_enum(consumer: &ItemFn, enum_variant_ident: &Ident) -> std::result::Result<Expr, NotFound> {
+    let match_expr = get_consumer_match_statement(consumer);
+    if match_expr.is_err() {
+        return Err(match_expr.err().unwrap());
+    }
+
+    Ok(match_expr.unwrap().arms.iter().find_map(|arm| {
         // If the arm pat is the enum
         if let syn::Pat::Struct(PatStruct{path: Path{segments, ..}, ..}) = &arm.pat {
             if segments.last().unwrap().ident == *enum_variant_ident {
@@ -65,7 +69,7 @@ pub fn get_match_expr_for_enum(consumer: &ItemFn, enum_variant_ident: &Ident) ->
             }
         }
         return None;
-    }).unwrap()
+    }).unwrap())
 }
 
 /// Global context
@@ -253,9 +257,17 @@ impl Gamma {
     pub fn add_enum(&mut self, enum_: &ItemEnum) {
         self.enums.push(enum_.clone());
     }
-
+    
     pub fn add_enum_consumer(&mut self, enum_: &ItemEnum, consumer_ident: &Ident, consumer: &ItemFn) {
         self.enum_consumers.entry(enum_.clone()).or_insert_with(HashMap::new).insert(consumer_ident.clone(), consumer.clone());
+    }
+    
+    pub fn add_trait(&mut self, trait_: &ItemTrait) {
+        self.traits.push(trait_.clone());
+    }
+    
+    pub fn add_generator(&mut self, trait_: &ItemTrait, generator_struct: &ItemStruct, generator_impl: &ItemImpl) {
+        self.generators.entry(trait_.clone()).or_insert_with(Vec::new).push((generator_struct.clone(), generator_impl.clone()));
     }
 
     /// Given a struct/enum varaient name, get the base type name (trait/enum)
@@ -281,6 +293,19 @@ impl Gamma {
         // Get the enum
         self.enum_consumers.get(&self.get_enum(&enum_ident).unwrap()).unwrap().get(&destructor_ident).unwrap().sig.clone()
 
+    }
+    
+    pub fn get_transformed_consumer_signature(&self, consumer_ident: &Ident) -> Signature {
+        self.traits.iter().find_map(|trait_| {
+            trait_.items.iter().find_map(|item| {
+                if let TraitItem::Method(method) = item {
+                    if method.sig.ident == *consumer_ident {
+                        return Some(method.sig.clone());
+                    }
+                }
+                return None;
+            })
+        }).unwrap().clone()
     }
 }
 

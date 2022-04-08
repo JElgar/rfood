@@ -1,2 +1,3 @@
-impl A for B {
+fn test() {
+    thing()
 }

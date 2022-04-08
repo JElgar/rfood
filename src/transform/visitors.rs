@@ -5,7 +5,7 @@ use syn::__private::Span;
 
 use crate::context;
 use crate::ast;
-use context::delta::{Delta, get_ident_from_path, new_box_call_expr};
+use context::delta::{Delta, get_ident_from_path, new_box_call_expr, GetDeltaType};
 use context::gamma::Gamma;
 use ast::create::*;
 
@@ -57,6 +57,7 @@ impl VisitMut for ReplaceMethodCalls {
     fn visit_expr_mut(&mut self, expr: &mut Expr) {
         visit_expr_mut(self, expr);
         if let syn::Expr::MethodCall(expr_method_call) = expr.clone() {
+            // TODO check the method call is of a transformed type 
             // Extract the type of the expression that the method is being called on
 
             // Check if the type being transformed is a trait 
@@ -106,6 +107,43 @@ impl VisitMut for ReplaceDynBoxDestructorReturnStatements {
                 // TODO find out what I was thinking here with the create_dereference_of_expr
                 // i.expr = Some(Box::new(create_dereference_of_expr(i.expr.as_ref().unwrap())))
             }
+        }
+    }
+}
+
+/// When transforming from a consumer to a destructor, we need to add self infront of any literals
+/// that come from the enum.
+pub struct TransformConsumer {
+    pub literal_idents: Vec<Ident>
+}
+impl VisitMut for TransformConsumer {
+    fn visit_expr_mut(&mut self, i: &mut Expr) {
+        match i {
+            Expr::Path(expr_path) | Expr::Unary(ExprUnary { expr: box Expr::Path(expr_path), ..}) => {
+                let var_name = &expr_path.path.get_delta_type().name;
+                if self.literal_idents.contains(&var_name) {
+                    *i = create_self_field_call(var_name)
+                }
+            },
+            Expr::Call(expr_call) => {
+                if let Expr::Path(expr_path) = &*expr_call.func {
+                    // TODO check if the function is a consumer
+                   
+                    // Get the name of the method
+                    let fn_name = get_ident_from_path(&expr_path.path);
+
+                    // Get the args, removing the first arg as it is self TODO it could not be
+                    let mut args = expr_call.args.clone();
+                    let first_arg = args.pop().unwrap();
+                    // TODO check if this is actually self or not
+                    let reciever = add_self_to_path(first_arg.value());
+                     
+                    
+                    // If the function is a consumer, call method on self
+                    *i = create_method_call(&fn_name, &reciever, &args);
+                }
+            }
+            _ => visit_expr_mut(self, i)
         }
     }
 }

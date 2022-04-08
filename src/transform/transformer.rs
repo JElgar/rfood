@@ -41,42 +41,63 @@ pub fn transform_trait(trait_: &ItemTrait, gamma: &mut Gamma) -> Vec<Item> {
     return items;
 }
 
-pub fn transform_consumer_fn_to_trait_item(consumer: &ItemFn) -> TraitItem {
-    TraitItem::Method(TraitItemMethod{
+pub fn transform_consumer_fn_to_trait_item(consumer: &ItemFn) -> TraitItemMethod {
+    TraitItemMethod{
         attrs: consumer.attrs.clone(),
         sig: transform_consumer_signature(&consumer.sig),
         default: None,
         semi_token: Some(token::Semi::default()),
-    })
+    }
 }
 
 pub fn transform_enum(enum_: &ItemEnum, gamma: &mut Gamma) -> Vec<Item> {
 
     // Create a trait
     let consumers = gamma.get_enum_consumers(enum_);
-    let traits: Vec<TraitItem> = Vec::from_iter(consumers.iter().map(|consumer| {
+    let trait_methods: Vec<TraitItemMethod> = Vec::from_iter(consumers.iter().map(|consumer| {
         transform_consumer_fn_to_trait_item(&consumer)
     }));
 
 
-    let mut items = vec![Item::Trait(create_trait(&enum_.ident, traits))];
+    let trait_ = create_trait(
+        &enum_.ident,
+        &trait_methods.iter().map(|method| {
+            TraitItem::Method(method.clone())
+        }).collect::<Vec<TraitItem>>()
+    );
+    gamma.add_trait(&trait_);
+
+    let mut items = vec![Item::Trait(trait_.clone())];
 
     // For each variant of the enum create a struct and an impl
     for variant in enum_.variants.iter() {
         // Create the struct
-        items.push(Item::Struct(create_struct(&enum_.ident, variant.fields.clone())));
+        let struct_ = create_struct(&variant.ident, &enum_.ident, variant.fields.clone());
+        items.push(Item::Struct(struct_.clone()));
 
         // Collect methods
-        let impl_items = consumers.iter().map(|consumer| {
-            let expr = get_match_expr_for_enum(consumer, &variant.ident);
-            ImplItem::Method(create_impl_method(&consumer.sig, &Block{
+        // TODO handle trait method
+        let impl_items = consumers.iter().zip(trait_methods.iter()).filter_map(|(consumer, trait_method)| {
+            let match_expr = get_match_expr_for_enum(consumer, &variant.ident);
+            if match_expr.is_err() {
+                return None;
+            }
+            let expr = transform_consumer_expr(
+                &match_expr.unwrap(),
+                Vec::from_iter(variant.fields.iter().map(|field| {
+                    field.ident.clone().unwrap()
+                }))
+            );
+            Some(ImplItem::Method(create_impl_method(&trait_method.sig, &Block{
                 brace_token: token::Brace::default(),
                 stmts: vec![Stmt::Expr(expr)],
-            }))
+            })))
         });
 
         // Create the impl
-        items.push(Item::Impl(create_impl(&enum_.ident, &variant.ident, Vec::from_iter(impl_items))));
+        let impl_ = create_impl(&enum_.ident, &variant.ident, Vec::from_iter(impl_items));
+        gamma.add_generator(&trait_, &struct_, &impl_);
+        items.push(Item::Impl(impl_));
     }
 
     return items;
@@ -220,6 +241,13 @@ fn transform_destructor_expr(expr: &Expr, old_delta: &Delta, new_delta: &Delta, 
     return expr_clone; 
 }
 
+fn transform_consumer_expr(expr: &Expr, trait_attributes: Vec<Ident>) -> Expr {
+    let mut expr_clone = expr.clone();
+    let mut tc = TransformConsumer{literal_idents: trait_attributes};
+    tc.visit_expr_mut(&mut expr_clone);
+    expr_clone
+}
+
 /// Convert signature of destructor to consumer signature
 ///
 /// Replace &self with Box<T> and replace self with T
@@ -340,7 +368,7 @@ fn transform_function(func: &ItemFn, transform_type: &TransformType, gamma: &Gam
 
 fn transform_struct_instantiation_path_for_enum(expr_struct: &ExprStruct, gamma: &Gamma, delta: &Delta) -> Path {
     // Get the name of the enum
-    let trait_name = gamma.get_generator_trait(&get_type_from_path(&expr_struct.path).name).unwrap();
+    let trait_name = gamma.get_generator_trait(&expr_struct.path.get_delta_type().name).unwrap();
     // Add the enum in front of the struct
     let mut new_path_vec = vec![PathSegment{ident: trait_name.ident.clone(), arguments: PathArguments::None}];
     new_path_vec.append(&mut Vec::from_iter(expr_struct.path.segments.clone().iter().cloned()));
@@ -387,8 +415,8 @@ fn transform_method_call_arguments(method_call: &ExprMethodCall, gamma: &Gamma, 
 fn transform_expr(expr: &Expr, transform_type: &TransformType, gamma: &Gamma, delta: &Delta) -> Expr {
     // Clone the delta at this stage
     let mut delta = delta.clone();
-    match expr {
-        Expr::MethodCall(expr_method_call) 
+    match (transform_type, expr) {
+        (TransformType::OOPToFP, Expr::MethodCall(expr_method_call))
             if gamma.is_generator_type(&delta.get_type_of_expr(&expr_method_call.receiver, gamma).unwrap().name) 
         => {
             let ExprMethodCall { receiver, method, .. } = expr_method_call;
@@ -402,20 +430,20 @@ fn transform_expr(expr: &Expr, transform_type: &TransformType, gamma: &Gamma, de
             new_args.extend(transform_method_call_arguments(&expr_method_call, gamma, &delta));
             create_function_call(&method, new_args)
         },
-        Expr::Call(expr_call) => {
+        (_, Expr::Call(expr_call)) => {
             Expr::Call(ExprCall{
                 func: Box::new(transform_expr(&expr_call.func, transform_type, gamma, &delta)),
                 args: Punctuated::from_iter(expr_call.args.iter().map(|arg| transform_expr(arg, transform_type, gamma, &delta))),
                 ..expr_call.clone()
             })
         },
-        Expr::Return(expr_return) if expr_return.expr.is_some() => {
+        (_, Expr::Return(expr_return)) if expr_return.expr.is_some() => {
             Expr::Return(ExprReturn{
                 expr: Some(Box::new(transform_expr(&expr_return.clone().expr.unwrap(), transform_type, gamma, &delta))),
                 ..expr_return.clone()
             })
         }
-        Expr::Struct(expr_struct) if gamma.get_generator_trait(&get_type_from_path(&expr_struct.path).name).is_some() => {
+        (_, Expr::Struct(expr_struct)) if gamma.get_generator_trait(&expr_struct.path.get_delta_type().name).is_some() => {
             Expr::Struct(ExprStruct{
                 path: transform_struct_instantiation_path_for_enum(expr_struct, gamma, &delta),
                 fields: Punctuated::from_iter(expr_struct.fields.iter().map(|field| {
@@ -425,7 +453,7 @@ fn transform_expr(expr: &Expr, transform_type: &TransformType, gamma: &Gamma, de
                     let new_expr_type = delta.get_type_of_expr(&new_expr, gamma).unwrap();
 
                     // Get the enum 
-                    let enum_variant_ident = get_type_from_path(&expr_struct.path).name;
+                    let enum_variant_ident = expr_struct.path.get_delta_type().name;
                     let enum_variant = gamma.get_enum_variant(&enum_variant_ident, &enum_variant_ident);
                     let mut enum_delta = Delta::new();
                     enum_delta.collect_for_enum_variant(&enum_variant);
@@ -440,7 +468,7 @@ fn transform_expr(expr: &Expr, transform_type: &TransformType, gamma: &Gamma, de
                 ..expr_struct.clone()
             })
         },
-        Expr::Block(expr_block) => {
+        (_, Expr::Block(expr_block)) => {
             Expr::Block(ExprBlock{
                 block: Block{
                     stmts: Vec::from_iter(expr_block.block.stmts.iter().map(|stmt| transform_statement(&stmt, transform_type, gamma, &mut delta))),

@@ -70,6 +70,18 @@ impl GetDeltaType for Type {
     }
 }
 
+impl GetDeltaType for Path {
+    fn get_delta_type(&self) -> DeltaType {
+        let segment = self.segments.first().unwrap();
+    
+        if segment.ident == "Box" {
+            return DeltaType{name: get_type_from_box(segment).unwrap(), ref_type: RefType::Box};
+        }
+    
+        return DeltaType{name: segment.ident.clone(), ref_type: RefType::None};
+    }
+}
+
 pub trait GetRefType {
     fn get_ref_type(&self) -> RefType;
 }
@@ -186,16 +198,6 @@ pub fn get_ident_from_path(Path { segments, .. }: &Path) -> Ident {
     return segment.ident.clone();
 }
 
-pub fn get_type_from_path(Path { segments, .. }: &Path) -> DeltaType {
-    let segment = segments.first().unwrap();
-
-    if segment.ident == "Box" {
-        return DeltaType{name: get_type_from_box(segment).unwrap(), ref_type: RefType::Box};
-    }
-
-    return DeltaType{name: segment.ident.clone(), ref_type: RefType::None};
-}
-
 pub fn get_type_from_function_arg(arg: &FnArg, self_type: Option<&Ident>) -> DeltaType{
     // TODO add in reference types
     if let FnArg::Typed(pat_type) = arg {
@@ -245,6 +247,24 @@ fn fields_to_delta_types(fields: &Fields) -> Vec<(Ident, DeltaType)> {
         },
         _ => panic!("Unanmed structs/enums are not supported")
     }
+}
+
+fn get_return_type_from_signature(signature: &Signature) -> Option<DeltaType> {
+    match &signature.output {
+        ReturnType::Default => None, 
+        ReturnType::Type(_, type_) => {
+            Some(type_.get_delta_type())
+        }
+    }
+}
+
+fn get_function_call_name(expr_call: &ExprCall) -> Ident{
+    if let Expr::Path(ExprPath{
+        path: Path{ segments, .. }, ..
+    }) = &*expr_call.func {
+        return segments.first().unwrap().ident.clone();
+    }
+    panic!("Could not get function name from call");
 }
 
 impl Delta {
@@ -327,8 +347,12 @@ impl Delta {
                 }
                 Ok(DeltaType{name: inner_expr_type_name.unwrap().name, ref_type: RefType::Box})
             },
-            Expr::Call(ExprCall {..}) => {
-                panic!("Calls are currently unsupported for type inference {:?}", expr)
+            // TODO this is wrong if the call is not being transformed, this should be checked for
+            // both the call and method call. Might be worth taking in a "transformed" boolean
+            Expr::Call(expr_call) => {
+                let func_name = get_function_call_name(&expr_call);
+                let sig = gamma.get_transformed_consumer_signature(&func_name);
+                Ok(get_return_type_from_signature(&sig).unwrap_or_else(|| panic!("Function {:?} not found", sig)))
             }
             Expr::Struct(ExprStruct {path, .. }) => Ok(DeltaType{
                 name: path.segments.first().unwrap().ident.clone(),
@@ -342,12 +366,7 @@ impl Delta {
 
                 // TODO trait does not exist
                 let method_sig = gamma.get_transformed_destructor_signature(&receiver_type.unwrap().name, &method);
-                match &method_sig.output {
-                    ReturnType::Default => panic!("Method {:?} has no return type", method),
-                    ReturnType::Type(_, type_) => {
-                        Ok(type_.get_delta_type())
-                    }
-                }
+                Ok(get_return_type_from_signature(&method_sig).unwrap_or_else(|| panic!("Method {:?} not found", method)))
             },
             Expr::Lit(ExprLit{lit, ..}) => {
                 match lit {
