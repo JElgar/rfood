@@ -17,9 +17,21 @@ pub enum RefType {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum EType {
+    None,
+    DeltaType(DeltaType),
+    Any,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct DeltaType {
     pub name: Ident,
     pub ref_type: RefType,
+}
+impl DeltaType {
+    pub fn is_equaivalent(&self, other: &Self, gamma: &Gamma) -> bool {
+        self == other || (self.ref_type == other.ref_type && gamma.is_subtype_of(&self.name, &other.name))
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -54,6 +66,21 @@ pub fn get_type_from_box(segment: &PathSegment) -> std::result::Result<Ident, No
     Err(NotABoxType{segment: segment.clone()})
 }
 
+pub trait GetOptionalDeltaType {
+    fn get_delta_type(&self) -> Option<DeltaType>;
+}
+
+impl GetOptionalDeltaType for ReturnType {
+    fn get_delta_type(&self) -> Option<DeltaType> {
+        match self {
+            ReturnType::Default => None,
+            ReturnType::Type(_, ty) => {
+                return Some(ty.get_delta_type());
+            }
+        }
+    }
+}
+
 pub trait GetDeltaType {
     fn get_delta_type(&self) -> DeltaType;
 }
@@ -79,6 +106,18 @@ impl GetDeltaType for Path {
         }
     
         return DeltaType{name: segment.ident.clone(), ref_type: RefType::None};
+    }
+}
+
+impl GetDeltaType for FnArg {
+    fn get_delta_type(&self) -> DeltaType {
+        DeltaType {
+            name: match self {
+                FnArg::Typed(typed) => typed.ty.get_delta_type().name,
+                _ => panic!("Other types not supported, {:?}", self)
+            },
+            ref_type: self.get_ref_type(),
+        }
     }
 }
 
@@ -249,22 +288,25 @@ fn fields_to_delta_types(fields: &Fields) -> Vec<(Ident, DeltaType)> {
     }
 }
 
-fn get_return_type_from_signature(signature: &Signature) -> Option<DeltaType> {
+pub fn get_return_type_from_signature(signature: &Signature) -> EType {
     match &signature.output {
-        ReturnType::Default => None, 
+        ReturnType::Default => EType::None, 
         ReturnType::Type(_, type_) => {
-            Some(type_.get_delta_type())
+            EType::DeltaType(type_.get_delta_type())
         }
     }
 }
 
-fn get_function_call_name(expr_call: &ExprCall) -> Ident{
-    if let Expr::Path(ExprPath{
-        path: Path{ segments, .. }, ..
-    }) = &*expr_call.func {
-        return segments.first().unwrap().ident.clone();
+pub fn get_function_call_name(expr_call: &ExprCall) -> Ident{
+    match &*expr_call.func {
+        Expr::Path(ExprPath{ path, .. }) => get_path_call_name(path),
+        _ => panic!("Could not get function name from call")
     }
-    panic!("Could not get function name from call");
+}
+
+/// Get the name of the function being called from a path
+pub fn get_path_call_name(path: &Path) -> Ident {
+    path.segments.last().unwrap().ident.clone()
 }
 
 impl Delta {
@@ -352,7 +394,10 @@ impl Delta {
             Expr::Call(expr_call) => {
                 let func_name = get_function_call_name(&expr_call);
                 let sig = gamma.get_transformed_consumer_signature(&func_name);
-                Ok(get_return_type_from_signature(&sig).unwrap_or_else(|| panic!("Function {:?} not found", sig)))
+                match get_return_type_from_signature(&sig) {
+                    EType::DeltaType(ty) => Ok(ty),
+                    _ => panic!("Function {:?} not found", sig)
+                }
             }
             Expr::Struct(ExprStruct {path, .. }) => Ok(DeltaType{
                 name: path.segments.first().unwrap().ident.clone(),
@@ -366,7 +411,10 @@ impl Delta {
 
                 // TODO trait does not exist
                 let method_sig = gamma.get_transformed_destructor_signature(&receiver_type.unwrap().name, &method);
-                Ok(get_return_type_from_signature(&method_sig).unwrap_or_else(|| panic!("Method {:?} not found", method)))
+                match get_return_type_from_signature(&method_sig) {
+                    EType::DeltaType(ty) => Ok(ty),
+                    _ => panic!("Method {:?} not found", method_sig)
+                }
             },
             Expr::Lit(ExprLit{lit, ..}) => {
                 match lit {

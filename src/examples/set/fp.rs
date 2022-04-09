@@ -32,10 +32,13 @@ fn insert(set: Set, value: i32) -> Set {
 }
 
 fn union(left: Set, right: Set) -> Set {
-    return Set::Union {
-        s1: Box::new(left),
-        s2: Box::new(right),
-    };
+    match left {
+        Set::Empty{} => right,
+        _ => Set::Union {
+            s1: Box::new(left),
+            s2: Box::new(right),
+        }
+    }
 }
 
 pub fn demo() {

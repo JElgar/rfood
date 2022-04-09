@@ -65,7 +65,7 @@ fn transform(path: &PathBuf, transform_type: &TransformType) {
                 transformed_syntax.items.append(&mut transform_trait(&trait_, gamma_mut_borrow));
 
                 // Remove the original trait from the syntax
-                for (item_struct, item_impl) in gamma_mut_borrow.get_generators(&trait_) {
+                for (item_struct, item_impl) in gamma_mut_borrow.get_generators(&trait_.ident) {
                     remove_item_from_syntax(&mut syntax, syn::Item::Struct(item_struct));
                     remove_item_from_syntax(&mut syntax, syn::Item::Impl(item_impl));
                 }

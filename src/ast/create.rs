@@ -116,6 +116,71 @@ pub fn create_enum_variant(name: &Ident, mut fields: syn::Fields) -> syn::Varian
     }
 }
 
+pub fn create_dyn_box_of_path(path: &Path) -> Path {
+    Path{
+        leading_colon: None,
+        segments: Punctuated::from_iter(
+            vec![
+                PathSegment{
+                    ident: Ident::new("Box", Span::call_site()),
+                    arguments: syn::PathArguments::AngleBracketed(syn::AngleBracketedGenericArguments{
+                        args: Punctuated::from_iter(
+                            vec![
+                                GenericArgument::Type(
+                                    Type::TraitObject(
+                                        TypeTraitObject{
+                                            dyn_token: Some(syn::Token![dyn](Span::call_site())),
+                                            bounds: Punctuated::from_iter(
+                                                vec![
+                                                    TypeParamBound::Trait(
+                                                        TraitBound{
+                                                            lifetimes: None,
+                                                            path: path.clone(),
+                                                            modifier: TraitBoundModifier::None,
+                                                            paren_token: None,
+                                                        }
+                                                    )
+                                                ]
+                                            ),
+                                        }
+                                    )
+                                )
+                            ]
+                        ),
+                        lt_token: token::Lt::default(),
+                        gt_token: token::Gt::default(),
+                        colon2_token: Some(token::Colon2::default()),
+                    })
+                }
+            ]
+        ),
+    }
+}
+
+pub fn create_dyn_box_of_type(type_: &Type) -> Type {
+    match type_ {
+        Type::Path(type_path) => {
+            Type::Path(TypePath{
+                path: create_dyn_box_of_path(&type_path.path),
+                ..type_path.clone()
+            })
+        },
+        _ => panic!("Unsupported type"),
+    }
+}
+
+pub fn create_dyn_box_arg(fn_arg: &FnArg) -> FnArg {
+    match fn_arg {
+        FnArg::Typed(typed) => {
+            FnArg::Typed(PatType{
+                ty: Box::new(create_dyn_box_of_type(&*typed.ty)),
+                ..typed.clone()
+            })
+        },
+        _ => panic!("Unsupported fn arg type for creating dyn box")
+    }
+}
+
 pub fn create_struct(ident: &Ident, trait_ident: &Ident, mut fields: Fields) -> ItemStruct {
     match &mut fields {
         Fields::Named(fields) => {
@@ -460,15 +525,78 @@ pub fn create_consumer_signature(enum_name: &Ident, enum_instance_name: &Ident, 
     )
 }
 
-pub fn create_self_fn_arg(reference: bool) -> FnArg {
-    FnArg::Receiver(
-        Receiver{
-            attrs: Vec::new(),
-            reference: if reference {Some((token::And::default(), None))} else {None},
-            mutability: None,
-            self_token: token::SelfValue::default(),
-        }
-    )
+pub fn create_self_fn_arg(reference_type: RefType) -> FnArg {
+    if reference_type == RefType::Box {
+        FnArg::Typed(
+            syn::PatType{
+                attrs: Vec::new(),
+                colon_token: Colon::default(),
+                pat: Box::new(
+                    Pat::Ident(PatIdent{
+                        attrs: [].to_vec(),
+                        by_ref: None,
+                        mutability: None,
+                        ident: Ident::new("self", Span::call_site()),
+                        subpat: None,
+                    })
+                ),
+                ty: Box::new(
+                    Type::Path(
+                        TypePath{
+                            qself: None,
+                            path: syn::Path{
+                                leading_colon: None,
+                                segments: syn::punctuated::Punctuated::from_iter(
+                                    [
+                                        syn::PathSegment{
+                                            ident: Ident::new("Box", Span::call_site()),
+                                            arguments: PathArguments::AngleBracketed(AngleBracketedGenericArguments{
+                                                colon2_token: None,
+                                                lt_token: token::Lt::default(),
+                                                gt_token: token::Gt::default(),
+                                                args: Punctuated::from_iter(
+                                                    vec![
+                                                        GenericArgument::Type(Type::Path(
+                                                            TypePath{
+                                                                qself: None,
+                                                                path: syn::Path{
+                                                                    leading_colon: None,
+                                                                    segments: syn::punctuated::Punctuated::from_iter(
+                                                                        [
+                                                                            syn::PathSegment{
+                                                                                ident: Ident::new("Self", Span::call_site()),
+                                                                                arguments: PathArguments::None,
+                                                                            }
+                                                                        ]
+                                                                    )
+                                                                }
+                                                            }
+                                                        ))
+                                                    ]
+                                                ) 
+                                            }),
+                                        },
+                                    ]
+                                )
+                            }
+                        }
+                    )
+                )
+            }
+        )
+    } else {
+        FnArg::Receiver(
+            Receiver{
+                attrs: Vec::new(),
+                reference: match reference_type {
+                    RefType::Ref => Some((token::And::default(), None)),
+                    _ => None, 
+                },
+                mutability: None,
+                self_token: token::SelfValue::default(),
+            }
+        )
+    }
 }
 
 pub fn create_self_path() -> Path {
@@ -538,10 +666,10 @@ pub fn create_self_method_call(method: &Ident, args: Punctuated<Expr, Comma>) ->
 
 pub fn add_self_to_path(exp: &Expr) -> Expr {
     match exp {
-        Expr::Path(expr_path) => {
+        Expr::Path(expr_path) | Expr::Reference(ExprReference { expr: box Expr::Path(expr_path), .. }) => {
             create_self_field_call(&get_ident_from_path(&expr_path.path))
         },
-        _ => panic!("Unsupported expression type for adding self"),
+        _ => panic!("Unsupported expression type for adding self, {:?}", exp),
     }
 }
 

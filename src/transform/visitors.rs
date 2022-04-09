@@ -5,7 +5,8 @@ use syn::__private::Span;
 
 use crate::context;
 use crate::ast;
-use context::delta::{Delta, get_ident_from_path, new_box_call_expr, GetDeltaType};
+use crate::utils::utils::PopFirst;
+use context::delta::{Delta, get_ident_from_path, new_box_call_expr, GetDeltaType, get_function_call_name};
 use context::gamma::Gamma;
 use ast::create::*;
 
@@ -114,37 +115,40 @@ impl VisitMut for ReplaceDynBoxDestructorReturnStatements {
 /// When transforming from a consumer to a destructor, we need to add self infront of any literals
 /// that come from the enum.
 pub struct TransformConsumer {
-    pub literal_idents: Vec<Ident>
+    pub literal_idents: Vec<Ident>,
+    pub gamma: Gamma,
 }
 impl VisitMut for TransformConsumer {
     fn visit_expr_mut(&mut self, i: &mut Expr) {
         match i {
             Expr::Path(expr_path) | Expr::Unary(ExprUnary { expr: box Expr::Path(expr_path), ..}) => {
-                let var_name = &expr_path.path.get_delta_type().name;
+                // NOTE See note below
+                let var_name = &expr_path.path.segments.first().unwrap().ident.clone();
                 if self.literal_idents.contains(&var_name) {
                     *i = create_self_field_call(var_name)
                 }
             },
             Expr::Call(expr_call) => {
-                if let Expr::Path(expr_path) = &*expr_call.func {
-                    // TODO check if the function is a consumer
-                   
-                    // Get the name of the method
-                    let fn_name = get_ident_from_path(&expr_path.path);
-
-                    // Get the args, removing the first arg as it is self TODO it could not be
-                    let mut args = expr_call.args.clone();
-                    let first_arg = args.pop().unwrap();
-                    // TODO check if this is actually self or not
-                    let reciever = add_self_to_path(first_arg.value());
-                     
-                    
-                    // If the function is a consumer, call method on self
-                    *i = create_method_call(&fn_name, &reciever, &args);
+                let fn_name = get_function_call_name(&expr_call);
+                // If the method is not a consumer method then no transformation is needed
+                if !self.gamma.is_consumer(&fn_name) {
+                    visit_expr_mut(self, i);
+                    return;
                 }
+
+                // Get the args, removing the first arg as it is self TODO it could not be
+                let mut args = expr_call.args.clone();
+                let first_arg = args.pop_first().unwrap();
+
+                // TODO check if this is actually self or not
+                let reciever = add_self_to_path(&first_arg);
+                
+                // If the function is a consumer, call method on self
+                *i = create_method_call(&fn_name, &reciever, &args);
             }
-            _ => visit_expr_mut(self, i)
+            _ => () 
         }
+        visit_expr_mut(self, i)
     }
 }
 
@@ -159,7 +163,7 @@ impl VisitMut for TransformGenerators {
         if let Expr::Struct(expr_struct) = i {
             let expr_ident: Ident = get_ident_from_path(&expr_struct.path);
             // If the struct is a generator of the trait
-            if self.gamma.get_generators(&self.trait_).iter().any(|(struct_, _)| struct_.ident == expr_ident) {
+            if self.gamma.get_generators(&self.trait_.ident).iter().any(|(struct_, _)| struct_.ident == expr_ident) {
                 // Add path to the enum
                 let enum_path = create_path_for_enum(&self.trait_.ident, &expr_ident);
 

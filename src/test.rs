@@ -1,3 +1,2 @@
-fn test() {
-    thing()
+fn test(self: Box<Self>) {
 }
