@@ -142,10 +142,19 @@ pub fn transform_enum(enum_: &ItemEnum, gamma: &mut Gamma) -> Vec<Item> {
             );
 
             Some(
-                ImplItem::Method(create_impl_method(&trait_method.sig, &Block{
-                    brace_token: token::Brace::default(),
-                    stmts: vec![Stmt::Expr(expr)],
-                }))
+                ImplItem::Method(create_impl_method(
+                    &trait_method.sig, 
+                    // If the expr is already a block take its block
+                    &if let Expr::Block(expr_block) = expr {
+                        expr_block.block
+                    // Otherwise create a block with the single expr 
+                    } else {
+                        Block{
+                            brace_token: token::Brace::default(),
+                            stmts: vec![Stmt::Expr(expr)],
+                        }
+                    }
+                ))
             )
         });
        
