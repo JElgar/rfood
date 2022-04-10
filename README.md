@@ -13,6 +13,7 @@
 - [x] Support local parms in delta
 - [ ] Shadowing for consumer args and march arm params
 - [ ] Handle renaming when replacing first arg of consumer (eg left -> self in the union function)
+- [ ] Update delta type to store ref_type recursivly. This is so *Box or &* etc can be encoded.
 
 ### Typing 
 

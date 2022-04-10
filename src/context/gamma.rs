@@ -66,7 +66,6 @@ pub fn get_consumer_match_statement(consumer: &ItemFn) -> std::result::Result<Ex
             _ => (),
         }
     }
-    println!("Failed to get match expr from: {:#?}", last_stmt);
     return Err(NotFound {
         item_name: "Consumer match statement".to_string(),
         type_name: "ExprMatch".to_string(),
@@ -79,7 +78,6 @@ pub fn get_match_expr_for_enum(
 ) -> std::result::Result<Expr, NotFound> {
     let match_expr = get_consumer_match_statement(consumer);
     if match_expr.is_err() {
-        println!("Failed to get match expression, {:?}", consumer.sig.ident);
         return Err(match_expr.err().unwrap());
     }
 
@@ -567,15 +565,10 @@ impl<'ast> Visit<'ast> for Gamma {
 
     fn visit_item_fn(&mut self, i: &'ast ItemFn) {
         self.functions.push(i.clone());
-
-        println!("We have found a function! {:?}", i.sig.ident);
-
         // If the first argument of the function is an enum, then it is a consumer so add it to the
         // enum consumers
         if let Some(FnArg::Typed(PatType { ty, .. })) = i.sig.inputs.first() {
             let first_arg_type = ty.get_delta_type().name;
-            println!("We have found a consumer, {:?}", first_arg_type);
-            println!("Type: {:?}", ty);
             if self.is_enum(&first_arg_type) {
                 self.add_enum_consumer(&self.get_enum(&first_arg_type).unwrap(), &i.sig.ident, i);
             }

@@ -77,9 +77,6 @@ fn transform(path: &PathBuf, transform_type: &TransformType) {
             for enum_ in gamma_mut_borrow.enums.clone() {
                 // Get the consumers for the enum 
                 let consumers = gamma_mut_borrow.get_enum_consumers(&enum_);
-                for val in consumers.iter() {
-                    print!("Creating a thing for the consumer: {:#?}\n", val.sig.ident);
-                }
 
                 // Create a trait 
                 transformed_syntax.items.extend(transform_enum(&enum_, gamma_mut_borrow));

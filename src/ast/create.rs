@@ -408,6 +408,19 @@ pub fn create_dereference_of_expr(expr: &Expr) -> Expr {
     })
 }
 
+/// If the provided expression is a deference, *something remove the dereference and return the
+/// inner expression. Otherwise, return the original expression.
+pub fn remove_deference_of_expr(expr: &Expr) -> Expr {
+    match expr {
+        Expr::Unary(ExprUnary{
+            op: UnOp::Deref{..},
+            box expr,
+            ..
+        }) => expr.clone(),
+        _ => expr.clone(),
+    }
+}
+
 pub fn create_reference_of_expr(expr: &Expr) -> Expr {
     Expr::Reference(
         ExprReference{

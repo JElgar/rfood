@@ -55,7 +55,6 @@ pub fn transform_enum(enum_: &ItemEnum, gamma: &mut Gamma) -> Vec<Item> {
 
     // Create a trait
     let consumers = gamma.get_enum_consumers(enum_);
-    println!("Found {:?} consumers for enum_ {:?}", consumers.len(), enum_.ident);
     let trait_methods: Vec<TraitItemMethod> = Vec::from_iter(consumers.iter().map(|consumer| {
         transform_consumer_fn_to_trait_item(&consumer)
     }));
@@ -71,7 +70,7 @@ pub fn transform_enum(enum_: &ItemEnum, gamma: &mut Gamma) -> Vec<Item> {
                     None
                 } else {
                     // If the return type is the trait, we cannot use the default impl
-                    let return_type = consumer.sig.output.get_delta_type();
+                    let return_type = consumer.sig.output.get_delta_type(None);
                     if return_type.is_some() && return_type.unwrap().name == enum_.ident {
                         None
                     } else {
@@ -105,7 +104,7 @@ pub fn transform_enum(enum_: &ItemEnum, gamma: &mut Gamma) -> Vec<Item> {
                     // 1. The trait has a default impl for this method. This is only possible if the
                     //    return type of the consumer is not the same as the enum
                     //    In this case we can just use the default impl so no impl is needed here
-                    let return_type = consumer.sig.output.get_delta_type();
+                    let return_type = consumer.sig.output.get_delta_type(None);
                     if return_type.is_some() && return_type.unwrap().name != enum_.ident {
                         return None;
                     }
@@ -208,7 +207,7 @@ fn transform_destructor(trait_: &ItemTrait, destructor: &TraitItemMethod, enum_:
         // Get impl in the trait
         let mut body = Expr::Block(ExprBlock{block: Gamma::get_destructor_impl_for_trait(trait_, &destructor.sig.ident).unwrap().default.unwrap(), attrs: Vec::new(), label: None});
     
-        body = transform_destructor_expr(&body, &old_delta, &new_delta, gamma, &trait_.ident, EType::DeltaType(signature.output.get_delta_type().unwrap()));
+        body = transform_destructor_expr(&body, &old_delta, &new_delta, gamma, &trait_.ident, EType::DeltaType(signature.output.get_delta_type(None).unwrap()));
         
         // Create wild card arm with this body
         arms.push(ast::create::create_wildcard_match_arm(body));
@@ -259,7 +258,7 @@ fn transform_destructor_impl(generator: &ItemStruct, destructor: &TraitItemMetho
     let mut expr: Expr  = Expr::Block(ExprBlock{block: method_result.unwrap().block, attrs: Vec::new(), label: None});
 
     // Transform the body of the method
-    expr = transform_destructor_expr(&expr, &old_delta, &new_delta, gamma, enum_instance_name, EType::DeltaType(consumer_signature.output.get_delta_type().unwrap()));
+    expr = transform_destructor_expr(&expr, &old_delta, &new_delta, gamma, enum_instance_name, EType::DeltaType(consumer_signature.output.get_delta_type(None).unwrap()));
 
     // Create the arm of the match statement
     let path = ast::create::create_path_for_enum(enum_name, &generator.ident);
@@ -357,12 +356,12 @@ pub fn transform_consumer_signature(signature: &Signature) -> Signature {
 
     // Get the self arg
     let consumer_arg: FnArg = inputs.iter().next().unwrap().clone();
-    let self_type = consumer_arg.get_delta_type();
+    let self_type = consumer_arg.get_delta_type(None);
 
     // Ignoring the first element transfrom each argument
     let mut new_inputs = Vec::from_iter(inputs.iter().skip(1).map(|arg| {
         // TODO make all args with type of enum, Box<dyn T>
-        if arg.get_delta_type().name == self_type.name && self_type.ref_type != RefType::Box {
+        if arg.get_delta_type(None).name == self_type.name && self_type.ref_type != RefType::Box {
             // Create box dyn of fn arg
             return create_dyn_box_arg(&arg);
         }
@@ -463,6 +462,19 @@ fn transform_expr(expr: &Expr, transform_type: &TransformType, gamma: &Gamma, de
     // Clone the delta at this stage
     let mut delta = delta.clone();
     match (transform_type, expr) {
+        (_, Expr::Unary(_)) => {
+            // Remove any existing derefs so we can fix the type manually
+            let expr = remove_deference_of_expr(expr);
+            println!("Transforming unary");
+            let current_type = delta.get_type_of_expr(&expr, gamma);
+            println!("Current type: {:?}", current_type);
+            if let EType::DeltaType(delta_type) = return_type {
+                if let Ok(current_type) = current_type {
+                    return transform_expr_type(&expr, &current_type, &delta_type, gamma);
+                }
+            }
+            return expr.clone();
+        }
         (TransformType::OOPToFP, Expr::MethodCall(expr_method_call))
             if gamma.is_generator_type(&delta.get_type_of_expr(&expr_method_call.receiver, gamma).unwrap().name) 
         => {
@@ -479,9 +491,13 @@ fn transform_expr(expr: &Expr, transform_type: &TransformType, gamma: &Gamma, de
         },
         // Any other method call, transform all the args and the receiver
         (_, Expr::MethodCall(method_call)) => {
+            println!("Doing method {:?}", get_expr_call_name(&method_call.receiver));
             // Get the signature of the method call, NOTE this will fail if any method call are
             // made which are not on destructors TODO fix
-            let signature = gamma.get_destructor_signature(&delta.get_type_of_expr(&method_call.receiver, &gamma).unwrap().name, &method_call.method);
+            let reciever_type = delta.get_type_of_expr(&method_call.receiver, &gamma).unwrap();
+            let signature = gamma.get_destructor_signature(&reciever_type.name, &method_call.method);
+            
+            println!("The args are {:?}", method_call.args);
             Expr::MethodCall(ExprMethodCall{
                 receiver: Box::new(transform_expr(&method_call.receiver, transform_type, gamma, &delta, EType::Any)),
                 args: Punctuated::from_iter(method_call.args.iter().enumerate().map(|(index, arg)| 
@@ -490,7 +506,7 @@ fn transform_expr(expr: &Expr, transform_type: &TransformType, gamma: &Gamma, de
                         transform_type,
                         gamma,
                         &delta,
-                        get_return_type_from_signature(&signature)
+                        EType::DeltaType(signature.inputs[index].get_delta_type(Some(reciever_type.name.clone()))),
                     )
                 )),
                 ..method_call.clone()
@@ -499,12 +515,10 @@ fn transform_expr(expr: &Expr, transform_type: &TransformType, gamma: &Gamma, de
         // If the experssion is calling a consumer and we are transforming from FP to OOP
         // Then we should replace the call with a method call
         (TransformType::FPToOOP, Expr::Call(expr_call)) if gamma.is_consumer(&get_function_call_name(expr_call)) => {
-            // TODO Replace the call with the generator
-            println!("Need to create a method call here!");
-
             // Extract the first argument to the function
             let mut args = expr_call.args.clone();
-            let first_arg = args.pop_first().unwrap();
+            let first_arg = remove_deference_of_expr(&args.pop_first().unwrap());
+
 
             // Create method call
             let method_call = create_method_call(&get_function_call_name(expr_call), &first_arg, &args);
@@ -524,7 +538,7 @@ fn transform_expr(expr: &Expr, transform_type: &TransformType, gamma: &Gamma, de
                             gamma,
                             &delta,
                             match &signature {
-                                Ok(sig) => EType::DeltaType(sig.inputs[index].get_delta_type()),
+                                Ok(sig) => EType::DeltaType(sig.inputs[index].get_delta_type(None)),
                                 Err(_) =>  EType::Any
                             }
                         )
@@ -566,7 +580,6 @@ fn transform_expr(expr: &Expr, transform_type: &TransformType, gamma: &Gamma, de
             })
         },
         (FPToOOP, Expr::Struct(expr_struct)) if gamma.is_enum_or_variant(&expr_struct.path.get_delta_type().name) => {
-            println!("Doing the thing");
             Expr::Struct(ExprStruct{
                 path: Path{
                     leading_colon: None,
@@ -581,7 +594,6 @@ fn transform_expr(expr: &Expr, transform_type: &TransformType, gamma: &Gamma, de
 
                     // Get the enum 
                     let struct_ident = get_path_call_name(&expr_struct.path);
-                    println!("Trying to get struct {:?}", struct_ident);
                     let struct_ = gamma.get_struct_by_name(&struct_ident);
                     let mut struct_delta = Delta::new();
                     struct_delta.collect_for_struct(&struct_);
@@ -652,7 +664,7 @@ fn transform_function(func: &ItemFn, transform_type: &TransformType, gamma: &Gam
     let mut delta = Delta::new();
     delta.collect_for_sig(&func.sig, None);
 
-    let return_type = func.sig.output.get_delta_type();
+    let return_type = func.sig.output.get_delta_type(None);
     let block_return_type = match return_type {
         Some(rt) => EType::DeltaType(rt),
         None => EType::None

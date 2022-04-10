@@ -32,6 +32,16 @@ impl DeltaType {
     pub fn is_equaivalent(&self, other: &Self, gamma: &Gamma) -> bool {
         self == other || (self.ref_type == other.ref_type && gamma.is_subtype_of(&self.name, &other.name))
     }
+
+    pub fn replace_self(&self, self_type: Option<Ident>) -> DeltaType {
+        if self.name == "Self" {
+            return DeltaType {
+                name: self_type.unwrap_or_else(|| panic!("Self type not provided")),
+                ..self.clone()
+            }
+        }
+        return self.clone();
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -66,16 +76,16 @@ pub fn get_type_from_box(segment: &PathSegment) -> std::result::Result<Ident, No
     Err(NotABoxType{segment: segment.clone()})
 }
 
-pub trait GetOptionalDeltaType {
-    fn get_delta_type(&self) -> Option<DeltaType>;
+pub trait GetOptionalDeltaTypeFn {
+    fn get_delta_type(&self, self_type: Option<Ident>) -> Option<DeltaType>;
 }
 
-impl GetOptionalDeltaType for ReturnType {
-    fn get_delta_type(&self) -> Option<DeltaType> {
+impl GetOptionalDeltaTypeFn for ReturnType {
+    fn get_delta_type(&self, self_type: Option<Ident>) -> Option<DeltaType> {
         match self {
             ReturnType::Default => None,
             ReturnType::Type(_, ty) => {
-                return Some(ty.get_delta_type());
+                return Some(ty.get_delta_type().replace_self(self_type));
             }
         }
     }
@@ -109,15 +119,19 @@ impl GetDeltaType for Path {
     }
 }
 
-impl GetDeltaType for FnArg {
-    fn get_delta_type(&self) -> DeltaType {
+pub trait GetDeltaTypeFn {
+    fn get_delta_type(&self, self_type: Option<Ident>) -> DeltaType;
+}
+
+impl GetDeltaTypeFn for FnArg {
+    fn get_delta_type(&self, self_type: Option<Ident>) -> DeltaType {
         DeltaType {
             name: match self {
                 FnArg::Typed(typed) => typed.ty.get_delta_type().name,
                 _ => panic!("Other types not supported, {:?}", self)
             },
             ref_type: self.get_ref_type(),
-        }
+        }.replace_self(self_type)
     }
 }
 
@@ -298,7 +312,11 @@ pub fn get_return_type_from_signature(signature: &Signature) -> EType {
 }
 
 pub fn get_function_call_name(expr_call: &ExprCall) -> Ident{
-    match &*expr_call.func {
+    get_expr_call_name(&*expr_call.func)
+}
+
+pub fn get_expr_call_name(expr: &Expr) -> Ident {
+    match &expr {
         Expr::Path(ExprPath{ path, .. }) => get_path_call_name(path),
         _ => panic!("Could not get function name from call")
     }

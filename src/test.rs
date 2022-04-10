@@ -1,2 +1,3 @@
-fn test(self: Box<Self>) {
+fn test() {
+    *1
 }
