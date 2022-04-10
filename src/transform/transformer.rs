@@ -84,13 +84,17 @@ pub fn transform_enum(enum_: &ItemEnum, gamma: &mut Gamma) -> Vec<Item> {
     gamma.add_trait(&trait_);
 
     let mut items = vec![Item::Trait(trait_.clone())];
-
+        
     // For each variant of the enum create a struct and an impl
     for variant in enum_.variants.iter() {
         // Create the struct
         let struct_ = create_struct(&variant.ident, &enum_.ident, variant.fields.clone());
         gamma.add_struct(&struct_);
         items.push(Item::Struct(struct_.clone()));
+
+        // Add emtpy generator to gamma
+        let impl_ = create_impl(&enum_.ident, &variant.ident, Vec::new());
+        gamma.add_generator(&trait_, &struct_, &impl_);
 
         // Collect methods
         // TODO handle trait method
@@ -121,13 +125,19 @@ pub fn transform_enum(enum_: &ItemEnum, gamma: &mut Gamma) -> Vec<Item> {
             if consumer_expr.is_none() {
                 return None;
             }
+           
+            // TODO Cannot collect dleta for this sig here as the generators has not been added yet
+            let mut delta = Delta::new();
+            delta.collect_for_sig(&consumer.sig, None);
 
-            // If there is no match statement then there are 2 options
+
             let expr = transform_consumer_expr(
                 &consumer_expr.unwrap(),
+                get_fn_arg_name(&consumer.sig.inputs.first().unwrap()),
                 Vec::from_iter(variant.fields.iter().map(|field| {
                     field.ident.clone().unwrap()
                 })),
+                &delta,
                 gamma
             );
 
@@ -141,6 +151,7 @@ pub fn transform_enum(enum_: &ItemEnum, gamma: &mut Gamma) -> Vec<Item> {
        
         // Create the impl
         let impl_ = create_impl(&enum_.ident, &variant.ident, Vec::from_iter(impl_items));
+        // Update gamma with real impl 
         gamma.add_generator(&trait_, &struct_, &impl_);
         items.push(Item::Impl(impl_));
     }
@@ -286,9 +297,9 @@ fn transform_destructor_expr(expr: &Expr, old_delta: &Delta, new_delta: &Delta, 
     return expr_clone; 
 }
 
-fn transform_consumer_expr(expr: &Expr, trait_attributes: Vec<Ident>, gamma: &Gamma) -> Expr {
+fn transform_consumer_expr(expr: &Expr, self_arg_name: Ident, trait_attributes: Vec<Ident>, delta: &Delta, gamma: &Gamma) -> Expr {
     let mut expr_clone = expr.clone();
-    let mut tc = TransformConsumer{literal_idents: trait_attributes, gamma: gamma.clone()};
+    let mut tc = TransformConsumer{trait_attributes, gamma: gamma.clone(), self_arg_name};
     tc.visit_expr_mut(&mut expr_clone);
     expr_clone
 }
@@ -464,10 +475,8 @@ fn transform_expr(expr: &Expr, transform_type: &TransformType, gamma: &Gamma, de
     match (transform_type, expr) {
         (_, Expr::Unary(_)) => {
             // Remove any existing derefs so we can fix the type manually
-            let expr = remove_deference_of_expr(expr);
-            println!("Transforming unary");
+            let expr = clean_type(expr);
             let current_type = delta.get_type_of_expr(&expr, gamma);
-            println!("Current type: {:?}", current_type);
             if let EType::DeltaType(delta_type) = return_type {
                 if let Ok(current_type) = current_type {
                     return transform_expr_type(&expr, &current_type, &delta_type, gamma);
@@ -491,13 +500,10 @@ fn transform_expr(expr: &Expr, transform_type: &TransformType, gamma: &Gamma, de
         },
         // Any other method call, transform all the args and the receiver
         (_, Expr::MethodCall(method_call)) => {
-            println!("Doing method {:?}", get_expr_call_name(&method_call.receiver));
             // Get the signature of the method call, NOTE this will fail if any method call are
             // made which are not on destructors TODO fix
             let reciever_type = delta.get_type_of_expr(&method_call.receiver, &gamma).unwrap();
             let signature = gamma.get_destructor_signature(&reciever_type.name, &method_call.method);
-            
-            println!("The args are {:?}", method_call.args);
             Expr::MethodCall(ExprMethodCall{
                 receiver: Box::new(transform_expr(&method_call.receiver, transform_type, gamma, &delta, EType::Any)),
                 args: Punctuated::from_iter(method_call.args.iter().enumerate().map(|(index, arg)| 
@@ -517,7 +523,7 @@ fn transform_expr(expr: &Expr, transform_type: &TransformType, gamma: &Gamma, de
         (TransformType::FPToOOP, Expr::Call(expr_call)) if gamma.is_consumer(&get_function_call_name(expr_call)) => {
             // Extract the first argument to the function
             let mut args = expr_call.args.clone();
-            let first_arg = remove_deference_of_expr(&args.pop_first().unwrap());
+            let first_arg = clean_type(&args.pop_first().unwrap());
 
 
             // Create method call
@@ -526,6 +532,21 @@ fn transform_expr(expr: &Expr, transform_type: &TransformType, gamma: &Gamma, de
             transform_expr(&method_call, &transform_type, &gamma, &delta, return_type)
         },
         (_, Expr::Call(expr_call)) => {
+            // If the expression is a box call and we dont want a box, remove the box
+            if let Ok(inner_expr) = new_box_call_expr(expr) {
+                println!("Transforming box call expr");
+                // And the expected return type is not a box or the inner type is a box, then
+                if let EType::DeltaType(dt) = &return_type {
+                    println!("Really transforming box call expr {:?}", dt.ref_type);
+                    println!("Inner type {:?}, expr: {:?}", delta.get_type_of_expr(&inner_expr, gamma).unwrap().ref_type, inner_expr);
+                    if dt.ref_type != RefType::Box || delta.get_type_of_expr(&inner_expr, gamma).unwrap().ref_type == RefType::Box {
+                        println!("Actually transforming box call expr");
+                        // Then we should transform the expression to a method call
+                        return transform_expr(&inner_expr, &transform_type, &gamma, &delta, return_type);
+                    }
+                }
+            }
+
             if let ExprCall { func: box Expr::Path (ExprPath{path, ..}), ..} = expr_call {
                 let signature = gamma.get_signature(&get_function_call_name(expr_call));
 
@@ -555,7 +576,7 @@ fn transform_expr(expr: &Expr, transform_type: &TransformType, gamma: &Gamma, de
             })
         }
         (OOPToFP, Expr::Struct(expr_struct)) if gamma.get_generator_trait(&expr_struct.path.get_delta_type().name).is_some() => {
-            Expr::Struct(ExprStruct{
+            let struct_ = Expr::Struct(ExprStruct{
                 path: transform_struct_instantiation_path_for_enum(expr_struct, gamma, &delta),
                 fields: Punctuated::from_iter(expr_struct.fields.iter().map(|field| {
 
@@ -577,10 +598,14 @@ fn transform_expr(expr: &Expr, transform_type: &TransformType, gamma: &Gamma, de
                     }
                 })),
                 ..expr_struct.clone()
-            })
+            });
+            if let EType::DeltaType(dt) = return_type {
+                return transform_expr_type(&struct_, &delta.get_type_of_expr(&struct_, gamma).unwrap(), &dt, &gamma);
+            }
+            return struct_;
         },
         (FPToOOP, Expr::Struct(expr_struct)) if gamma.is_enum_or_variant(&expr_struct.path.get_delta_type().name) => {
-            Expr::Struct(ExprStruct{
+            let struct_ = Expr::Struct(ExprStruct{
                 path: Path{
                     leading_colon: None,
                     segments: Punctuated::from_iter(vec![expr_struct.path.segments.last().unwrap().clone()]),
@@ -611,7 +636,11 @@ fn transform_expr(expr: &Expr, transform_type: &TransformType, gamma: &Gamma, de
                     }
                 })),
                 ..expr_struct.clone()
-            })
+            });
+            if let EType::DeltaType(dt) = return_type {
+                return transform_expr_type(&struct_, &delta.get_type_of_expr(&struct_, gamma).unwrap(), &dt, &gamma);
+            }
+            return struct_;
         },
         (_, Expr::Block(expr_block)) => {
             Expr::Block(ExprBlock{
@@ -652,9 +681,49 @@ fn transform_statement(statement: &Stmt, transform_type: &TransformType, gamma: 
 pub fn transform_item(item: &syn::Item, transform_type: &TransformType, gamma: &Gamma) -> syn::Item {
     match item {
         Item::Fn(item_fn) => Item::Fn(transform_function(item_fn, transform_type, gamma)),
+        Item::Impl(item_impl) => {
+            let for_type = item_impl.self_ty.get_delta_type().name;
+            Item::Impl(ItemImpl{
+                items: item_impl.items.iter().map(|item| {
+                    transform_impl_item(item, &for_type, transform_type, gamma)
+                }).collect(),
+                ..item_impl.clone()
+            })
+        },
         _ => {
-            // println!("Skipping unsupported {:?}", item);
             item.clone()
+        },
+    }
+}
+
+pub fn transform_impl_item(impl_item: &syn::ImplItem, impl_for_type: &Ident, transform_type: &TransformType, gamma: &Gamma) -> syn::ImplItem {
+    match impl_item {
+        ImplItem::Method(impl_item_method) => {
+            let return_type = impl_item_method.sig.output.get_delta_type(Some(impl_for_type.clone()));
+            let block_return_type = match return_type {
+                Some(rt) => EType::DeltaType(rt),
+                None => EType::None
+            };
+
+            ImplItem::Method(
+                ImplItemMethod {
+                    block: {
+                        let mut delta = Delta::new();
+                        println!("\nCollecting");
+                        delta.collect_for_sig(&impl_item_method.sig, Some(impl_for_type));
+                        println!("");
+                        println!("{:?}", delta);
+                        println!("");
+
+                        transform_block(&impl_item_method.block, transform_type, gamma, &delta, block_return_type)
+                    },
+                    ..impl_item_method.clone()
+                }
+            )
+        },
+        _ => {
+            // println!("Skipping unsupported {:?}", impl_item);
+            impl_item.clone()
         },
     }
 }

@@ -421,6 +421,13 @@ pub fn remove_deference_of_expr(expr: &Expr) -> Expr {
     }
 }
 
+pub fn remove_reference_of_expr(expr: &Expr) -> Expr {
+    match expr {
+        Expr::Reference(ExprReference{box expr, ..}) => expr.clone(),
+        _ => expr.clone(),
+    }
+}
+
 pub fn create_reference_of_expr(expr: &Expr) -> Expr {
     Expr::Reference(
         ExprReference{

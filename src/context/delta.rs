@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use syn::*;
 use syn::__private::Span;
 use crate::context::*;
+use crate::ast::create::{remove_deference_of_expr, remove_reference_of_expr};
 use gamma::Gamma;
 use errors::*;
 
@@ -253,28 +254,26 @@ pub fn get_ident_from_path(Path { segments, .. }: &Path) -> Ident {
 
 pub fn get_type_from_function_arg(arg: &FnArg, self_type: Option<&Ident>) -> DeltaType{
     // TODO add in reference types
-    if let FnArg::Typed(pat_type) = arg {
-        match &*pat_type.ty {
-            Type::Path(type_path) => return DeltaType{name: get_ident_from_path(&type_path.path), ref_type: RefType::None},
-            Type::Reference(TypeReference { elem, .. }) => {
-                if let Type::Path(type_path) = &**elem {
-                    return DeltaType{name: get_ident_from_path(&type_path.path), ref_type: RefType::None};
-                }
-            },
-            _ => ()
+    println!("Getting type of fn arg: {:?}", arg);
+    let delta_type = match &arg {
+        FnArg::Typed(PatType{ty: box Type::Path(type_path), ..}) => {
+            type_path.path.get_delta_type()
         }
-    }
-    
-    if let FnArg::Receiver(_) = arg {
-        if self_type.is_none() {
-            panic!("Receiver not supported when self type is None");
+        FnArg::Typed(PatType{ty: box Type::Reference(TypeReference{ elem: box Type::Path(type_path), .. }), ..}) => {
+            type_path.path.get_delta_type()
         }
-        return DeltaType{name: self_type.unwrap().clone(), ref_type: RefType::None};
-    }
+        FnArg::Receiver(_) => {
+            if self_type.is_none() {
+                panic!("Receiver not supported when self type is None");
+            }
+            DeltaType{name: self_type.unwrap().clone(), ref_type: RefType::None}
+        }
+        _ => panic!("Could not get type from function argument, {:?}", arg),
+    };
 
-    // TODO This will panic for all self types
-    panic!("Could not get type from function argument, {:?}", arg);
+    delta_type.replace_self(self_type.cloned())
 }
+
 
 pub fn get_attribute_ident_from_function_arg(arg: &FnArg) -> Ident {
     if let FnArg::Typed(PatType { pat, .. }) = arg {
@@ -320,6 +319,11 @@ pub fn get_expr_call_name(expr: &Expr) -> Ident {
         Expr::Path(ExprPath{ path, .. }) => get_path_call_name(path),
         _ => panic!("Could not get function name from call")
     }
+}
+
+/// Remove any reference/dereference from expr
+pub fn clean_type(expr: &Expr) -> Expr {
+    remove_reference_of_expr(&remove_deference_of_expr(&expr))
 }
 
 /// Get the name of the function being called from a path
@@ -399,7 +403,10 @@ impl Delta {
         match expr {
             // TODO Match self.thing here so we can do in any order
             Expr::Unary(ExprUnary { expr, .. }) => Ok(self.get_type_of_expr(expr, gamma).unwrap()),
-            Expr::Path(ExprPath { path, .. }) => Ok(self.get_type(&get_ident_from_path(path))),
+            Expr::Path(ExprPath { path, .. }) => {
+                println!("Getting type of path {:?}", &get_ident_from_path(path));
+                Ok(self.get_type(&get_ident_from_path(path)))
+            },
             Expr::Call(ExprCall {..}) if new_box_call_expr(expr).is_ok() => {
                 let inner_expr_type_name = self.get_type_of_expr(&new_box_call_expr(expr).unwrap(), gamma);
                 if inner_expr_type_name.is_err() {
@@ -411,7 +418,10 @@ impl Delta {
             // both the call and method call. Might be worth taking in a "transformed" boolean
             Expr::Call(expr_call) => {
                 let func_name = get_function_call_name(&expr_call);
-                let sig = gamma.get_transformed_consumer_signature(&func_name);
+                // NOTE I just changed this I think itll cause chaos
+                // let sig = gamma.get_transformed_consumer_signature(&func_name);
+                let sig = gamma.get_signature(&func_name).unwrap();
+
                 match get_return_type_from_signature(&sig) {
                     EType::DeltaType(ty) => Ok(ty),
                     _ => panic!("Function {:?} not found", sig)
@@ -432,6 +442,16 @@ impl Delta {
                 match get_return_type_from_signature(&method_sig) {
                     EType::DeltaType(ty) => Ok(ty),
                     _ => panic!("Method {:?} not found", method_sig)
+                }
+            },
+            Expr::Field(ExprField {base, member, .. }) => {
+                let base_type = self.get_type_of_expr(&base, gamma);
+                if base_type.is_err() {
+                    return base_type;
+                }
+                match member {
+                    Member::Named(member_ident) => Ok(gamma.get_type_of_field(&base_type.unwrap().name, &member_ident)),
+                    _ => panic!("Unanmed structs/enums are not supported")
                 }
             },
             Expr::Lit(ExprLit{lit, ..}) => {

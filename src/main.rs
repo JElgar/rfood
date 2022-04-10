@@ -78,8 +78,12 @@ fn transform(path: &PathBuf, transform_type: &TransformType) {
                 // Get the consumers for the enum 
                 let consumers = gamma_mut_borrow.get_enum_consumers(&enum_);
 
-                // Create a trait 
+                // 1st parse, transform types 
                 transformed_syntax.items.extend(transform_enum(&enum_, gamma_mut_borrow));
+                // 2nd parse, transform items
+                transformed_syntax.items = Vec::from_iter(transformed_syntax.items.iter().map(|item| {
+                    transform_item(&item, &transform_type, &gamma_mut_borrow)
+                }));
 
                 // For all the consumers, for each arm create a method in each impl
                 for consumer in consumers {

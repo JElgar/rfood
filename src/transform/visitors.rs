@@ -6,7 +6,7 @@ use syn::__private::Span;
 use crate::context;
 use crate::ast;
 use crate::utils::utils::PopFirst;
-use context::delta::{Delta, get_ident_from_path, new_box_call_expr, GetDeltaType, get_function_call_name};
+use context::delta::{Delta, get_ident_from_path, new_box_call_expr, GetDeltaType, get_function_call_name, clean_type};
 use context::gamma::Gamma;
 use ast::create::*;
 
@@ -115,7 +115,8 @@ impl VisitMut for ReplaceDynBoxDestructorReturnStatements {
 /// When transforming from a consumer to a destructor, we need to add self infront of any literals
 /// that come from the enum.
 pub struct TransformConsumer {
-    pub literal_idents: Vec<Ident>,
+    pub trait_attributes: Vec<Ident>,
+    pub self_arg_name: Ident,
     pub gamma: Gamma,
 }
 impl VisitMut for TransformConsumer {
@@ -124,8 +125,25 @@ impl VisitMut for TransformConsumer {
             Expr::Path(expr_path) | Expr::Unary(ExprUnary { expr: box Expr::Path(expr_path), ..}) => {
                 // NOTE See note below
                 let var_name = &expr_path.path.segments.first().unwrap().ident.clone();
-                if self.literal_idents.contains(&var_name) {
+                // If the path is one of the values in the trait then we need to add self infront
+                // of it.
+                if self.trait_attributes.contains(&var_name) {
                     *i = create_self_field_call(var_name)
+                // Otherwise if the var is the self arg then we need to replace it self
+                } else if var_name == &self.self_arg_name {
+                    *i = Expr::Path(
+                        syn::ExprPath {
+                            attrs: Vec::new() as Vec<syn::Attribute>,
+                            qself: None,
+                            path: syn::Path {
+                                leading_colon: None,
+                                segments: Punctuated::from_iter(vec![syn::PathSegment {
+                                    ident: Ident::new("self", Span::call_site()),
+                                    arguments: syn::PathArguments::None,
+                                }]),
+                            }
+                        }
+                    )
                 }
             },
             Expr::Call(expr_call) => {
@@ -141,7 +159,9 @@ impl VisitMut for TransformConsumer {
                 let first_arg = args.pop_first().unwrap();
 
                 // TODO check if this is actually self or not
-                let reciever = add_self_to_path(&first_arg);
+                // let reciever = add_self_to_path(&first_arg);
+                // TODO this cleaning is very dubious
+                let reciever = clean_type(&first_arg);
                 
                 // If the function is a consumer, call method on self
                 *i = create_method_call(&fn_name, &reciever, &args);

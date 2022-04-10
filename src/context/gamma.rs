@@ -1,7 +1,7 @@
 extern crate proc_macro;
 
 use crate::ast::create::generic_parameter_from_generic_argument;
-use crate::context::delta::GetDeltaType;
+use crate::context::delta::{GetDeltaType, DeltaType};
 use crate::context::*;
 use crate::transform::transformer::TransformType;
 use errors::*;
@@ -19,6 +19,16 @@ pub fn get_generics_from_type(type_: &Type) -> Generics {
     }
 
     panic!("Not implemented. Cannot get generics from type.");
+}
+
+pub fn get_fn_arg_name(fn_arg: &FnArg) -> Ident {
+    if let FnArg::Typed(PatType { box pat, .. }) = fn_arg {
+        if let Pat::Ident(PatIdent { ident, .. }) = pat {
+            return ident.clone();
+        }
+    }
+
+    panic!("Not implemented. Cannot get fn arg name. {:?}", fn_arg);
 }
 
 pub fn create_generics_from_args(args: &AngleBracketedGenericArguments) -> Generics {
@@ -215,7 +225,7 @@ impl Gamma {
     pub fn get_generators(&self, trait_ident: &Ident) -> Vec<(ItemStruct, ItemImpl)> {
         self.generators
             .get(&trait_ident)
-            .unwrap_or_else(|| panic!("Trait {:?} not found in gamma, the traits are: {:?}", trait_ident, self.traits))
+            .unwrap_or_else(|| panic!("Trait {:?} not found in gamma generators", trait_ident))
             .clone()
     }
 
@@ -265,7 +275,7 @@ impl Gamma {
         self._structs
             .iter()
             .find(|s| return s.ident == *ident)
-            .unwrap()
+            .unwrap_or_else(|| panic!("Struct {:?} not found in gamma", ident))
             .clone()
     }
 
@@ -436,6 +446,12 @@ impl Gamma {
             .entry(trait_ident.clone())
             .or_insert_with(Vec::new)
             .push(destructor.clone());
+    }
+
+    pub fn get_type_of_field(&self, struct_ident: &Ident, field_ident: &Ident) -> DeltaType {
+        self._structs.iter().find(|struct_| struct_.ident == *struct_ident).unwrap().fields.iter().find(|field| {
+            field.ident.as_ref().unwrap() == field_ident
+        }).unwrap().ty.clone().get_delta_type()
     }
 
     pub fn add_struct(&mut self, struct_: &ItemStruct) {
