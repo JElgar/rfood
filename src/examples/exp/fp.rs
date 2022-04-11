@@ -11,6 +11,7 @@ fn eval(exp: &Exp) -> i32 {
 }
 
 pub fn demo() {
-    let exp: Box<Exp> = Box::new(Exp::Sub{l: Box::new(Exp::Lit{n: 1}), r: Box::new(Exp::Lit{n: 2})});
-    print!("{}", eval(&exp));
+    let exp = Box::new(Exp::Sub{l: Box::new(Exp::Lit{n: 1}), r: Box::new(Exp::Lit{n: 2})});
+    let out = eval(&exp);
+    print!("{}", out);
 }
