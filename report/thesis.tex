@@ -18,9 +18,8 @@
 %     X%, Y% and Z% of type I, II and III.
 % - year              should be formatted as a 4-digit year of submission
 %   (so 2014 rather than the academic year, say 2013/14 say).
-                  
-% Commands
-\newcommand{\weixin}{Anonymous }
+                 
+
 \documentclass[ oneside,% the name of the author
                     author={James Elgar},
                 % the degree programme: BSc, MEng, MSci or MSc.
@@ -29,6 +28,17 @@
                      title={Bidirectional transformer between functional and \\ object-oriented programming in Rust},
                 % the dissertation subtitle (which can    be blank)
                   subtitle={}]{dissertation}
+                  
+% Commands
+\usepackage{hyperref}
+\newcommand{\weixin}{Anonymous }
+
+\usepackage{listings}
+\usepackage{xcolor}
+
+\usepackage{minted}
+\newcommand{\rust}[1]{\mintinline{rust}{#1}}
+\newcommand{\rustfile}[1]{\inputminted[xleftmargin=20pt,linenos]{rust}{../src/#1}}
 
 \begin{document}
 
@@ -209,11 +219,9 @@ as follows:
 \noindent
 \begin{tabular}{lcl}
 AST                 &:     & Abstract Syntax Tree                                        \\
-DES                 &:     & Data Encryption Standard                                             \\
-                    &\vdots&                                                                      \\
-${\mathcal H}( x )$ &:     & the Hamming weight of $x$                                            \\
-${\mathbb  F}_q$    &:     & a finite field with $q$ elements                                     \\
-$x_i$               &:     & the $i$-th bit of some binary sequence $x$, st. $x_i \in \{ 0, 1 \}$ \\
+OOP                 &:     & Object Oriented Programming                                 \\
+FP                  &:     & Functional Programming                                      \\
+FOOD                &:     & Functional and Object Oriented Decomposition                \\
 \end{tabular}
 \end{quote}
 
@@ -268,116 +276,136 @@ $x_i$               &:     & the $i$-th bit of some binary sequence $x$, st. $x_
 % \end{quote}
 
 \noindent
-With the rapid adoption of functional and object oriented features in modern programming languages, developer now have the choice of which paradigm to use in different situations. Both paradigms come with distinct advantages and disadvantages, and such the correct choice for a given feature can often be a tricky decision. In any case a "correct" decision may not be possible as both paradigms could have value in the same feature. If a developer makes a choice they later regret, refactoring to the other paradigm can be an extremely slow process.
+With the rapid adoption of functional and object oriented features in modern programming languages, developers now have the choice of which paradigm to use in different situations. Both paradigms come with distinct advantages and disadvantages, and such the correct choice for a given feature can often be a tricky decision. In any case a "correct" decision may not be possible as both paradigms could have different values in the same feature. If a developer makes a choice they later regret, refactoring to another paradigm can be an extremely slow process.
 
 Therefore, to truly harness the value of both paradigms, in \cite{food} \weixin explores the idea of a transformer, which allows developer to automatically transform between these two paradigms. This allows developers to instantly switch the style of there code depending on the task.
-\weixin proposes a framework to transform between these two decomposition styles. 
+
+\weixin proposes a framework to transform between these two decomposition styles and create an implementation in Scala to demo its functionality.
+
+The goal of this paper is to replicate this implementation in Rust. Rust was created by the Mozilla foundation with the intention of replacing C++ in their stack. It has a strong focus on performance and safety which it achieves partly through its borrow checker. With Rust being a low level language it exposes concepts to the developer which are not available in Scala, such as references and borrows. This requires extension to the existing transformer to allow it to transform with these concepts. 
 
 % -----------------------------------------------------------------------------
+
+% \noindent
+% This chapter is intended to describe the background on which execution of the project depends. This may be a technical or a contextual background, or both. The goal is to provide a detailed explanation of the specific problem at hand, and existing work that is relevant (e.g., an existing algorithm that you use, alternative solutions proposed, supporting technologies).  
+
+% Per the same advice in the handbook, note there is a subtly difference from this and a full-blown literature review (or survey).  The latter might try to capture and organise (e.g., categorise somehow) \emph{all} related work, potentially offering meta-analysis, whereas here the goal is simple to ensure the dissertation is self-contained.  Put another way, after reading this chapter a non-expert reader should have obtained enough background to understand what \emph{you} have done (by reading subsequent sections), then accurately assess your work against existing relevant related work.  You might view an additional goal as giving the reader confidence that you are able to absorb, understand and clearly communicate highly technical material and to situate your work within existing literature.
 
 \chapter{Background}
 \label{chap:technical}
 
+% Following on from this dudes work with rust
+The work of \weixin in \cite{food} focuses on the transformation of the
 
-\noindent
-This chapter is intended to describe the background on which execution of the project depends. This may be a technical or a contextual background, or both. The goal is to provide a detailed explanation of the specific problem at hand, and existing work that is relevant (e.g., an existing algorithm that you use, alternative solutions proposed, supporting technologies).  
+\section{Decomposition}
 
-Per the same advice in the handbook, note there is a subtly difference from this and a full-blown literature review (or survey).  The latter might try to capture and organise (e.g., categorise somehow) \emph{all} related work, potentially offering meta-analysis, whereas here the goal is simple to ensure the dissertation is self-contained.  Put another way, after reading this chapter a non-expert reader should have obtained enough background to understand what \emph{you} have done (by reading subsequent sections), then accurately assess your work against existing relevant related work.  You might view an additional goal as giving the reader confidence that you are able to absorb, understand and clearly communicate highly technical material and to situate your work within existing literature.
+Decomposition in computer science, is how a problem is broken down into smaller parts. Object oriented programming uses classes or objects for this whilst functional programming uses functions and data types.
+
+The pure OOP style described by Cook in \cite{cook} and used by \weixin to structure the input of the code, maps closely to the object style in Rust.
+
+In pure OOP interfaces are used as types. Interfaces describe required operations for the type. Classes which define these operations are then implementations of this interface.
+
+In Rust, interfaces are implemented as traits, whilst classes are implemented as structs. Structs can then explicitly implement traits with an impl as shown in \ref{fig:impl-example}
+
+\rustfile{main.rs}
+% \lstinputlisting[language=Rust]{../src/main.rs}
+
+\section{Rust Type System}
+
 
 
 % -----------------------------------------------------------------------------
 
+% \noindent
+% This chapter is intended to describe what you did: the goal is to explain
+% the main activity or activities, of any type, which constituted your work 
+% during the project.  The content is highly topic-specific, but for many 
+% projects it will make sense to split the chapter into two sections: one 
+% will discuss the design of something (e.g., some hardware or software, or 
+% an algorithm, or experiment), including any rationale or decisions made, 
+% and the other will discuss how this design was realised via some form of 
+% implementation.
+
+% This is, of course, far from ideal for {\em many} project topics.  Some
+% situations which clearly require a different approach include:
+
+% \begin{itemize}
+% \item In a project where asymptotic analysis of some algorithm is the goal,
+%       there is no real ``design and implementation'' in a traditional sense
+%       even though the activity of analysis is clearly within the remit of
+%       this chapter.
+% \item In a project where analysis of some results is as major, or a more
+%       major goal than the implementation that produced them, it might be
+%       sensible to merge this chapter with the next one: the main activity 
+%       is such that discussion of the results cannot be viewed separately.
+% \end{itemize}
+
+% \noindent
+% Note that it is common to include evidence of ``best practice'' project 
+% management (e.g., use of version control, choice of programming language 
+% and so on).  Rather than simply a rote list, make sure any such content 
+% is useful and/or informative in some way: for example, if there was a 
+% decision to be made then explain the trade-offs and implications 
+% involved.
+
+
 \chapter{Project Execution}
 \label{chap:execution}
 
-\noindent
-This chapter is intended to describe what you did: the goal is to explain
-the main activity or activities, of any type, which constituted your work 
-during the project.  The content is highly topic-specific, but for many 
-projects it will make sense to split the chapter into two sections: one 
-will discuss the design of something (e.g., some hardware or software, or 
-an algorithm, or experiment), including any rationale or decisions made, 
-and the other will discuss how this design was realised via some form of 
-implementation.  
+\section{Setup}
 
-This is, of course, far from ideal for {\em many} project topics.  Some
-situations which clearly require a different approach include:
+Before any transformations take place, the provided code is transformed into an abstract syntax tree (AST). This provides a concrete format to represent the code syntax, keeping the transformer separate from the code parsing stage. Rust provides access to the \verb|rustc| package, which is its compiler. This contains the \verb|rustc_ast| and \verb|rustc_parse| package which are responsible for this parsing.
 
-\begin{itemize}
-\item In a project where asymptotic analysis of some algorithm is the goal,
-      there is no real ``design and implementation'' in a traditional sense
-      even though the activity of analysis is clearly within the remit of
-      this chapter.
-\item In a project where analysis of some results is as major, or a more
-      major goal than the implementation that produced them, it might be
-      sensible to merge this chapter with the next one: the main activity 
-      is such that discussion of the results cannot be viewed separately.
-\end{itemize}
+However as Rust is a relatively new language many of these features are unstable. This means they are only available with the nightly compiler and the interface is likely to change. To avoid this, the syn package is used. "Syn is a parsing library for parsing a stream of Rust tokens into a syntax tree of Rust source code" \cite{syn}. This provides a stable interface for parsing and manipulating the AST.
+The main issue with Syn, is it geared toward helping parse code in Rust procedural macros. This means it has a stronger focus on understanding an AST rather than manually manipulating it and creating items. For this reason a fork of the Syn project was created to allow access to an additional library, which made creating more AST objects possible. The fork can be found at \url{https://github.com/jelgar/syn}.
 
-\noindent
-Note that it is common to include evidence of ``best practice'' project 
-management (e.g., use of version control, choice of programming language 
-and so on).  Rather than simply a rote list, make sure any such content 
-is useful and/or informative in some way: for example, if there was a 
-decision to be made then explain the trade-offs and implications 
-involved.
+Another requirement, is once the AST has be transformed, it must be converted back into Rust code. To achieve this the \verb|quote| and \verb|rustfmt|. The \verb|quote|  package converts the AST back into tokens of source code, whilst the \verb|rustfmt| package formats the outputted code in a consistent way.
 
-\section{Example Section}
+\section{Transformer Implementation}
 
-This is an example section; 
-the following content is auto-generated dummy text.
-\lipsum
 
-\subsection{Example Sub-section}
 
-\begin{figure}[t]
-\centering
-foo
-\caption{This is an example figure.}
-\label{fig}
-\end{figure}
+% \begin{figure}[t]
+% \centering
+% foo
+% \caption{This is an example figure.}
+% \label{fig}
+% \end{figure}
 
-\begin{table}[t]
-\centering
-\begin{tabular}{|cc|c|}
-\hline
-foo      & bar      & baz      \\
-\hline
-$0     $ & $0     $ & $0     $ \\
-$1     $ & $1     $ & $1     $ \\
-$\vdots$ & $\vdots$ & $\vdots$ \\
-$9     $ & $9     $ & $9     $ \\
-\hline
-\end{tabular}
-\caption{This is an example table.}
-\label{tab}
-\end{table}
+% \begin{table}[t]
+% \centering
+% \begin{tabular}{|cc|c|}
+% \hline
+% foo      & bar      & baz      \\
+% \hline
+% $0     $ & $0     $ & $0     $ \\
+% $1     $ & $1     $ & $1     $ \\
+% $\vdots$ & $\vdots$ & $\vdots$ \\
+% $9     $ & $9     $ & $9     $ \\
+% \hline
+% \end{tabular}
+% \caption{This is an example table.}
+% \label{tab}
+% \end{table}
 
-\begin{algorithm}[t]
-\For{$i=0$ {\bf upto} $n$}{
-  $t_i \leftarrow 0$\;
-}
-\caption{This is an example algorithm.}
-\label{alg}
-\end{algorithm}
-
-\begin{lstlisting}[float={t},caption={This is an example listing.},label={lst},language=C]
-for( i = 0; i < n; i++ ) {
-  t[ i ] = 0;
-}
-\end{lstlisting}
-
-This is an example sub-section;
-the following content is auto-generated dummy text.
-Notice the examples in Figure~\ref{fig}, Table~\ref{tab}, Algorithm~\ref{alg}
-and Listing~\ref{lst}.
-\lipsum
+% \begin{algorithm}[t]
+% \For{$i=0$ {\bf upto} $n$}{
+%   $t_i \leftarrow 0$\;
+% }
+% \caption{This is an example algorithm.}
+% \label{alg}
+% \end{algorithm}
+% 
+% \begin{lstlisting}[float={t},caption={This is an example listing.},label={lst},language=C]
+% for( i = 0; i < n; i++ ) {
+%   t[ i ] = 0;
+% }
+% \end{lstlisting}
 
 \subsubsection{Example Sub-sub-section}
 
 This is an example sub-sub-section;
 the following content is auto-generated dummy text.
-\lipsum
 
 \paragraph{Example paragraph.}
 
