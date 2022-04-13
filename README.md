@@ -4,11 +4,11 @@
 
 ### General
 
-- [ ] FP -> OOP 
+- [x] FP -> OOP 
     - [x] Collect consumers and enums in gamma
     - [x] Transform enums
-    - [ ] Transform consumers
-    - [ ] Fix typing of created method calls. This probably means check the type of the reciever and then see the expected type (self arg in the method)
+    - [x] Transform consumers
+    - [x] Fix typing of created method calls. This probably means check the type of the reciever and then see the expected type (self arg in the method)
 - [x] Update the demo function (or any other functions) to correctly use the updated traits. (Probably do this with visit)
 - [x] Support local parms in delta
 - [ ] Shadowing for consumer args and match arm params

@@ -657,6 +657,30 @@ fn transform_expr(expr: &Expr, transform_type: &TransformType, gamma: &Gamma, de
                 ..expr_block.clone()
             })
         },
+        (_, Expr::Match(expr_match)) => {
+            Expr::Match(
+                ExprMatch{
+                    // Transform the match epxr, 
+                    expr: Box::new(transform_expr(&*expr_match.expr, transform_type, gamma, &delta, EType::Any)),
+                    // Transform the body of the match with the context of the struct (all borrows)
+                    arms: expr_match.arms.iter().map(|arm| {
+                        // If this is a match expr over a struct (TODO this probably also has to
+                        // happen for enums)
+                        // Then each value collected is a borrow
+                        if gamma.is_trait(expr_match.expr) {
+                        }
+
+                        let mut delta = delta.clone();
+                        delta.collect_for_arm()
+                        Arm {
+                            body: Box::new(transform_expr(&arm.body, transform_type, gamma, &delta, return_type)),
+                            ..arm.clone()
+                        }
+                    }).collect(),
+                    ..expr_match.clone()
+                }
+            )
+        }
         _ => {
             // println!("Skipping unsupported {:?} with delta {:?}", expr, delta);
             expr.clone()
