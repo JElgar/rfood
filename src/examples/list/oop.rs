@@ -4,8 +4,8 @@ pub struct Empty {}
 impl List for Empty {}
 
 pub struct Cons {
-    x: i32,
-    xs: Box<List>,
+    pub x: i32,
+    pub xs: Box<dyn List>,
 }
 impl List for Cons {}
 
