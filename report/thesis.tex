@@ -38,7 +38,8 @@
 
 \usepackage{minted}
 \newcommand{\rust}[1]{\mintinline{rust}{#1}}
-\newcommand{\rustfile}[1]{\inputminted[xleftmargin=20pt,linenos]{rust}{../src/#1}}
+\newcommand{\rustfile}[1]{\inputminted[xleftmargin=20pt,linenos]{rust}{../src/#1.rs}}
+\newcommand{\rustexample}[1]{\rustfile{examples/#1}}
 
 \begin{document}
 
@@ -295,20 +296,27 @@ The goal of this paper is to replicate this implementation in Rust. Rust was cre
 \label{chap:technical}
 
 % Following on from this dudes work with rust
+
+This paper extends and evaluated the work of \weixin in \cite{food}. \weixin proposes a framework for a sub set of possible transformations and creates an implementation of this framework in a single programming language Scala. 
+
 The work of \weixin in \cite{food} focuses on the transformation of the
 
 \section{Decomposition}
 
 Decomposition in computer science, is how a problem is broken down into smaller parts. Object oriented programming uses classes or objects for this whilst functional programming uses functions and data types.
 
-The pure OOP style described by Cook in \cite{cook} and used by \weixin to structure the input of the code, maps closely to the object style in Rust.
+The pure OOP style described by Cook in \cite{cook} and used by \weixin to restrict the input to the transformer, maps closely to the object style in Rust. In pure OOP interfaces are used as types. Interfaces describe required operations which a class must implement to be of this type. These operations are referred to as destructors throughout this paper, as these operations "tear down" the object to another type. Classes which define these operations are then implementations of this interface. In Rust, interfaces are implemented as traits, whilst classes are implemented as structs. Structs can then explicitly implement traits with an impl statement as shown in \autoref{fig:impl-example}.
 
-In pure OOP interfaces are used as types. Interfaces describe required operations for the type. Classes which define these operations are then implementations of this interface.
+%TODO fix the 2nd sentence
+In functional style types are algebraic datatypes with various constructors. Constructor are variation of this type. Consumers are then defined, which are function that take in a datatype and pattern match on its constructors.  
 
-In Rust, interfaces are implemented as traits, whilst classes are implemented as structs. Structs can then explicitly implement traits with an impl as shown in \ref{fig:impl-example}
+\begin{figure}[t]
+    \rustexample{shape/oop}
+    \caption{Rust Example - Implementation of trait for struct using impl}
+    \label{fig:impl-example}
+\end{figure}
 
-\rustfile{main.rs}
-% \lstinputlisting[language=Rust]{../src/main.rs}
+
 
 \section{Rust Type System}
 
