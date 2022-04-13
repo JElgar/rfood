@@ -38,8 +38,15 @@
 
 \usepackage{minted}
 \newcommand{\rust}[1]{\mintinline{rust}{#1}}
-\newcommand{\rustfile}[1]{\inputminted[xleftmargin=20pt,linenos]{rust}{../src/#1.rs}}
+
+\newcommand{\codestart}[1]{\begin{minted}[]{#1}}
+\newcommand{\codeend}{\end{minted}}
+\newcommand{\codefile}[2]{\inputminted[xleftmargin=20pt,linenos]{#1}{#2}}
+\newcommand{\rustfile}[1]{\codefile{rust}{../src/#1.rs}}
 \newcommand{\rustexample}[1]{\rustfile{examples/#1}}
+
+\usepackage{xcolor} % to access the named colour LightGray
+\definecolor{LightGray}{gray}{0.9}
 
 \usepackage{caption}
 \usepackage{subcaption}
@@ -308,30 +315,45 @@ The work of \weixin in \cite{food} focuses on the transformation of the
 
 Decomposition in computer science, is how a problem is broken down into smaller parts. Object oriented programming uses classes or objects for this whilst functional programming uses functions and data types.
 
-The pure OOP style described by Cook in \cite{cook} and used by \weixin to restrict the input to the transformer, maps closely to the object style in Rust. In pure OOP interfaces are used as types. Interfaces describe required operations which a class must implement to be of this type. These operations are referred to as destructors throughout this paper, as these operations "tear down" the object to another type. Classes which define these operations are then implementations of this interface. In Rust, interfaces are implemented as traits, whilst classes are implemented as structs. Structs can then explicitly implement traits with an impl statement as shown in \autoref{fig:impl-example}.
+The pure OOP style described by Cook in \cite{cook} and used by \weixin to restrict the input to the transformer, maps closely to the object style in Rust. In pure OOP interfaces are used as types. Interfaces describe required operations which a class must implement to be of this type. These operations are referred to as destructors throughout this paper, as these operations "tear down" the object to another type. Classes which define these operations are then implementations of this interface. In Rust, interfaces are implemented as traits, whilst classes are implemented as structs. Structs can then explicitly implement traits with an impl statement as shown in \autoref{fig:dec-ex-oop}. 
+
+With this style, destructors are used as method calls on an object that implements the interface. These methods can optionally have \verb|self| as the first argument, which allows self-reference within these methods, as shown in \autoref{fig:dec-ex-oop}. If required this argument is automatically passed in.
 
 %TODO fix the 2nd sentence
-In functional style types are algebraic datatypes with various constructors. Constructor are variation of this type. Consumers are then defined, which are function that take in a datatype and pattern match on its constructors.  
+In functional style types are algebraic datatypes with various constructors. Constructor are variation of this type. Consumers can then be defined, which are functions that take in a datatype and pattern match on its constructors. The equivalent in Rust, are Enums. Enums contain Enum variant which are the constructors of the datatypes. Consumers are then function which take in an instance of the Enum as the first argument.  \autoref{fig:dec-ex-fp} shows an equivalent example to above in functional style.
 
 \begin{figure}
 \centering
 \begin{subfigure}{.5\textwidth}
     \rustexample{shape/oop}
-    \caption{Rust Example - Implementation of trait for struct using impl}
-    \label{fig:impl-example}
+    \caption{Object Oriented Programming - Implementation of trait for structs}
+    \label{fig:dec-ex-oop}
 \end{subfigure}%
 \begin{subfigure}{.5\textwidth}
     \rustexample{shape/fp}
-    \caption{Rust Example - Implementation of trait for struct using impl}
-    \label{fig:impl-example}
+    \caption{Functional Programming - Datatype with two consumers}
+    \label{fig:dec-ex-fp}
 \end{subfigure}
-\caption{A figure with two subfigures}
-\label{fig:test}
+\caption{Rust Decomposition Examples}
+\label{fig:dec-ex}
 \end{figure}
 
 
-\section{Rust Type System}
 
+\section{Rust Type System}
+"Rust is the first industry-supported programming language to overcome the longstanding tradeoff between the safety guarantees of higher-level languages (like Java) and the control over resource management provided by lower-level “systems programming” languages (like C and C++)" \cite{rustsafesystems}. Rust achieves this by using an ownership type system. This gives developers the control to express low level concept, in a similar way to languages such as C, whilst maintaining the safety of higher level languages by catching errors at compile time with the strong type system. 
+
+This unique and strong type system of Rust presents additional challenges when creating a transformer for the rust programming language. 
+
+\subsection{Recursive types}
+
+For a compiler to create an instance of a type, it must know the exact size of the object. Recursive types are types which reference them selves. See \autoref{fig:recusrive-types} for an example, where \verb|Cons| is a \verb|List| which contains another \verb|List|. At face value it would therefore seem impossible to know the size of a \verb|Cons| object. In Rust this is therefore not allowed and for recursive types to be defined the developer must use a pointer. In Rust there are many kinds of pointers, but the simplest for this use case is the \verb|Box|.
+
+In Scala this concept is obfuscated by the high level API exposed to the developer.
+
+In a similar vein, return types of methods cannot  
+
+\subsection{References}
 
 
 % -----------------------------------------------------------------------------
