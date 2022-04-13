@@ -7,14 +7,18 @@ enum Shape {
 
 fn area(shape: &Shape) -> f64 {
     match shape {
-        Shape::Circle { radius } => PI * radius * radius,
-        Shape::Square { side } => side * side,
+        Shape::Circle { radius } => 
+            PI * radius * radius,
+        Shape::Square { side } => 
+            side * side,
     }
 }
 
 fn perimeter(shape: &Shape) -> f64 {
     match shape {
-        Shape::Circle { radius } => 2.0 * PI * radius,
-        Shape::Square { side } => 4.0 * side,
+        Shape::Circle { radius } => 
+            2.0 * PI * radius,
+        Shape::Square { side } => 
+            4.0 * side,
     }
 }
