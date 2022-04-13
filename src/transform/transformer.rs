@@ -667,13 +667,14 @@ fn transform_expr(expr: &Expr, transform_type: &TransformType, gamma: &Gamma, de
                         // If this is a match expr over a struct (TODO this probably also has to
                         // happen for enums)
                         // Then each value collected is a borrow
-                        if gamma.is_trait(expr_match.expr) {
-                        }
-
-                        let mut delta = delta.clone();
-                        delta.collect_for_arm()
+                        // TODO
+                        // if gamma.is_trait(expr_match.expr) {
+                        // }
+                        // let mut delta = delta.clone();
+                        // delta.collect_for_arm()
+                        
                         Arm {
-                            body: Box::new(transform_expr(&arm.body, transform_type, gamma, &delta, return_type)),
+                            body: Box::new(transform_expr(&arm.body, transform_type, gamma, &delta, return_type.clone())),
                             ..arm.clone()
                         }
                     }).collect(),
