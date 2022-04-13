@@ -41,6 +41,9 @@
 \newcommand{\rustfile}[1]{\inputminted[xleftmargin=20pt,linenos]{rust}{../src/#1.rs}}
 \newcommand{\rustexample}[1]{\rustfile{examples/#1}}
 
+\usepackage{caption}
+\usepackage{subcaption}
+
 \begin{document}
 
 % =============================================================================
@@ -310,12 +313,21 @@ The pure OOP style described by Cook in \cite{cook} and used by \weixin to restr
 %TODO fix the 2nd sentence
 In functional style types are algebraic datatypes with various constructors. Constructor are variation of this type. Consumers are then defined, which are function that take in a datatype and pattern match on its constructors.  
 
-\begin{figure}[t]
+\begin{figure}
+\centering
+\begin{subfigure}{.5\textwidth}
     \rustexample{shape/oop}
     \caption{Rust Example - Implementation of trait for struct using impl}
     \label{fig:impl-example}
+\end{subfigure}%
+\begin{subfigure}{.5\textwidth}
+    \rustexample{shape/fp}
+    \caption{Rust Example - Implementation of trait for struct using impl}
+    \label{fig:impl-example}
+\end{subfigure}
+\caption{A figure with two subfigures}
+\label{fig:test}
 \end{figure}
-
 
 
 \section{Rust Type System}
