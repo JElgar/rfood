@@ -39,9 +39,7 @@
 \usepackage{minted}
 \newcommand{\rust}[1]{\mintinline{rust}{#1}}
 
-\newcommand{\codestart}[1]{\begin{minted}[]{#1}}
-\newcommand{\codeend}{\end{minted}}
-\newcommand{\codefile}[2]{\inputminted[xleftmargin=20pt,linenos]{#1}{#2}}
+\newcommand{\codefile}[2]{\inputminted[xleftmargin=20pt,linenos, breaklines]{#1}{#2}}
 \newcommand{\rustfile}[1]{\codefile{rust}{../src/#1.rs}}
 \newcommand{\rustexample}[1]{\rustfile{examples/#1}}
 
@@ -307,7 +305,7 @@ The goal of this paper is to replicate this implementation in Rust. Rust was cre
 
 % Following on from this dudes work with rust
 
-This paper extends and evaluated the work of \weixin in \cite{food}. \weixin proposes a framework for a sub set of possible transformations and creates an implementation of this framework in a single programming language Scala. 
+This paper extends and evaluates the work of \weixin in \cite{food}. \weixin proposes a framework for a sub set of possible transformations and creates an implementation of this framework in a single programming language Scala. 
 
 The work of \weixin in \cite{food} focuses on the transformation of the
 
@@ -338,16 +336,32 @@ In functional style types are algebraic datatypes with various constructors. Con
 \label{fig:dec-ex}
 \end{figure}
 
+\begin{figure}
+\centering
+\begin{subfigure}{.5\textwidth}
+    \codefile{scala}{../scala/examples/src/main/scala/RecursiveType.scala}
+    \caption{Scala recursive class}
+    \label{fig:dec-ex-oop}
+\end{subfigure}%
+\begin{subfigure}{.5\textwidth}
+    \rustexample{list/oop}
+    \caption{Rust recursive struct}
+    \label{fig:dec-ex-fp}
+\end{subfigure}
+\caption{Recursive Type Definitions}
+\label{fig:dec-ex}
+\end{figure}
+
 
 
 \section{Rust Type System}
-"Rust is the first industry-supported programming language to overcome the longstanding tradeoff between the safety guarantees of higher-level languages (like Java) and the control over resource management provided by lower-level “systems programming” languages (like C and C++)" \cite{rustsafesystems}. Rust achieves this by using an ownership type system. This gives developers the control to express low level concept, in a similar way to languages such as C, whilst maintaining the safety of higher level languages by catching errors at compile time with the strong type system. 
+"Rust is the first industry-supported programming language to overcome the longstanding tradeoff between the safety guarantees of higher-level languages (like Java) and the control over resource management provided by lower-level “systems programming” languages (like C and C++)" \cite{rustsafesystems}. Rust achieves this by using an ownership type system. This gives developers the control to express low level concept, in a similar way to languages such as C, whilst maintaining the safety of higher level languages by catching potential errors at compile time with the strong type system. 
 
 This unique and strong type system of Rust presents additional challenges when creating a transformer for the rust programming language. 
 
 \subsection{Recursive types}
 
-For a compiler to create an instance of a type, it must know the exact size of the object. Recursive types are types which reference them selves. See \autoref{fig:recusrive-types} for an example, where \verb|Cons| is a \verb|List| which contains another \verb|List|. At face value it would therefore seem impossible to know the size of a \verb|Cons| object. In Rust this is therefore not allowed and for recursive types to be defined the developer must use a pointer. In Rust there are many kinds of pointers, but the simplest for this use case is the \verb|Box|.
+For a compiler to create an instance of a type, it must know the exact size of the object. Recursive types are types which reference them selves. See \autoref{fig:recusrive-types} for an example, where \verb|Cons| is a \verb|List| which contains another \verb|List|. At face value it would therefore seem impossible to know the size of a \verb|Cons| object. In Rust, therefore, this is not allowed and for recursive types to be defined the developer must use a pointer. In Rust there are many kinds of pointers, but the simplest for this use case is the \verb|Box|.
 
 In Scala this concept is obfuscated by the high level API exposed to the developer.
 
