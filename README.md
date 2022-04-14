@@ -35,6 +35,10 @@
 
 - [x] Wildcard pattern for basic types
 
+### Mutable
+
+- [ ] Transform any uses of the transfomred destructors, this will need an extra guard check in transform expr 
+
 ### Extras 
 
 - [ ] Select which types to transform
