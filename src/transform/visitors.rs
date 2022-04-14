@@ -192,3 +192,7 @@ impl VisitMut for TransformGenerators {
         }
     }
 }
+
+pub struct ReplaceSelfFieldAssignments;
+impl VisitMut for ReplaceSelfFieldAssignments {
+}

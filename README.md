@@ -14,6 +14,7 @@
 - [ ] Shadowing for consumer args and match arm params
 - [ ] Handle renaming when replacing first arg of consumer (eg left -> self in the union function)
 - [ ] Update delta type to store ref_type recursivly. This is so *Box or &* etc can be encoded.
+- [ ] Non self methods should just be copied as top level methods oop->fp
 
 ### Typing 
 

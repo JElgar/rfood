@@ -248,6 +248,16 @@ fn transform_destructor(trait_: &ItemTrait, destructor: &TraitItemMethod, enum_:
         rdbdrs.visit_expr_mut(&mut match_expr);
     }
     
+    // If the method is mutable self
+    if is_mutable_self(&destructor.sig) {
+        // Create a new mut variable for each attribute in the struct equal to the value in the struct 
+        // Eg for circle
+        // let mut radius = self.radius
+        // TODO problaly clone it?
+        // Then for every self.radius = something remove the self => radius = something
+        // Then return a new instance of the type with these mut variables 
+    }
+    
     let func = ast::create::create_function(signature, vec![Stmt::Expr(match_expr)]);
     gamma.add_enum_consumer(&enum_, &destructor.sig.ident, &func);
     Item::Fn(func)
@@ -321,7 +331,9 @@ fn transform_consumer_expr(expr: &Expr, self_arg_name: Ident, trait_attributes: 
 /// * `enum_name` - The name of the enum (interface) which replaces self
 /// * `gamma` - Gamma
 ///
-/// Returns the function signature and the name of the type which replaces self if self is present
+/// Returns:
+/// - the function signature and the name of the type which replaces self if self is present
+/// - the name of the argument which replaces self if self is present
 fn transform_destructor_signature(signature: &Signature, enum_name: &Ident, generics: &Generics, enum_generics: &Generics, gamma: &Gamma) -> (Signature, Ident){
     let enum_instance_name = transform_type_to_name(enum_name);
 
@@ -584,7 +596,7 @@ fn transform_expr(expr: &Expr, transform_type: &TransformType, gamma: &Gamma, de
                 ..expr_return.clone()
             })
         }
-        (OOPToFP, Expr::Struct(expr_struct)) if gamma.get_generator_trait(&expr_struct.path.get_delta_type().name).is_some() => {
+        (TransformType::OOPToFP, Expr::Struct(expr_struct)) if gamma.get_generator_trait(&expr_struct.path.get_delta_type().name).is_some() => {
             let struct_ = Expr::Struct(ExprStruct{
                 path: transform_struct_instantiation_path_for_enum(expr_struct, gamma, &delta),
                 fields: Punctuated::from_iter(expr_struct.fields.iter().map(|field| {
@@ -613,7 +625,7 @@ fn transform_expr(expr: &Expr, transform_type: &TransformType, gamma: &Gamma, de
             }
             return struct_;
         },
-        (FPToOOP, Expr::Struct(expr_struct)) if gamma.is_enum_or_variant(&expr_struct.path.get_delta_type().name) => {
+        (TransformType::FPToOOP, Expr::Struct(expr_struct)) if gamma.is_enum_or_variant(&expr_struct.path.get_delta_type().name) => {
             let struct_ = Expr::Struct(ExprStruct{
                 path: Path{
                     leading_colon: None,

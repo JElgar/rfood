@@ -1,3 +1,2 @@
-fn test() {
-    &1
+fn test(&mut self) {
 }

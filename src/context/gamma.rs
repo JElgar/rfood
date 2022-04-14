@@ -124,6 +124,19 @@ pub fn get_match_expr_for_enum(
         .unwrap())
 }
 
+pub fn is_mutable_self(sig: &Signature) -> bool {
+    match sig.inputs.first() {
+        Some(FnArg::Receiver(
+            Receiver { 
+                mutability: Some(_),
+                self_token: token::SelfValue{..}, 
+                ..
+            }
+        )) => true,
+        _ => false,
+    }
+}
+
 /// Global context
 #[derive(Debug, Clone)]
 pub struct Gamma {

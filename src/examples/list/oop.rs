@@ -8,4 +8,3 @@ pub struct Cons {
     pub xs: Box<dyn List>,
 }
 impl List for Cons {}
-
