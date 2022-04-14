@@ -1,2 +1,5 @@
-fn test(&mut self) {
+fn test(&mut self) -> i8 {
+    A {
+        a
+    }
 }

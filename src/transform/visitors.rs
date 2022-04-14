@@ -24,6 +24,7 @@ fn get_method_call_ident(expr: &Expr) -> Option<Ident> {
 
 pub struct ReplaceFieldCalls {
     pub delta: Delta,
+    pub self_mut_fields: Vec<Ident>,
 }
 impl VisitMut for ReplaceFieldCalls {
     fn visit_expr_mut(&mut self, expr: &mut Expr) {
@@ -33,12 +34,15 @@ impl VisitMut for ReplaceFieldCalls {
             base,
             ..
         }) = expr.clone() {
-            let member_name = get_method_call_ident(&base);
-            if member_name.is_none() {
+            let base_name = get_method_call_ident(&base);
+            if base_name.is_none() {
                 return;
             }
+            let base_name = base_name.unwrap();
 
-            let result_type = self.delta.get_type(&member_name.unwrap());
+            // TODO Should probably use this
+            // let result_type = self.delta.get_type(&member_name);
+
             *expr = syn::Expr::Unary(
                 syn::ExprUnary {
                     attrs: Vec::new() as Vec<syn::Attribute>,
@@ -46,6 +50,12 @@ impl VisitMut for ReplaceFieldCalls {
                     expr: Box::new(syn::Expr::Path(syn::ExprPath { attrs: Vec::new(), qself: None, path: syn::Path { leading_colon: None, segments: Punctuated::from_iter([syn::PathSegment { ident: ident.clone(), arguments: syn::PathArguments::None}]) } })),
                 }
             );
+            
+            println!("Self mut is: {:?}", self.self_mut_fields);
+            if self.self_mut_fields.contains(&ident) {
+                println!("Deferencing expr!!!!");
+                *expr = clean_type(expr);
+            }
         }
     }
 }
@@ -193,6 +203,27 @@ impl VisitMut for TransformGenerators {
     }
 }
 
-pub struct ReplaceSelfFieldAssignments;
+pub struct ReplaceSelfFieldAssignments {
+    pub self_fields: Vec<Ident>,
+}
 impl VisitMut for ReplaceSelfFieldAssignments {
+    fn visit_expr_assign_mut(&mut self, i: &mut ExprAssign) {
+        visit_expr_assign_mut(self, i);
+        match &*i.left {
+            Expr::Unary(ExprUnary{
+                op: UnOp::Deref(..),
+                expr: box Expr::Path(ExprPath {
+                    path,
+                    ..
+                }),
+                ..
+            }) if self.self_fields.contains(&get_ident_from_path(&path)) => {
+                *i.left = create_self_field_call(&get_ident_from_path(&path));
+            },
+            _ => ()
+        }
+    }
+
+    fn visit_expr_assign_op_mut(&mut self, i: &mut ExprAssignOp) {
+    }
 }

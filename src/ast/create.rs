@@ -305,6 +305,28 @@ pub fn create_match_statement(match_ident: &syn::Ident, arms: Vec<syn::Arm>) -> 
     )
 }
 
+pub fn create_expr_path_from_path(path: Path) -> ExprPath {
+    ExprPath { 
+        attrs: Vec::new(),
+        qself: None,
+        path: path.clone(),
+    }
+}
+
+pub fn create_path_from_ident(ident: &Ident) -> Path {
+    syn::Path{
+        leading_colon: None,
+        segments: syn::punctuated::Punctuated::from_iter(
+            [
+                syn::PathSegment{
+                    ident: ident.clone(),
+                    arguments: syn::PathArguments::None,
+                },
+            ]
+        ),
+    }
+}
+
 pub fn create_path_for_enum(enum_ident: &Ident, variant_ident: &Ident) -> syn::Path {
     syn::Path{
         leading_colon: None,
@@ -747,4 +769,32 @@ pub fn create_expression_block(stmts: Vec<syn::Stmt>) -> Expr {
             stmts
         }
     })
+}
+
+pub fn create_let_stmt(name: &Ident, expr: &Expr, mutable: bool) -> Local {
+    Local{
+        attrs: Vec::new(),
+        let_token: token::Let::default(),
+        init: Some((token::Eq::default(), Box::new(expr.clone()))),
+        semi_token: token::Semi::default(),
+        pat: Pat::Ident(
+            PatIdent{
+                attrs: Vec::new(),
+                ident: name.clone(),
+                mutability: if mutable {Some(token::Mut::default())} else {None},
+                subpat: None,
+                by_ref : None,
+            }
+        )
+    }
+}
+
+/// Add expression into a block at given index. 
+pub fn add_stmts_to_block(stmt: &Stmt, block: &Block, index: usize) -> Block {
+    let mut stmts = block.stmts.clone();
+    stmts.insert(index, stmt.clone());
+    Block{
+        stmts,
+        ..block.clone()
+    }
 }
