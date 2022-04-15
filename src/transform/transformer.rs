@@ -615,6 +615,17 @@ fn transform_expr(expr: &Expr, transform_type: &TransformType, gamma: &Gamma, de
 
             let mut new_args = Punctuated::from_iter(vec![receiver_expr]);
             new_args.extend(transform_method_call_arguments(&expr_method_call, gamma, &delta));
+
+            // If method is self mut destructor then mutable the value
+            if is_mutable_self(
+                &gamma.get_transformed_destructor_signature(
+                    &delta.get_type_of_expr(&expr_method_call.receiver, gamma).unwrap().name, 
+                    &expr_method_call.method
+                ),
+            ) {
+            }
+            create_let_stmt(
+            )
             create_function_call(&method, new_args)
         },
         // Any other method call, transform all the args and the receiver
@@ -813,7 +824,18 @@ fn transform_statement(statement: &Stmt, transform_type: &TransformType, gamma: 
             })
         },
         Stmt::Semi(expr, semi) => {
+            // Transform the inner expr
             Stmt::Semi(transform_expr(&expr, transform_type, gamma, delta, return_type), *semi)
+            // If the inner expression was a self_mut
+            match expr {
+            }
+            if is_mutable_self(
+                &gamma.get_transformed_destructor_signature(
+                    &delta.get_type_of_expr(&expr_method_call.receiver, gamma).unwrap().name, 
+                    &expr_method_call.method
+                ),
+            ) {
+            }
         },
         Stmt::Expr(expr) => {
             Stmt::Expr(transform_expr(&expr, transform_type, gamma, delta, return_type))
