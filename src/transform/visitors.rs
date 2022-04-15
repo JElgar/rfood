@@ -144,20 +144,12 @@ impl VisitMut for TransformConsumer {
                 if self.trait_attributes.contains(&var_name) {
                     *i = create_self_field_call(var_name)
                 // Otherwise if the var is the self arg then we need to replace it self
-                } else if var_name == &self.self_arg_name {
-                    *i = Expr::Path(
-                        syn::ExprPath {
-                            attrs: Vec::new() as Vec<syn::Attribute>,
-                            qself: None,
-                            path: syn::Path {
-                                leading_colon: None,
-                                segments: Punctuated::from_iter(vec![syn::PathSegment {
-                                    ident: Ident::new("self", Span::call_site()),
-                                    arguments: syn::PathArguments::None,
-                                }]),
-                            }
-                        }
-                    )
+                } 
+                else if var_name == &self.self_arg_name {
+                    *i = create_expr_from_ident(&Ident::new("self", Span::call_site()));
+                }
+                else {
+                    visit_expr_mut(self, i)
                 }
             },
             Expr::Call(expr_call) => {
@@ -179,10 +171,10 @@ impl VisitMut for TransformConsumer {
                 
                 // If the function is a consumer, call method on self
                 *i = create_method_call(&fn_name, &reciever, &args);
+                visit_expr_mut(self, i);
             }
-            _ => () 
+            _ => visit_expr_mut(self, i)
         }
-        visit_expr_mut(self, i)
     }
 }
 

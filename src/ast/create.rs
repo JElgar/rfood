@@ -693,7 +693,7 @@ pub fn create_field_call(base_name: &Ident, field_name: &Ident) -> Expr {
 }
 
 pub fn create_self_field_call(field_name: &Ident) -> Expr {
-    create_field_call(field_name, &Ident::new("self", Span::call_site()))
+    create_field_call(&Ident::new("self", Span::call_site()), field_name)
 }
 
 pub fn create_function_call(method: &Ident, args: Punctuated<Expr, Comma>) -> Expr {
