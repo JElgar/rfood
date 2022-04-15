@@ -266,8 +266,10 @@ impl Gamma {
             .any(|(_, v)| v.values().any(|item_fn| item_fn.sig.ident == *fn_ident))
     }
 
-    pub fn is_desturctor_of_trait(&self, trait_ident: &Ident, fn_ident: &Ident) -> bool {
-        self.destructors.get(trait_ident).unwrap().iter().any(|item_fn| item_fn.sig.ident == *fn_ident)
+    pub fn is_destructor_of_trait(&self, trait_ident: &Ident, fn_ident: &Ident) -> bool {
+        println!("Checking if {:?} is dest of {:?}", fn_ident, trait_ident);
+        let trait_ident = self.get_base_type_name_from_type_name(&trait_ident);
+        self.destructors.get(&trait_ident).unwrap().iter().any(|item_fn| item_fn.sig.ident == *fn_ident)
     }
 
     /// For a given generator (struct) find the trait that it implements
@@ -326,9 +328,9 @@ impl Gamma {
         &self,
         generator_ident: &Ident,
         destructor_ident: &Ident,
-    ) -> Signature {
+    ) -> std::result::Result<Signature, NotFound> {
         let traits = self.get_traits_for_generator(&generator_ident);
-        self.traits
+        match self.traits
             .iter()
             .find_map(|trait_| {
                 self.get_destructors(&trait_.ident)
@@ -339,8 +341,10 @@ impl Gamma {
                         }
                         return None;
                     })
-            })
-            .unwrap()
+            }) {
+            Some(sig) => Ok(sig),
+            None => Err(NotFound{item_name: destructor_ident.to_string(), type_name: "destructor".to_string()}),
+        }
     }
 
     pub fn get_destructor_impl_for_generator(

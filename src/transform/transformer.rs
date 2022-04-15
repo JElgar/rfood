@@ -233,8 +233,8 @@ fn transform_destructor(trait_: &ItemTrait, destructor: &TraitItemMethod, enum_:
         let mut body = Expr::Block(ExprBlock{block: Gamma::get_destructor_impl_for_trait(trait_, &destructor.sig.ident).unwrap().default.unwrap(), attrs: Vec::new(), label: None});
    
         // TODO Currently this Vec::new() means mutable things cannot have a wild card arm. Fix by
-        // sorting out why this logic is duplicated here
-        body = transform_destructor_expr(&body, &old_delta, &new_delta, Vec::new(), None, gamma, &trait_.ident, EType::DeltaType(signature.output.get_delta_type(None).unwrap()));
+        // NOTE trait_ident here is wrong/irrelevant
+        body = transform_destructor_expr(&body, &old_delta, &new_delta, Vec::new(), None, gamma, &enum_instance_name, &trait_.ident, EType::DeltaType(signature.output.get_delta_type(None).unwrap()));
         
         // Create wild card arm with this body
         arms.push(ast::create::create_wildcard_match_arm(body));
@@ -354,7 +354,7 @@ fn transform_destructor_impl(generator: &ItemStruct, destructor: &TraitItemMetho
 
     // Then return a new instance of the type with these mut variables 
     // Transform the body of the method
-    expr = transform_destructor_expr(&expr, &old_delta, &new_delta, self_mutable_fields, new_self_mut_field.clone(), gamma, enum_instance_name, get_return_type_from_signature(consumer_signature));
+    expr = transform_destructor_expr(&expr, &old_delta, &new_delta, self_mutable_fields, new_self_mut_field.clone(), gamma, enum_instance_name, &enum_name, get_return_type_from_signature(consumer_signature));
 
     // Create the arm of the match statement
     let path = ast::create::create_path_for_enum(enum_name, &generator.ident);
@@ -373,14 +373,14 @@ fn transform_destructor_impl(generator: &ItemStruct, destructor: &TraitItemMetho
 /// * `self_mutable_fields` - If this is a mutable self destructor, then all the fields in the
 /// struct are added in here. These are handled seperately in the transform (not deferencced) 
 /// * `gamma` - The gamma that the method call is in
-fn transform_destructor_expr(expr: &Expr, old_delta: &Delta, new_delta: &Delta, self_mutable_fields: Vec<Ident>, new_self_mut_field: Option<Ident>, gamma: &Gamma, enum_name: &Ident, output_type: EType) -> Expr {
+fn transform_destructor_expr(expr: &Expr, old_delta: &Delta, new_delta: &Delta, self_mutable_fields: Vec<Ident>, new_self_mut_field: Option<Ident>, gamma: &Gamma, enum_name: &Ident, enum_type_name: &Ident, output_type: EType) -> Expr {
     // TODO replace this logic with standard transform_expr
     let mut expr_clone = expr.clone();
     
     let mut rfc = ReplaceFieldCalls{delta: old_delta.clone(), self_mut_fields: self_mutable_fields, new_self_mut_field};
     rfc.visit_expr_mut(&mut expr_clone);
 
-    let mut rmc = ReplaceMethodCalls{delta: old_delta.clone(), gamma: gamma.clone(), self_type: enum_name.clone()};
+    let mut rmc = ReplaceMethodCalls{delta: old_delta.clone(), gamma: gamma.clone(), self_type: enum_type_name.clone()};
     rmc.visit_expr_mut(&mut expr_clone);
 
     let mut rs = ReplaceSelf{enum_name: enum_name.clone()};
@@ -549,11 +549,15 @@ fn transform_expr_type(expr: &Expr, current_type: &DeltaType, required_type: &De
 
 // TODO can old_delta be replaced with get type of expr
 fn transform_method_call_arguments(method_call: &ExprMethodCall, gamma: &Gamma, delta: &Delta) -> Punctuated<Expr, Comma> {
+    if method_call.args.len() == 0 {
+        return method_call.args.clone();
+    }
+
     let reciever_ident = delta.get_type_of_expr(&method_call.receiver, gamma).unwrap().name;
     let method_ident = method_call.method.clone();
 
     // Get the old and new signature
-    let old_signature = gamma.get_destructor_signature(&reciever_ident, &method_ident);
+    let old_signature = gamma.get_destructor_signature(&reciever_ident, &method_ident).unwrap();
     let transformed_signature = gamma.get_transformed_destructor_signature(&reciever_ident, &method_ident);
 
     // Iterate over all the arguments of the method, ignoring the first argment of both the
@@ -594,6 +598,10 @@ fn transform_expr(expr: &Expr, transform_type: &TransformType, gamma: &Gamma, de
         }
         (TransformType::OOPToFP, Expr::MethodCall(expr_method_call))
             if gamma.is_generator_type(&delta.get_type_of_expr(&expr_method_call.receiver, gamma).unwrap().name) 
+            && gamma.is_destructor_of_trait(
+                &delta.get_type_of_expr(&expr_method_call.receiver, gamma).unwrap().name, 
+                &expr_method_call.method
+            ) 
         => {
             let ExprMethodCall { receiver, method, .. } = expr_method_call;
             let receiver_expr = if delta.get_type_of_expr(&receiver, gamma).unwrap().ref_type == RefType::Box {
@@ -612,6 +620,7 @@ fn transform_expr(expr: &Expr, transform_type: &TransformType, gamma: &Gamma, de
             // made which are not on destructors TODO fix
             let reciever_type = delta.get_type_of_expr(&method_call.receiver, &gamma).unwrap();
             let signature = gamma.get_destructor_signature(&reciever_type.name, &method_call.method);
+
             Expr::MethodCall(ExprMethodCall{
                 receiver: Box::new(transform_expr(&method_call.receiver, transform_type, gamma, &delta, EType::Any)),
                 args: Punctuated::from_iter(method_call.args.iter().enumerate().map(|(index, arg)| 
@@ -620,7 +629,10 @@ fn transform_expr(expr: &Expr, transform_type: &TransformType, gamma: &Gamma, de
                         transform_type,
                         gamma,
                         &delta,
-                        EType::DeltaType(signature.inputs[index].get_delta_type(Some(reciever_type.name.clone()))),
+                        match &signature {
+                            Ok(signature) => EType::DeltaType(signature.inputs[index].get_delta_type(Some(reciever_type.name.clone()))),
+                            Err(_) => EType::Any
+                        }
                     )
                 )),
                 ..method_call.clone()
