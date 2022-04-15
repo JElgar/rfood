@@ -211,18 +211,18 @@ To implement the transformer I used the following technologies:
 \vspace{1cm} 
 
 \noindent
-Any well written document will introduce notation and acronyms before
-their use, {\em even if} they are standard in some way: this ensures 
-any reader can understand the resulting self-contained content.  
+% Any well written document will introduce notation and acronyms before
+% their use, {\em even if} they are standard in some way: this ensures 
+% any reader can understand the resulting self-contained content.  
 
-Said introduction can exist within the dissertation itself, wherever 
-that is appropriate.  For an acronym, this is typically achieved at 
-the first point of use via ``Advanced Encryption Standard (AES)'' or 
-similar, noting the capitalisation of relevant letters.  However, it 
-can be useful to include an additional, dedicated list at the start 
-of the dissertation; the advantage of doing so is that you cannot 
-mistakenly use an acronym before defining it.  A limited example is 
-as follows:
+% Said introduction can exist within the dissertation itself, wherever 
+% that is appropriate.  For an acronym, this is typically achieved at 
+% the first point of use via ``Advanced Encryption Standard (AES)'' or 
+% similar, noting the capitalisation of relevant letters.  However, it 
+% can be useful to include an additional, dedicated list at the start 
+% of the dissertation; the advantage of doing so is that you cannot 
+% mistakenly use an acronym before defining it.  A limited example is 
+% as follows:
 
 \begin{quote}
 \noindent
@@ -357,16 +357,24 @@ In functional style types are algebraic datatypes with various constructors. Con
 \section{Rust Type System}
 "Rust is the first industry-supported programming language to overcome the longstanding tradeoff between the safety guarantees of higher-level languages (like Java) and the control over resource management provided by lower-level “systems programming” languages (like C and C++)" \cite{rustsafesystems}. Rust achieves this by using an ownership type system. This gives developers the control to express low level concept, in a similar way to languages such as C, whilst maintaining the safety of higher level languages by catching potential errors at compile time with the strong type system. 
 
-This unique and strong type system of Rust presents additional challenges when creating a transformer for the rust programming language. 
+This unique and strong type system of Rust presents additional challenges when creating a transformer for the rust programming 
+
+\subsection{References language}
+
+In many high level languages, such as Scala, developer are not required to assign and free memory explicitly. In Scala a garbage collector is used to automatically free memory that can no longer be accessed by the program. This improves memory safety, as memory cannot be accessed after it has been freed. In contrast low level languages like C, requires developers to create and free memory as required. This gives developers greater control and has efficiency gains as the expensive garbage collection task is not required. The trade off is code can be unsafe as developers can try and access memory that has previously been freed.
 
 \subsection{Recursive types}
 
-For a compiler to create an instance of a type, it must know the exact size of the object. Recursive types are types which reference them selves. See \autoref{fig:recursive-typedef} for an example, where \verb|Cons| is a \verb|List| which contains another \verb|List|. At face value it would therefore seem impossible to know the size of a \verb|Cons| object. In Rust this is not allowed and therefore for recursive types to be defined the developer must use a pointer. In Rust there are many kinds of pointers, but the simplest for this use case is the \verb|Box|.
-In Scala this concept is obfuscated by the high level API exposed to the developer and thus they are allowed to define recursive types directly (as shown in \autoref{fig:recursive-typedef-scala}.  
+For a compiler to create an instance of a type, it must know the exact size of the object. Recursive types are types which reference themselves. See \autoref{fig:recursive-typedef} for an example, where \verb|Cons| is a \verb|List| which contains another \verb|List|. At face value it would therefore seem impossible to know the size of a \verb|Cons| object. In Rust this is not allowed and therefore for recursive types to be defined, the developer must use a pointer. In Rust there are many kinds of pointers, but the simplest for this use case is the \verb|Box|. 
+Moreover when creating a pointer to a trait the developer must use the \verb|dyn|, which tells the compiler the size of the reference object is not fixed (in this case could either be \verb|Empty| or \verb|Cons|). 
 
-In a similar vein, return types of methods cannot  
+In Scala this concept is obfuscated by the high level API exposed to the developer and thus they are allowed to define recursive types directly (as shown in \autoref{fig:recursive-typedef-scala}).  
 
-\subsection{References}
+In a similar vein, return types of methods cannot be the trait type itself, without the use of a dynamic pointer. 
+
+% TODO This needs to validation
+Although traits are not a fixed size, enums are. This means in OOP style the dyn tokens must be removed. With these additional requirements of the rust typing system, additional steps are required to transform the code.
+
 
 
 % -----------------------------------------------------------------------------
@@ -416,9 +424,139 @@ The main issue with Syn, is it geared toward helping parse code in Rust procedur
 
 Another requirement, is once the AST has be transformed, it must be converted back into Rust code. To achieve this the \verb|quote| and \verb|rustfmt|. The \verb|quote|  package converts the AST back into tokens of source code, whilst the \verb|rustfmt| package formats the outputted code in a consistent way.
 
+Finally a CLI was created to allow developers to parse in files they want to transform and to specity the direction (OOP to FP or FP to OOP).
+
 \section{Transformer Implementation}
 
+The transformation is split into 4 step:
 
+\begin{enumerate}
+    \item Collect global context
+    \item Transform the types
+    \item Recursively transform other items
+\end{enumerate}
+
+
+\subsection{Context}
+
+Prior to transforming any expressions or statements, the transformer must know the context. This consists of two components, the global context, $\Delta$, and the environment, $\Gamma$.
+
+\subsubsection{Global Context}
+
+In \cite{food} \weixin uses the name "global context", represented by $\Delta$, to represent the store with  the following attributes:
+
+\paragraph{Datatypes.} Datatypes are equivalent to Enums in Rust.
+\paragraph{Interfaces.} Interfaces are equivalent to Traits in Rust.
+\paragraph{Constructor.} Constructor create an instance of a given datatype. In Rust the equivalent is an Enum Variant.
+% TODO update this if it can handle multiple inheritance
+\paragraph{Generator.} Generators create an instance of a given interface. In Rust the equivalent is a struct which has an implementation of a trait (the interface). Note in this implementation a struct cannot be transformed if it implements multiple traits. 
+\paragraph{Consumer.} Consumers are functions that operate on a datatype. In Rust these are functions, with the first argument being a Datatype.
+\paragraph{Destructor.} A destructor is a function that operates on an interface. In Rust these are methods defined on the traits, and then mus either have a default implementation (in the trait) or an implementation in the generators impl of the trait.
+
+\vspace{10pt}
+
+In the current implementation of the transformer "global context" is an accurate name, as the Datatypes are collected at the beginning of the transformation. However, this does oversimplify the reality as it is possible to define Datatypes within scopes. In this case it would be more accurate to generate Gamma recursively (along side other transformations) to ensure all scoping is correct. Note, however, the top level types must be collected before any other types are transformed, as types defined after a function can still be referenced in that function.
+
+% TODO did the change?
+For the Rust implementation the Visitor pattern was used. Provided by the \verb|syn| package these traits (\verb|visit| and \verb|visit_mut|) allow the developer to view/mutate selected types of values in the AST. The default implementation of the visitor trait methods, recursively visits all expression. Using this technique ignores the scope of the current expression meaning all types and methods are collected and therefore assumes the developer has not renamed any types/function in a nested scope. This technique could be improved by a recursive approach to collecting this context along side other transformations, to ensure the correct versions of all the attributes are collected.
+
+\subsubsection{Environment}
+
+The environment stores the current types of variables on the stack. In the Scala implementation a type is stored as string, however in the Rust implementation it is stored as a \verb|DeltaType| struct. This allows the encoding of both the type name stored as an Ident (a simple wrapper around String provided by \verb|syn|) and the reference type. 
+
+The reference type is currently implemented as an Enum, with a variant for Box, Reference and None. These reference types are later used to transform the types of expressions as required.
+
+% TODO sort this out
+The key limitation of the current implementation is these are not stored as recursive types. This means nested references such as reference of boxes cannot be encoded. 
+
+\subsection{Type Transformations}
+
+Having collected the global context, the next stage of the transformation is to transform the types, and their associated functions. For OOP to FP this means transforming the traits, structs and impls and for FP to OOP this means transforming the enums and consumers.
+
+\subsubsection{OOP to FP}
+
+The top level function for transforming from OOP to FP is \verb|transform_trait|. This does the following:
+
+\begin{enumerate}
+    \item  Create an enum variant for each generator of the trait (structs that implements the trait). The enum variants will have the same names as the structs and the same fields. The type of the fields will be transformed such that any \verb|dyn| reference, the dyn is removed. Structs can also expose fields as public with the \verb|pub| token, this is automatically the case for all fields of an enum variant so this is removed.
+    \item Create an enum with the same name as the original trait and the variants collected in step 1.
+    \item Transform each destructor of the trait into a consumer.
+\end{enumerate}
+
+The first stage to transforming a destructor is transforming its signature. This is done by...
+
+Assuming each struct impl has an implementation for this destructor (see \autoref{sec:inheritance} for why this is not always the case) the next stage of the transformation is to create a match statement with an arm for each generator of the trait. The arms consist of two key elements, the match pattern and the body. The match pattern is the enum which the generator is transformed to. The current implementation shows all values in the enum. An improvement would be to ignore (using the \verb|..| syntax) fields which are not used the in body.
+
+The body is a transformed version of the body from the generator implementation of the method. The body is transformed by replacing any reference to self with the new consumer function argument.
+Additional transformations, such as fixing the return type and use of transformed types are handle by the \verb|trasnform_expr| function which is described in detail in \autoref{sec:item-trans}.
+
+% TODO write some algos to show this
+% \begin{algorithm}[t]
+% \For{$i=0$ {\bf upto} $n$}{
+%   $t_i \leftarrow 0$\;
+% }
+% \caption{This is an example algorithm.}
+% \label{alg}
+% \end{algorithm}
+
+\subsubsection{FP to OOP}
+
+When transforming from FP to OOP a similar structure is used. The top level function is \verb|transform_enum| and is called on each datatype in the global context. This creates a trait with the same fields, but adding in \verb|dyn| references if the type of the field is the enum type which is being transformed.
+
+An implementation block for each of the created struct is then added. These implementation blocks contain a method for each of the consumers. The signature of these methods ares equivalent to those of the consumer but with the first argument (which must be the enum type) replaced with self. 
+As the reverse to OOP to FP, any fields in the signature which are Box of the enum type, the dyn token is added.
+% TODO Note if how we handle different borrow types of self
+% TODO as required is garbage 
+The body of these methods are then transformed. This adds self to method and field calls as required.
+
+
+\subsection{Item Transformations}
+%TODO Talk about this
+\label{sec:item-trans}
+
+After the type transformations are completed a set of recursive functions are used to transform the remaining statements and expressions. These functions require, not only the global and environment context but also the expected return type of the expression and the transform type (direction). 
+The return types are an enum with the following variants:
+
+\begin{itemize}
+    \item None - No return value
+    \item DeltaType - Contains a DeltaType struct to encode the expected return type
+    \item Any - Any type can be returned (no transformation of the return type will be made)
+\end{itemize}
+
+\subsection{Inheritance}
+\label{sec:inheritance}
+
+Inheritance is one of the central concepts in object oriented programming \cite{cook_palsberg_1989}. It allows developer to share logic between linked classes, preventing duplicate logic. Rust, however, does not support traditional inheritance. Instead it opts for composition, which allows structs to contain other structs directly and default implementations in traits.
+
+A limitation of default implementations is Rust cannot call methods on dynamic types, or use them to create structs.
+% TODO explain this more
+A clear example of where this is an issue, is the union of sets. Ideally a defualt implementation could be created, which returns a new Union struct with the two provided sets. However, given the Self type could be any set (and therefore it is not Sized), self cannot be used to create a new struct. For this reason the Rust implementation does not support default methods other than basic types.
+
+The FP equivalent to these default trait implementations are wildcard matches in consumers. These allow the consumer to use the same implementation for any unmatched expression.
+
+\paragraph{OOP to FP.} If any impls of a trait which is being transformed are missing any of the required methods, then a wildcard arm should be added for that consumer matching that method. The body of the consumer should be taken from the traits default implementation with the same transformations applied to the other arms. The only difference between the transformations is no additional delta collection is required as the pattern match patter is just the underscore token. 
+
+\paragraph{FP to OOP.} If a consumer contains a wildcard match, then the return type of the arm must be checked. If it returns a simple (Sized) type, then a default implementation of the trait can be created and and implementation in the impl block is not required. However if the return type is not sized then a default implementation cannot be used. In this case a copy of the wildcard expression is created for each of the impl blocks. 
+% TODO talk about shared function
+% Although it may seem preferable to create a shared function to handle this logic, this is also not possible (withas the type of the 
+
+
+\subsection{Rust Types}
+
+\subsection{Generics}
+
+\subsection{Mutability}
+
+\weixin's transformer focuses on the transformations between Pure OOP style from \cite{cook} and FP style. However this requirement to use pure OOP style can be very restrictive for the types of OOP programs that can be transformed. A common sytle for object orieneted programming is to include methods that mutate the state of the class it self. An example of this is shown in \autoref{}
+
+\begin{figure}
+\centering
+\rustexample{mutable/oop-basic}
+\caption{Recursive Type Definitions}
+\label{fig:recursive-typedef}
+\end{figure}
+
+\subsection{Multiple Inheritance}
 
 % \begin{figure}[t]
 % \centering
@@ -457,77 +595,67 @@ Another requirement, is once the AST has be transformed, it must be converted ba
 % }
 % \end{lstlisting}
 
-\subsubsection{Example Sub-sub-section}
-
-This is an example sub-sub-section;
-the following content is auto-generated dummy text.
-
-\paragraph{Example paragraph.}
-
-This is an example paragraph; note the trailing full-stop in the title,
-which is intended to ensure it does not run into the text.
-
 % -----------------------------------------------------------------------------
 
 \chapter{Critical Evaluation}
 \label{chap:evaluation}
 
-{\bf A topic-specific chapter} 
-\vspace{1cm} 
+% {\bf A topic-specific chapter} 
+% \vspace{1cm} 
 
-\noindent
-This chapter is intended to evaluate what you did.  The content is highly 
-topic-specific, but for many projects will have flavours of the following:
+% \noindent
+% This chapter is intended to evaluate what you did.  The content is highly 
+% topic-specific, but for many projects will have flavours of the following:
 
-\begin{enumerate}
-\item functional  testing, including analysis and explanation of failure 
-      cases,
-\item behavioural testing, often including analysis of any results that 
-      draw some form of conclusion wrt. the aims and objectives,
-      and
-\item evaluation of options and decisions within the project, and/or a
-      comparison with alternatives.
-\end{enumerate}
+% \begin{enumerate}
+% \item functional  testing, including analysis and explanation of failure 
+%       cases,
+% \item behavioural testing, often including analysis of any results that 
+%       draw some form of conclusion wrt. the aims and objectives,
+%       and
+% \item evaluation of options and decisions within the project, and/or a
+%       comparison with alternatives.
+% \end{enumerate}
 
-\noindent
-This chapter often acts to differentiate project quality: even if the work
-completed is of a high technical quality, critical yet objective evaluation 
-and comparison of the outcomes is crucial.  In essence, the reader wants to
-learn something, so the worst examples amount to simple statements of fact 
-(e.g., ``graph X shows the result is Y''); the best examples are analytical 
-and exploratory (e.g., ``graph X shows the result is Y, which means Z; this 
-contradicts [1], which may be because I use a different assumption'').  As 
-such, both positive {\em and} negative outcomes are valid {\em if} presented 
-in a suitable manner.
+% \noindent
+% This chapter often acts to differentiate project quality: even if the work
+% completed is of a high technical quality, critical yet objective evaluation 
+% and comparison of the outcomes is crucial.  In essence, the reader wants to
+% learn something, so the worst examples amount to simple statements of fact 
+% (e.g., ``graph X shows the result is Y''); the best examples are analytical 
+% and exploratory (e.g., ``graph X shows the result is Y, which means Z; this 
+% contradicts [1], which may be because I use a different assumption'').  As 
+% such, both positive {\em and} negative outcomes are valid {\em if} presented 
+% in a suitable manner.
 
 % -----------------------------------------------------------------------------
 
 \chapter{Conclusion}
 \label{chap:conclusion}
 
-\noindent
-The concluding chapter of a dissertation is often underutilised because it 
-is too often left too close to the deadline: it is important to allocate
-enough attention to it.  Ideally, the chapter will consist of three parts:
+% \noindent
+% The concluding chapter of a dissertation is often underutilised because it 
+% is too often left too close to the deadline: it is important to allocate
+% enough attention to it.  Ideally, the chapter will consist of three parts:
 
-\begin{enumerate}
-\item (Re)summarise the main contributions and achievements, in essence
-      summing up the content.
-\item Clearly state the current project status (e.g., ``X is working, Y 
-      is not'') and evaluate what has been achieved with respect to the 
-      initial aims and objectives (e.g., ``I completed aim X outlined 
-      previously, the evidence for this is within Chapter Y'').  There 
-      is no problem including aims which were not completed, but it is 
-      important to evaluate and/or justify why this is the case.
-\item Outline any open problems or future plans.  Rather than treat this
-      only as an exercise in what you {\em could} have done given more 
-      time, try to focus on any unexplored options or interesting outcomes
-      (e.g., ``my experiment for X gave counter-intuitive results, this 
-      could be because Y and would form an interesting area for further 
-      study'' or ``users found feature Z of my software difficult to use,
-      which is obvious in hindsight but not during at design stage; to 
-      resolve this, I could clearly apply the technique of Smith [7]'').
-\end{enumerate}
+% \begin{enumerate}
+% \item (Re)summarise the main contributions and achievements, in essence
+%       summing up the content.
+% \item Clearly state the current project status (e.g., ``X is working, Y 
+%       is not'') and evaluate what has been achieved with respect to the 
+%       initial aims and objectives (e.g., ``I completed aim X outlined 
+%       previously, the evidence for this is within Chapter Y'').  There 
+%       is no problem including aims which were not completed, but it is 
+%       important to evaluate and/or justify why this is the case.
+% \item Outline any open problems or future plans.  Rather than treat this
+%       only as an exercise in what you {\em could} have done given more 
+%       time, try to focus on any unexplored options or interesting outcomes
+%       (e.g., ``my experiment for X gave counter-intuitive results, this 
+%       could be because Y and would form an interesting area for further 
+%       study'' or ``users found feature Z of my software difficult to use,
+%       which is obvious in hindsight but not during at design stage; to 
+%       resolve this, I could clearly apply the technique of Smith [7]'').
+% \end{enumerate}
 
 % =============================================================================
 
@@ -563,27 +691,27 @@ enough attention to it.  Ideally, the chapter will consist of three parts:
 
 \appendix
 
-\chapter{An Example Appendix}
-\label{appx:example}
+% \chapter{An Example Appendix}
+% \label{appx:example}
 
-Content which is not central to, but may enhance the dissertation can be 
-included in one or more appendices; examples include, but are not limited
-to
+% Content which is not central to, but may enhance the dissertation can be 
+% included in one or more appendices; examples include, but are not limited
+% to
 
-\begin{itemize}
-\item lengthy mathematical proofs, numerical or graphical results which 
-      are summarised in the main body,
-\item sample or example calculations, 
-      and
-\item results of user studies or questionnaires.
-\end{itemize}
+% \begin{itemize}
+% \item lengthy mathematical proofs, numerical or graphical results which 
+%       are summarised in the main body,
+% \item sample or example calculations, 
+%       and
+% \item results of user studies or questionnaires.
+% \end{itemize}
 
-\noindent
-Note that in line with most research conferences, the marking panel is not
-obliged to read such appendices. The point of including them is to serve as
-an additional reference if and only if the marker needs it in order to check
-something in the main text. For example, the marker might check a program listing 
-in an appendix if they think the description in the main dissertation is ambiguous.
+% \noindent
+% Note that in line with most research conferences, the marking panel is not
+% obliged to read such appendices. The point of including them is to serve as
+% an additional reference if and only if the marker needs it in order to check
+% something in the main text. For example, the marker might check a program listing 
+% in an appendix if they think the description in the main dissertation is ambiguous.
 
 % =============================================================================
 
