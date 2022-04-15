@@ -156,9 +156,6 @@ pub struct Gamma {
     // The first ident is the ident of the ItemEnum 
     pub enum_consumers: HashMap<Ident, HashMap<Ident, ItemFn>>, // CSM(DT) - Consumer of DT
 
-    // This is replaced with .signature
-    // pub signatures: HashMap<Ident, Type>, // SIG(F) - Signature of F
-
     // Helpers
     /// All structs found in the ast -> Note these may not be inscope!
     _structs: Vec<ItemStruct>,
@@ -201,7 +198,7 @@ impl Gamma {
             .any(|enum_| enum_.variants.iter().any(|variant| variant.ident == *ident))
             || self.is_enum(ident);
     }
-
+    
     pub fn get_trait(&self, ident: &Ident) -> std::result::Result<ItemTrait, NotFound> {
         match self.traits.iter().find(|t| t.ident == ident.clone()) {
             Some(t) => Ok(t.clone()),
@@ -267,6 +264,10 @@ impl Gamma {
         self.enum_consumers
             .iter()
             .any(|(_, v)| v.values().any(|item_fn| item_fn.sig.ident == *fn_ident))
+    }
+
+    pub fn is_desturctor_of_trait(&self, trait_ident: &Ident, fn_ident: &Ident) -> bool {
+        self.destructors.get(trait_ident).unwrap().iter().any(|item_fn| item_fn.sig.ident == *fn_ident)
     }
 
     /// For a given generator (struct) find the trait that it implements

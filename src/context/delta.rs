@@ -436,9 +436,15 @@ impl Delta {
                 if receiver_type.is_err() {
                     return receiver_type;
                 }
+                let receiver_type = receiver_type.unwrap();
+
+                if method == "clone" {
+                    return Ok(receiver_type);
+                }
+
 
                 // TODO trait does not exist
-                let method_sig = gamma.get_transformed_destructor_signature(&receiver_type.unwrap().name, &method);
+                let method_sig = gamma.get_transformed_destructor_signature(&receiver_type.name, &method);
                 match get_return_type_from_signature(&method_sig) {
                     EType::DeltaType(ty) => Ok(ty),
                     _ => panic!("Method {:?} not found", method_sig)

@@ -64,6 +64,7 @@ impl VisitMut for ReplaceFieldCalls {
 pub struct ReplaceMethodCalls {
     pub delta: Delta,
     pub gamma: Gamma,
+    pub self_type: Ident,
 }
 impl VisitMut for ReplaceMethodCalls {
     fn visit_expr_mut(&mut self, expr: &mut Expr) {
@@ -80,11 +81,13 @@ impl VisitMut for ReplaceMethodCalls {
             //     return;
             // }
 
-            // Create function call for method
-            let expr_ref = create_reference_of_expr(&*expr_method_call.receiver.clone());
-            let mut args = Punctuated::from_iter(vec![expr_ref]);
-            args.extend(expr_method_call.args.clone());
-            *expr = create_function_call(&expr_method_call.method, args)
+            // Create function call for method if the method is a destructor
+            if self.gamma.is_desturctor_of_trait(&self.self_type, &expr_method_call.method) {
+                let expr_ref = create_reference_of_expr(&*expr_method_call.receiver.clone());
+                let mut args = Punctuated::from_iter(vec![expr_ref]);
+                args.extend(expr_method_call.args.clone());
+                *expr = create_function_call(&expr_method_call.method, args)
+            }
         }
     }
 }

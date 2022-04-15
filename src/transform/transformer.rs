@@ -300,7 +300,7 @@ fn transform_destructor_impl(generator: &ItemStruct, destructor: &TraitItemMetho
             new_self_mut_field.as_ref().unwrap(),
             &create_method_call(
                 &Ident::new("clone", Span::call_site()),
-                &create_expr_from_ident(&Ident::new("self", Span::call_site())),
+                &create_expr_from_ident(&enum_instance_name),
                 &Punctuated::new()
             ),
             true
@@ -374,12 +374,13 @@ fn transform_destructor_impl(generator: &ItemStruct, destructor: &TraitItemMetho
 /// struct are added in here. These are handled seperately in the transform (not deferencced) 
 /// * `gamma` - The gamma that the method call is in
 fn transform_destructor_expr(expr: &Expr, old_delta: &Delta, new_delta: &Delta, self_mutable_fields: Vec<Ident>, new_self_mut_field: Option<Ident>, gamma: &Gamma, enum_name: &Ident, output_type: EType) -> Expr {
+    // TODO replace this logic with standard transform_expr
     let mut expr_clone = expr.clone();
     
     let mut rfc = ReplaceFieldCalls{delta: old_delta.clone(), self_mut_fields: self_mutable_fields, new_self_mut_field};
     rfc.visit_expr_mut(&mut expr_clone);
 
-    let mut rmc = ReplaceMethodCalls{delta: old_delta.clone(), gamma: gamma.clone()};
+    let mut rmc = ReplaceMethodCalls{delta: old_delta.clone(), gamma: gamma.clone(), self_type: enum_name.clone()};
     rmc.visit_expr_mut(&mut expr_clone);
 
     let mut rs = ReplaceSelf{enum_name: enum_name.clone()};
@@ -546,6 +547,7 @@ fn transform_expr_type(expr: &Expr, current_type: &DeltaType, required_type: &De
     }
 }
 
+// TODO can old_delta be replaced with get type of expr
 fn transform_method_call_arguments(method_call: &ExprMethodCall, gamma: &Gamma, delta: &Delta) -> Punctuated<Expr, Comma> {
     let reciever_ident = delta.get_type_of_expr(&method_call.receiver, gamma).unwrap().name;
     let method_ident = method_call.method.clone();
