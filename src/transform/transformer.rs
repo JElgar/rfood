@@ -828,6 +828,7 @@ fn transform_statement(statement: &Stmt, transform_type: &TransformType, gamma: 
             Stmt::Semi(transform_expr(&expr, transform_type, gamma, delta, return_type), *semi)
             // If the inner expression was a self_mut
             match expr {
+                    
             }
             if is_mutable_self(
                 &gamma.get_transformed_destructor_signature(
