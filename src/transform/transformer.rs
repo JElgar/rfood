@@ -107,7 +107,9 @@ pub fn transform_enum(enum_: &ItemEnum, gamma: &mut Gamma) -> Vec<Item> {
                 // Otherwise we will have to use the method body for all the cases
                 Err(e) => {
                     // 1. The trait has a default impl for this method. This is only possible if the
-                    //    return type of the consumer is not the same as the enum
+                    //    return type of the consumer is not the same as the enum.
+                    //    I.e. it is not possible to have a defualt implementation with sig:
+                    //      fn foo() -> Self / fn foo() -> Box<Self>
                     //    In this case we can just use the default impl so no impl is needed here
                     let return_type = consumer.sig.output.get_delta_type(None);
                     if return_type.is_some() && return_type.unwrap().name != enum_.ident {
