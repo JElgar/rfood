@@ -327,6 +327,12 @@ pub fn create_path_from_ident(ident: &Ident) -> Path {
     }
 }
 
+pub fn create_expr_from_ident(ident: &Ident) -> Expr {
+    Expr::Path(
+        create_expr_path_from_path(create_path_from_ident(ident))
+    )
+}
+
 pub fn create_path_for_enum(enum_ident: &Ident, variant_ident: &Ident) -> syn::Path {
     syn::Path{
         leading_colon: None,
@@ -665,7 +671,7 @@ pub fn create_self_expr() -> Expr {
     )
 }
 
-pub fn create_self_field_call(field_name: &Ident) -> Expr {
+pub fn create_field_call(base_name: &Ident, field_name: &Ident) -> Expr {
     Expr::Field(ExprField{
         attrs: Vec::new() as Vec<syn::Attribute>,
         base: Box::new(Expr::Path(
@@ -675,7 +681,7 @@ pub fn create_self_field_call(field_name: &Ident) -> Expr {
                 path: syn::Path {
                     leading_colon: None,
                     segments: Punctuated::from_iter([syn::PathSegment {
-                        ident: Ident::new("self", Span::call_site()),
+                        ident: base_name.clone(),
                         arguments: syn::PathArguments::None
                     }])
                 }
@@ -684,6 +690,10 @@ pub fn create_self_field_call(field_name: &Ident) -> Expr {
         member: syn::Member::Named(field_name.clone()),
         dot_token: token::Dot::default(),
     })
+}
+
+pub fn create_self_field_call(field_name: &Ident) -> Expr {
+    create_field_call(field_name, &Ident::new("self", Span::call_site()))
 }
 
 pub fn create_function_call(method: &Ident, args: Punctuated<Expr, Comma>) -> Expr {

@@ -25,6 +25,7 @@ fn get_method_call_ident(expr: &Expr) -> Option<Ident> {
 pub struct ReplaceFieldCalls {
     pub delta: Delta,
     pub self_mut_fields: Vec<Ident>,
+    pub new_self_mut_field: Option<Ident>,
 }
 impl VisitMut for ReplaceFieldCalls {
     fn visit_expr_mut(&mut self, expr: &mut Expr) {
@@ -39,23 +40,23 @@ impl VisitMut for ReplaceFieldCalls {
                 return;
             }
             let base_name = base_name.unwrap();
+            if !(&base_name == "self") {
+                return;
+            }
+            
+            if self.self_mut_fields.contains(&ident) {
+                *expr = create_field_call(
+                    self.new_self_mut_field.as_ref().unwrap(), &ident,
+                )
+            }
 
-            // TODO Should probably use this
-            // let result_type = self.delta.get_type(&member_name);
-
-            *expr = syn::Expr::Unary(
-                syn::ExprUnary {
+            *expr = Expr::Unary(
+                ExprUnary {
                     attrs: Vec::new() as Vec<syn::Attribute>,
-                    op: syn::UnOp::Deref(syn::token::Star{spans: [Span::call_site()]}),
-                    expr: Box::new(syn::Expr::Path(syn::ExprPath { attrs: Vec::new(), qself: None, path: syn::Path { leading_colon: None, segments: Punctuated::from_iter([syn::PathSegment { ident: ident.clone(), arguments: syn::PathArguments::None}]) } })),
+                    op: UnOp::Deref(token::Star::default()),
+                    expr: Box::new(Expr::Path(ExprPath { attrs: Vec::new(), qself: None, path: syn::Path { leading_colon: None, segments: Punctuated::from_iter([syn::PathSegment { ident: ident.clone(), arguments: syn::PathArguments::None}]) } })),
                 }
             );
-            
-            println!("Self mut is: {:?}", self.self_mut_fields);
-            if self.self_mut_fields.contains(&ident) {
-                println!("Deferencing expr!!!!");
-                *expr = clean_type(expr);
-            }
         }
     }
 }

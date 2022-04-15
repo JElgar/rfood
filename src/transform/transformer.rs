@@ -2,6 +2,7 @@ use syn::*;
 use syn::visit_mut::*;
 use syn::punctuated::Punctuated;
 use syn::token::{Comma, Colon};
+use syn::__private::Span;
 
 use crate::context;
 use crate::utils::utils::PopFirst;
@@ -231,7 +232,7 @@ fn transform_destructor(trait_: &ItemTrait, destructor: &TraitItemMethod, enum_:
    
         // TODO Currently this Vec::new() means mutable things cannot have a wild card arm. Fix by
         // sorting out why this logic is duplicated here
-        body = transform_destructor_expr(&body, &old_delta, &new_delta, Vec::new(), gamma, &trait_.ident, EType::DeltaType(signature.output.get_delta_type(None).unwrap()));
+        body = transform_destructor_expr(&body, &old_delta, &new_delta, Vec::new(), None, gamma, &trait_.ident, EType::DeltaType(signature.output.get_delta_type(None).unwrap()));
         
         // Create wild card arm with this body
         arms.push(ast::create::create_wildcard_match_arm(body));
@@ -283,21 +284,36 @@ fn transform_destructor_impl(generator: &ItemStruct, destructor: &TraitItemMetho
    
     // The name of the varaibles created in the below let expressions 
     let mut self_mutable_fields = Vec::new();
+    let mut new_self_mut_field = None;
+    let mut new_delta = new_delta.clone();
     // If the method is mutable self
     if is_mutable_self(&destructor.sig) {
         // Create a new mut variable for each attribute in the struct equal to the value in the struct 
         // Eg for circle
         // let mut radius = self.radius
+        // This isnt in delta 
+        new_self_mut_field = Some(Ident::new("new", Span::call_site()));
+
+        let local = create_let_stmt(
+            new_self_mut_field.as_ref().unwrap(),
+            &create_method_call(
+                &Ident::new("clone", Span::call_site()),
+                &create_expr_from_ident(&Ident::new("self", Span::call_site())),
+                &Punctuated::new()
+            ),
+            true
+        );
+        new_delta.collect_for_local(&local, gamma);
+        block = add_stmts_to_block(
+            &Stmt::Local(
+                local,
+            ),
+            &block,
+            0
+        );
         for field in generator.fields.iter() {
             let field_name = field.ident.clone().unwrap();
             self_mutable_fields.push(field_name.clone());
-            block = add_stmts_to_block(
-                &Stmt::Local(
-                    create_let_stmt(&field_name, &create_self_field_call(&field_name), true)
-                ),
-                &block,
-                0
-            );
         }
 
         // TODO Add in return statement
@@ -336,7 +352,7 @@ fn transform_destructor_impl(generator: &ItemStruct, destructor: &TraitItemMetho
 
     // Then return a new instance of the type with these mut variables 
     // Transform the body of the method
-    expr = transform_destructor_expr(&expr, &old_delta, &new_delta, self_mutable_fields, gamma, enum_instance_name, get_return_type_from_signature(consumer_signature));
+    expr = transform_destructor_expr(&expr, &old_delta, &new_delta, self_mutable_fields, new_self_mut_field.clone(), gamma, enum_instance_name, get_return_type_from_signature(consumer_signature));
 
     // Create the arm of the match statement
     let path = ast::create::create_path_for_enum(enum_name, &generator.ident);
@@ -355,10 +371,10 @@ fn transform_destructor_impl(generator: &ItemStruct, destructor: &TraitItemMetho
 /// * `self_mutable_fields` - If this is a mutable self destructor, then all the fields in the
 /// struct are added in here. These are handled seperately in the transform (not deferencced) 
 /// * `gamma` - The gamma that the method call is in
-fn transform_destructor_expr(expr: &Expr, old_delta: &Delta, new_delta: &Delta, self_mutable_fields: Vec<Ident>, gamma: &Gamma, enum_name: &Ident, output_type: EType) -> Expr {
+fn transform_destructor_expr(expr: &Expr, old_delta: &Delta, new_delta: &Delta, self_mutable_fields: Vec<Ident>, new_self_mut_field: Option<Ident>, gamma: &Gamma, enum_name: &Ident, output_type: EType) -> Expr {
     let mut expr_clone = expr.clone();
     
-    let mut rfc = ReplaceFieldCalls{delta: old_delta.clone(), self_mut_fields: self_mutable_fields};
+    let mut rfc = ReplaceFieldCalls{delta: old_delta.clone(), self_mut_fields: self_mutable_fields, new_self_mut_field};
     rfc.visit_expr_mut(&mut expr_clone);
 
     let mut rmc = ReplaceMethodCalls{delta: old_delta.clone(), gamma: gamma.clone()};

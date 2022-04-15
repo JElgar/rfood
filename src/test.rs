@@ -1,5 +1,3 @@
 fn test(&mut self) -> i8 {
-    A {
-        a
-    }
+    let a = self.clone();
 }
