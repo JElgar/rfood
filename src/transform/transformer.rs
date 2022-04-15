@@ -538,7 +538,10 @@ fn transform_struct_instantiation_path_for_enum(expr_struct: &ExprStruct, gamma:
 fn transform_expr_type(expr: &Expr, current_type: &DeltaType, required_type: &DeltaType, gamma: &Gamma) -> Expr {
     if current_type.is_equaivalent(&required_type, &gamma) {
         expr.clone()
-    } else if current_type.ref_type == RefType::Box && required_type.ref_type == RefType::None {
+    } else if 
+        current_type.ref_type == RefType::Box && required_type.ref_type == RefType::None || 
+        current_type.ref_type == RefType::Ref && required_type.ref_type == RefType::None
+    {
         create_dereference_of_expr(expr)
     } else if current_type.ref_type == RefType::None && required_type.ref_type == RefType::Box {
         create_box_of_expr(expr)
@@ -730,18 +733,13 @@ fn transform_expr(expr: &Expr, transform_type: &TransformType, gamma: &Gamma, de
                     leading_colon: None,
                     segments: Punctuated::from_iter(vec![expr_struct.path.segments.last().unwrap().clone()]),
                 },
-                // TODO update the transformation so that it does the things (this does the wrong
-                // way things)
-                // TODO DO DOODODOD 
-                // THEN add in renames to transform expr and try and use it to rename the self
-                // stuff (where set is renamed to self)
                 fields: Punctuated::from_iter(expr_struct.fields.iter().map(|field| {
-
                     // Get the enum 
                     let struct_ident = get_path_call_name(&expr_struct.path);
                     let struct_ = gamma.get_struct_by_name(&struct_ident);
                     let mut struct_delta = Delta::new();
-                    struct_delta.collect_for_struct(&struct_);
+                    // TODO check this...
+                    struct_delta.collect_for_struct(&struct_, RefType::None);
 
                     let required_type = struct_delta.get_type_of_member(&field.member);
                     let new_expr = transform_expr(&field.expr, transform_type, gamma, &delta, EType::DeltaType(required_type.clone()));
@@ -769,6 +767,7 @@ fn transform_expr(expr: &Expr, transform_type: &TransformType, gamma: &Gamma, de
             })
         },
         (_, Expr::Match(expr_match)) => {
+            println!("Transforming match in transform_expr");
             Expr::Match(
                 ExprMatch{
                     // Transform the match epxr, 
@@ -854,12 +853,7 @@ pub fn transform_impl_item(impl_item: &syn::ImplItem, impl_for_type: &Ident, tra
                 ImplItemMethod {
                     block: {
                         let mut delta = Delta::new();
-                        println!("\nCollecting");
                         delta.collect_for_sig(&impl_item_method.sig, Some(impl_for_type));
-                        println!("");
-                        println!("{:?}", delta);
-                        println!("");
-
                         transform_block(&impl_item_method.block, transform_type, gamma, &delta, block_return_type)
                     },
                     ..impl_item_method.clone()

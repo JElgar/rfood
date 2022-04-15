@@ -351,9 +351,15 @@ impl Delta {
         }
     }
 
-    pub fn collect_for_struct(&mut self, struct_: &ItemStruct) {
+    pub fn collect_for_struct(&mut self, struct_: &ItemStruct, struct_ref_type: RefType) {
+        let mut field_type = fields_to_delta_types(&struct_.fields);
+        if struct_ref_type == RefType::Ref {
+            field_type.iter_mut().for_each(|(_, delta_type)| {
+                delta_type.ref_type = RefType::Ref;
+            });
+        }
         self.types.extend(
-            fields_to_delta_types(&struct_.fields)
+            field_type
         );
     }
     
@@ -366,7 +372,7 @@ impl Delta {
     pub fn collect_new_for_destructor_impl(&mut self, new_sig: &Signature, generator: &ItemStruct) {
         self.collect_for_sig(&new_sig, None);
         // TODO Catch any overwritting and rename as required
-        self.collect_for_struct(&generator);
+        self.collect_for_struct(&generator, RefType::Ref);
     }
 
     pub fn collect_old_for_destructor_impl(&mut self, old_sig: &Signature, generator: &ItemStruct) {
