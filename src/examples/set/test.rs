@@ -1,28 +1,72 @@
-trait Exp {
-    fn eval(&self) -> i32;
+enum Light {
+    Dimmer { brightness: i32 },
+    RGB { r: i32, g: i32, b: i32 },
 }
-struct Lit {
-    n: i32,
-}
-impl Exp for Lit {
-    fn eval(&self) -> i32 {
-        self.n
+fn increase_brightness(light: Light) -> Light {
+    match &light {
+        Light::Dimmer { mut brightness } => {
+            brightness += 1;
+            Light::Dimmer { brightness }
+        }
+        Light::RGB {
+            mut r,
+            mut g,
+            mut b,
+        } => {
+            r += 1;
+            g += 1;
+            b += 1;
+            Light::RGB { r, g, b }
+        }
     }
 }
-struct Sub {
-    l: Box<dyn Exp>,
-    r: Box<dyn Exp>,
+fn decrease_brightness(light: Light) -> Light {
+    match &light {
+        Light::Dimmer { mut brightness } => {
+            brightness -= 1;
+            Light::Dimmer { brightness }
+        }
+        Light::RGB {
+            mut r,
+            mut g,
+            mut b,
+        } => {
+            r -= 1;
+            g -= 1;
+            b -= 1;
+            Light::RGB { r, g, b }
+        }
+    }
 }
-impl Exp for Sub {
-    fn eval(&self) -> i32 {
-        self.l.eval() - self.r.eval()
+fn turn_off(light: Light) -> Light {
+    match &light {
+        Light::Dimmer { mut brightness } => {
+            brightness = 0;
+            Light::Dimmer { brightness }
+        }
+        Light::RGB {
+            mut r,
+            mut g,
+            mut b,
+        } => {
+            r = 0;
+            g = 0;
+            b = 0;
+            Light::RGB { r, g, b }
+        }
+    }
+}
+fn get_brightness(light: &Light) -> i32 {
+    match &light {
+        Light::Dimmer { brightness } => {
+            return *brightness;
+        }
+        Light::RGB { r, g, b } => {
+            return (*r + *g + *b) / 3;
+        }
     }
 }
 pub fn demo() {
-    let exp = Box::new(Sub {
-        l: Box::new(Lit { n: 1 }),
-        r: Box::new(Lit { n: 2 }),
-    });
-    let out = exp.eval();
-    print!("{}", out);
+    let mut light = Light::Dimmer { brightness: 0 };
+    light = increase_brightness(light);
 }

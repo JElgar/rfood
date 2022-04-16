@@ -367,7 +367,7 @@ pub fn create_wildcard_match_arm(body: syn::Expr) -> syn::Arm {
     }
 }
 
-pub fn create_match_arm(match_path: syn::Path, elems: Vec<syn::Ident>, body: syn::Expr) -> syn::Arm {
+pub fn create_match_arm(match_path: syn::Path, elems: Vec<syn::Ident>, body: syn::Expr, mutable: bool) -> syn::Arm {
 
   // Replace any call to self in the body and remember which methods are used
 
@@ -386,7 +386,7 @@ pub fn create_match_arm(match_path: syn::Path, elems: Vec<syn::Ident>, body: syn
                         syn::PatIdent{
                             attrs: Vec::new() as Vec<syn::Attribute>,
                             by_ref: None,
-                            mutability: None,
+                            mutability: if mutable {Some(token::Mut::default())} else {None},
                             ident: item.clone(),
                             subpat: None,
                         }
