@@ -22,6 +22,10 @@
 - [x] Correct return types in function signature
 - [x] Correct return types from method returns (for now if box dereference). If explicitly wrapping response in box then remove this wrapping.
 - [x] Fix constructors of enums to ensure boxes are created as required
+- [ ] Update RefType to be recursive
+- [ ] Update get types stuff to actually use RefType recursivly 
+- [ ] Add some kind of simplify function
+- [ ] Update transform expr type to handle more complex types, eg Box to ref -> do a &*
  
 ### Generics
 
