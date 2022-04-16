@@ -298,11 +298,7 @@ fn transform_destructor_impl(generator: &ItemStruct, destructor: &TraitItemMetho
 
         let local = create_let_stmt(
             new_self_mut_field.as_ref().unwrap(),
-            &create_method_call(
-                &Ident::new("clone", Span::call_site()),
-                &create_expr_from_ident(&enum_instance_name),
-                &Punctuated::new()
-            ),
+            &create_expr_from_ident(&enum_instance_name),
             true
         );
         new_delta.collect_for_local(&local, gamma);
@@ -321,21 +317,9 @@ fn transform_destructor_impl(generator: &ItemStruct, destructor: &TraitItemMetho
         // TODO Add in return statement
         block = add_stmts_to_block(
             &Stmt::Expr(
-                Expr::Struct(ExprStruct{
-                    attrs: Vec::new(),
-                    path: create_path_from_ident(&generator.ident),
-                    brace_token: token::Brace::default(),
-                    dot2_token: None,
-                    fields: Punctuated::from_iter(self_mutable_fields.iter().map(|field| {
-                        FieldValue{
-                            attrs: Vec::new(),
-                            member: Member::Named(field.clone()),
-                            colon_token: None, 
-                            expr: Expr::Path(create_expr_path_from_path(create_path_from_ident(&field))),
-                        }
-                    })),
-                    rest: None,
-                })
+                create_expr_from_ident(
+                    &new_self_mut_field.as_ref().unwrap()
+                )
             ),
             &block,
             block.stmts.len()
@@ -415,13 +399,13 @@ fn transform_destructor_signature(signature: &Signature, enum_name: &Ident, gene
     let new_inputs = syn::punctuated::Punctuated::from_iter(signature.inputs.iter().map(|item| {
         let create_self_consumer_signature = |as_ref| {
             // Add generics to enum_name
-            create_consumer_signature(enum_name, &enum_instance_name, as_ref, &enum_generics)
+            create_consumer_signature_arg(enum_name, &enum_instance_name, as_ref, &enum_generics)
         };
 
         // Replace self with enum
-        if let syn::FnArg::Receiver(..) = item {
+        if let syn::FnArg::Receiver(Receiver { mutability, .. }) = item {
             // TODO use borrow as required and check this is acutally self
-            return create_self_consumer_signature(true);
+            return create_self_consumer_signature(mutability.is_none());
         }
         if let syn::FnArg::Typed(PatType{
             pat,
@@ -438,7 +422,7 @@ fn transform_destructor_signature(signature: &Signature, enum_name: &Ident, gene
                   if arg_type.name == "Self" || pat_ident.ident == "self" {
                       return create_self_consumer_signature(false);
                   }
-                  return create_consumer_signature(&arg_type.name, &pat_ident.ident, false, &enum_generics);
+                  return create_consumer_signature_arg(&arg_type.name, &pat_ident.ident, false, &enum_generics);
               }
             }
         }
@@ -599,13 +583,7 @@ fn transform_expr(expr: &Expr, transform_type: &TransformType, gamma: &Gamma, de
             }
             return expr.clone();
         }
-        (TransformType::OOPToFP, Expr::MethodCall(expr_method_call))
-            if gamma.is_generator_type(&delta.get_type_of_expr(&expr_method_call.receiver, gamma).unwrap().name) 
-            && gamma.is_destructor_of_trait(
-                &delta.get_type_of_expr(&expr_method_call.receiver, gamma).unwrap().name, 
-                &expr_method_call.method
-            ) 
-        => {
+        (TransformType::OOPToFP, Expr::MethodCall(expr_method_call)) if gamma.is_destructor_method_call(&expr_method_call, &delta) => {
             let ExprMethodCall { receiver, method, .. } = expr_method_call;
             let receiver_expr = if delta.get_type_of_expr(&receiver, gamma).unwrap().ref_type == RefType::Box {
                 create_dereference_of_expr(&receiver)
@@ -616,17 +594,16 @@ fn transform_expr(expr: &Expr, transform_type: &TransformType, gamma: &Gamma, de
             let mut new_args = Punctuated::from_iter(vec![receiver_expr]);
             new_args.extend(transform_method_call_arguments(&expr_method_call, gamma, &delta));
 
-            // If method is self mut destructor then mutable the value
-            if is_mutable_self(
-                &gamma.get_transformed_destructor_signature(
-                    &delta.get_type_of_expr(&expr_method_call.receiver, gamma).unwrap().name, 
-                    &expr_method_call.method
-                ),
-            ) {
+            let fn_expr = create_function_call(&method, new_args);
+       
+            // If the method is a mutable self call
+            if gamma.is_mutable_self_method_call(&expr_method_call, &delta) {
+                // Overwrite the receiver
+                Expr::Assign(create_assignment_expr(*receiver.clone(), fn_expr.clone()))
+            } else {
+                fn_expr
             }
-            create_let_stmt(
-            )
-            create_function_call(&method, new_args)
+
         },
         // Any other method call, transform all the args and the receiver
         (_, Expr::MethodCall(method_call)) => {
@@ -825,17 +802,16 @@ fn transform_statement(statement: &Stmt, transform_type: &TransformType, gamma: 
         },
         Stmt::Semi(expr, semi) => {
             // Transform the inner expr
-            Stmt::Semi(transform_expr(&expr, transform_type, gamma, delta, return_type), *semi)
-            // If the inner expression was a self_mut
             match expr {
-                    
-            }
-            if is_mutable_self(
-                &gamma.get_transformed_destructor_signature(
-                    &delta.get_type_of_expr(&expr_method_call.receiver, gamma).unwrap().name, 
-                    &expr_method_call.method
-                ),
-            ) {
+                Expr::MethodCall(expr_method_call) if gamma.is_mutable_self_method_call(
+                    &expr_method_call,
+                    &delta,
+                ) => {
+                    Stmt::Semi(transform_expr(&expr, transform_type, gamma, delta, return_type), *semi)
+                },
+                _ => {
+                    Stmt::Semi(transform_expr(&expr, transform_type, gamma, delta, return_type), *semi)
+                }
             }
         },
         Stmt::Expr(expr) => {

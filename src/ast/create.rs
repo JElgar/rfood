@@ -535,7 +535,7 @@ pub fn add_generics_to_path_segment(segmenet: PathSegment, generics: &syn::Gener
     PathSegment { arguments, ..segmenet }
 }
 
-pub fn create_consumer_signature(enum_name: &Ident, enum_instance_name: &Ident, reference: bool, enum_generics: &Generics) -> syn::FnArg {
+pub fn create_consumer_signature_arg(enum_name: &Ident, enum_instance_name: &Ident, reference: bool, enum_generics: &Generics) -> syn::FnArg {
 
     let path_segment = add_generics_to_path_segment(PathSegment{
         ident: enum_name.clone(),
@@ -796,6 +796,15 @@ pub fn create_let_stmt(name: &Ident, expr: &Expr, mutable: bool) -> Local {
                 by_ref : None,
             }
         )
+    }
+}
+
+pub fn create_assignment_expr(receiver: Expr, expr: Expr) -> ExprAssign {
+    ExprAssign{
+        attrs: Vec::new(),
+        eq_token: token::Eq::default(),
+        left: Box::new(receiver),
+        right: Box::new(expr),
     }
 }
 

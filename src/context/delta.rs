@@ -254,7 +254,6 @@ pub fn get_ident_from_path(Path { segments, .. }: &Path) -> Ident {
 
 pub fn get_type_from_function_arg(arg: &FnArg, self_type: Option<&Ident>) -> DeltaType{
     // TODO add in reference types
-    println!("Getting type of fn arg: {:?}", arg);
     let delta_type = match &arg {
         FnArg::Typed(PatType{ty: box Type::Path(type_path), ..}) => {
             type_path.path.get_delta_type()
@@ -410,7 +409,6 @@ impl Delta {
             // TODO Match self.thing here so we can do in any order
             Expr::Unary(ExprUnary { expr, .. }) => Ok(self.get_type_of_expr(expr, gamma).unwrap()),
             Expr::Path(ExprPath { path, .. }) => {
-                println!("Getting type of path {:?}", &get_ident_from_path(path));
                 Ok(self.get_type(&get_ident_from_path(path)))
             },
             Expr::Call(ExprCall {..}) if new_box_call_expr(expr).is_ok() => {

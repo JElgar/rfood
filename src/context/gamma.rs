@@ -267,7 +267,6 @@ impl Gamma {
     }
 
     pub fn is_destructor_of_trait(&self, trait_ident: &Ident, fn_ident: &Ident) -> bool {
-        println!("Checking if {:?} is dest of {:?}", fn_ident, trait_ident);
         let trait_ident = self.get_base_type_name_from_type_name(&trait_ident);
         self.destructors.get(&trait_ident).unwrap().iter().any(|item_fn| item_fn.sig.ident == *fn_ident)
     }
@@ -345,6 +344,32 @@ impl Gamma {
             Some(sig) => Ok(sig),
             None => Err(NotFound{item_name: destructor_ident.to_string(), type_name: "destructor".to_string()}),
         }
+    }
+
+    pub fn is_destructor_method_call(&self, expr_method_call: &ExprMethodCall, delta: &delta::Delta) -> bool {
+        let expr_type = delta.get_type_of_expr(&expr_method_call.receiver, self).unwrap().name;
+        self.is_generator_type(&expr_type) && self.is_destructor_of_trait(
+            &expr_type,
+            &expr_method_call.method
+        ) 
+    }
+
+    pub fn is_mutable_self_destructor(&self, generator_ident: &Ident, destructor_ident: &Ident) -> bool {
+        let destructor_sig = self.get_destructor_signature(
+            &generator_ident,
+            &destructor_ident
+        );
+        match destructor_sig {
+            Ok(sig) => is_mutable_self(&sig),
+            Err(_) => false
+        }
+    }
+
+    pub fn is_mutable_self_method_call(&self, expr_method_call: &ExprMethodCall, delta: &delta::Delta) -> bool {
+        self.is_mutable_self_destructor(
+            &delta.get_type_of_expr(&expr_method_call.receiver, self).unwrap().name, 
+            &expr_method_call.method
+        )
     }
 
     pub fn get_destructor_impl_for_generator(
