@@ -193,7 +193,7 @@ pub fn create_struct(ident: &Ident, trait_ident: &Ident, mut fields: Fields) -> 
                     named: Punctuated::from_iter(fields.named.iter_mut().map(|field| {
                         let delta_type = field.ty.get_delta_type();
                         // If a field is a box of the self type then make it dyn
-                        if delta_type.ref_type == RefType::Box && delta_type.name == *trait_ident {
+                        if matches!(delta_type.ref_type, RefType::Box(_)) && delta_type.name == *trait_ident {
                             // Parse the box
                             if let Field{ty: Type::Path(TypePath{path: Path{ref mut segments, ..}, ..}), ..} = field {
                                 if let Some(segment) = segments.iter_mut().next() {
@@ -574,7 +574,7 @@ pub fn create_consumer_signature_arg(enum_name: &Ident, enum_instance_name: &Ide
 }
 
 pub fn create_self_fn_arg(reference_type: RefType) -> FnArg {
-    if reference_type == RefType::Box {
+    if matches!(reference_type, RefType::Box(_)) {
         FnArg::Typed(
             syn::PatType{
                 attrs: Vec::new(),
@@ -637,7 +637,7 @@ pub fn create_self_fn_arg(reference_type: RefType) -> FnArg {
             Receiver{
                 attrs: Vec::new(),
                 reference: match reference_type {
-                    RefType::Ref => Some((token::And::default(), None)),
+                    RefType::Ref(_) => Some((token::And::default(), None)),
                     _ => None, 
                 },
                 mutability: None,

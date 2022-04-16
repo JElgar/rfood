@@ -474,13 +474,22 @@ pub fn transform_consumer_signature(signature: &Signature) -> Signature {
     // Ignoring the first element transfrom each argument
     let mut new_inputs = Vec::from_iter(inputs.iter().skip(1).map(|arg| {
         // TODO make all args with type of enum, Box<dyn T>
-        if arg.get_delta_type(None).name == self_type.name && self_type.ref_type != RefType::Box {
+        if arg.get_delta_type(None).name == self_type.name && !matches!(self_type.ref_type,  RefType::Box(_)) {
             // Create box dyn of fn arg
             return create_dyn_box_arg(&arg);
         }
         arg.clone()
     }));
-    new_inputs.insert(0, create_self_fn_arg(if consumer_arg.get_ref_type() == RefType::Ref {RefType::Ref} else {RefType::Box}));
+    new_inputs.insert(
+        0,
+        create_self_fn_arg(
+            if matches!(consumer_arg.get_ref_type(), RefType::Ref(_)) {
+                consumer_arg.get_ref_type()
+            } else {
+                RefType::Box(Box::new(RefType::None))
+            }
+        )
+    );
 
     let mut output = signature.output.clone();
 
@@ -534,11 +543,11 @@ fn transform_expr_type(expr: &Expr, current_type: &DeltaType, required_type: &De
     if current_type.is_equaivalent(&required_type, &gamma) {
         expr.clone()
     } else if 
-        current_type.ref_type == RefType::Box && required_type.ref_type == RefType::None || 
-        current_type.ref_type == RefType::Ref && required_type.ref_type == RefType::None
+        matches!(current_type.ref_type, RefType::Box(_)) && matches!(required_type.ref_type, RefType::None) || 
+        matches!(current_type.ref_type, RefType::Ref(_)) && matches!(required_type.ref_type, RefType::None)
     {
         create_dereference_of_expr(expr)
-    } else if current_type.ref_type == RefType::None && required_type.ref_type == RefType::Box {
+    } else if current_type.ref_type == RefType::None && matches!(required_type.ref_type, RefType::Box(_)) {
         create_box_of_expr(expr)
     } else {
         panic!("Cannot transform {:?} to {:?}", current_type, required_type)
@@ -562,7 +571,7 @@ fn transform_method_call_arguments(method_call: &ExprMethodCall, gamma: &Gamma, 
     // signatures (as the self arg is handled separately)
     Punctuated::from_iter(method_call.args.iter().zip(old_signature.inputs.iter().skip(1)).zip(transformed_signature.inputs.iter().skip(1)).map(|((arg, old_fn_arg), new_fn_arg)| {
         // If the old arg is a box type and the new arg is not
-        if old_fn_arg.get_ref_type() == RefType::Box && new_fn_arg.get_ref_type() == RefType::None {
+        if matches!(old_fn_arg.get_ref_type(), RefType::Box(_)) && new_fn_arg.get_ref_type() == RefType::None {
             create_dereference_of_expr(&arg.clone())
         } else {
             arg.clone()
@@ -596,7 +605,8 @@ fn transform_expr(expr: &Expr, transform_type: &TransformType, gamma: &Gamma, de
         }
         (TransformType::OOPToFP, Expr::MethodCall(expr_method_call)) if gamma.is_destructor_method_call(&expr_method_call, &delta) => {
             let ExprMethodCall { receiver, method, .. } = expr_method_call;
-            let receiver_expr = if delta.get_type_of_expr(&receiver, gamma).unwrap().ref_type == RefType::Box {
+            // TODO use clean_type
+            let receiver_expr = if matches!(delta.get_type_of_expr(&receiver, gamma).unwrap().ref_type, RefType::Box(_)) {
                 create_dereference_of_expr(&receiver)
             } else {
                 *receiver.clone()
@@ -661,7 +671,7 @@ fn transform_expr(expr: &Expr, transform_type: &TransformType, gamma: &Gamma, de
                 if let EType::DeltaType(dt) = &return_type {
                     println!("Really transforming box call expr {:?}", dt.ref_type);
                     println!("Inner type {:?}, expr: {:?}", delta.get_type_of_expr(&inner_expr, gamma).unwrap().ref_type, inner_expr);
-                    if dt.ref_type != RefType::Box || delta.get_type_of_expr(&inner_expr, gamma).unwrap().ref_type == RefType::Box {
+                    if !matches!(dt.ref_type, RefType::Box(_)) || matches!(delta.get_type_of_expr(&inner_expr, gamma).unwrap().ref_type, RefType::Box(_)) {
                         println!("Actually transforming box call expr");
                         // Then we should transform the expression to a method call
                         return transform_expr(&inner_expr, &transform_type, &gamma, &delta, return_type);

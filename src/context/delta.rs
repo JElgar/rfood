@@ -12,8 +12,8 @@ use errors::*;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum RefType {
-    Box,
-    Ref,
+    Box(Box<RefType>),
+    Ref(Box<RefType>),
     None,
 }
 
@@ -113,7 +113,7 @@ impl GetDeltaType for Path {
         let segment = self.segments.first().unwrap();
     
         if segment.ident == "Box" {
-            return DeltaType{name: get_type_from_box(segment).unwrap(), ref_type: RefType::Box};
+            return DeltaType{name: get_type_from_box(segment).unwrap(), ref_type: RefType::Box(Box::new(RefType::None))};
         }
     
         return DeltaType{name: segment.ident.clone(), ref_type: RefType::None};
@@ -147,12 +147,12 @@ impl GetRefType for Type {
             Type::Path(type_path) => {
                 let segment = type_path.path.segments.first().unwrap();
                 if segment.ident == "Box" {
-                    RefType::Box
+                    RefType::Box(Box::new(RefType::None))
                 } else {
                     RefType::None
                 }
             },
-            Type::Reference(_) => RefType::Ref,
+            Type::Reference(_) => RefType::Ref(Box::new(RefType::None)),
             _ => RefType::None,
         }
     }
@@ -166,7 +166,7 @@ impl GetRefType for FnArg {
             }
             FnArg::Receiver(Receiver { reference, .. }) => {
                 match reference {
-                    Some(_) => RefType::Ref,
+                    Some(_) => RefType::Ref(Box::new(RefType::None)),
                     None => RefType::None,
                 }
             },
@@ -352,9 +352,9 @@ impl Delta {
 
     pub fn collect_for_struct(&mut self, struct_: &ItemStruct, struct_ref_type: RefType) {
         let mut field_type = fields_to_delta_types(&struct_.fields);
-        if struct_ref_type == RefType::Ref {
+        if matches!(struct_ref_type, RefType::Ref(_)) {
             field_type.iter_mut().for_each(|(_, delta_type)| {
-                delta_type.ref_type = RefType::Ref;
+                delta_type.ref_type = RefType::Ref(Box::new(RefType::None));
             });
         }
         self.types.extend(
@@ -371,7 +371,7 @@ impl Delta {
     pub fn collect_new_for_destructor_impl(&mut self, new_sig: &Signature, generator: &ItemStruct) {
         self.collect_for_sig(&new_sig, None);
         // TODO Catch any overwritting and rename as required
-        self.collect_for_struct(&generator, RefType::Ref);
+        self.collect_for_struct(&generator, RefType::Ref(Box::new(RefType::None)));
     }
 
     pub fn collect_old_for_destructor_impl(&mut self, old_sig: &Signature, generator: &ItemStruct) {
@@ -416,7 +416,7 @@ impl Delta {
                 if inner_expr_type_name.is_err() {
                     return inner_expr_type_name;
                 }
-                Ok(DeltaType{name: inner_expr_type_name.unwrap().name, ref_type: RefType::Box})
+                Ok(DeltaType{name: inner_expr_type_name.unwrap().name, ref_type: RefType::Box(Box::new(RefType::None))})
             },
             // TODO this is wrong if the call is not being transformed, this should be checked for
             // both the call and method call. Might be worth taking in a "transformed" boolean
