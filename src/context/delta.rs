@@ -407,7 +407,7 @@ impl Delta {
     pub fn get_type_of_expr(&self, expr: &Expr, gamma: &Gamma) -> std::result::Result<DeltaType, TypeInferenceFailed> {
         match expr {
             // TODO Match self.thing here so we can do in any order
-            Expr::Unary(ExprUnary { expr, .. }) => Ok(self.get_type_of_expr(expr, gamma).unwrap()),
+            Expr::Unary(ExprUnary { expr, .. }) => self.get_type_of_expr(expr, gamma),
             Expr::Path(ExprPath { path, .. }) => {
                 Ok(self.get_type(&get_ident_from_path(path)))
             },
