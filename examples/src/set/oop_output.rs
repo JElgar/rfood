@@ -94,5 +94,5 @@ pub fn demo() {
         set1: Box::new(Set::Empty {}),
         value: 1,
     });
-    let _set3 = union(set, set2);
+    let _set3 = union(set, *set2);
 }

@@ -5,4 +5,5 @@ test:
 	# Generate the output files with basic tests, test examples 
 	cargo +nightly test
 	# Test the generated files
-	cargo +nightly test -- --ignored
+	cd examples; cargo +nightly test
+	cd outputs; cargo +nightly test

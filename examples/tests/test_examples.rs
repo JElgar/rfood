@@ -1,6 +1,6 @@
 #[test]
 fn test_set_oop() {
-    use rfood::examples::set::oop::*;
+    use examples::set::oop::*;
 
     let empty = Box::new(Empty{});
     let set = empty.insert(1);
@@ -22,7 +22,7 @@ fn test_set_oop() {
 
 #[test]
 fn test_set_fp() {
-    use rfood::examples::set::fp::*;
+    use examples::set::fp::*;
     
     let empty = Box::new(Set::Empty {});
     let set = insert(*empty, 1);

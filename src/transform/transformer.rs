@@ -845,26 +845,29 @@ fn transform_expr(
     // Clone the delta at this stage
     let mut delta = delta.clone();
     match (transform_type, expr) {
-        (_, Expr::Unary(_)) => {
+        (_, Expr::Unary(_) | Expr::Path(_)) => {
             // Remove any existing derefs so we can fix the type manually
-            let expr = clean_type(expr);
-            let current_type = delta.get_type_of_expr(&expr, gamma);
             if let EType::DeltaType(delta_type) = return_type {
+                let expr = clean_type(expr);
+                let current_type = delta.get_type_of_expr(&expr, gamma);
                 if let Ok(current_type) = current_type {
                     return transform_expr_type(&expr, &current_type, &delta_type, gamma);
                 }
             }
             return expr.clone();
-        }
+        },
         (TransformType::OOPToFP, Expr::MethodCall(expr_method_call))
             if gamma.is_destructor_method_call(&expr_method_call, &delta) =>
         {
+
             let ExprMethodCall {
                 receiver,
                 method,
                 args,
                 ..
             } = expr_method_call;
+            
+            println!("Transforming method call, {}", method);
             // TODO use clean_type
             let receiver_expr = if matches!(
                 delta.get_type_of_expr(&receiver, gamma).unwrap().ref_type,
@@ -974,11 +977,14 @@ fn transform_expr(
             create_box_of_expr(&inner_expr)
         }
         (_, Expr::Call(expr_call)) => {
+            println!("Transforming call");
             if let ExprCall {
                 func: box Expr::Path(ExprPath { path, .. }),
                 ..
             } = expr_call
             {
+            
+                println!("with name: {}", get_function_call_name(expr_call));
                 let signature = gamma
                     .get_signature(&get_function_call_name(expr_call))
                     .unwrap();
@@ -993,6 +999,7 @@ fn transform_expr(
                     )),
                     args: Punctuated::from_iter(expr_call.args.iter().enumerate().map(
                         |(index, arg)| {
+                            println!("Transforming arg {:?} with type {:?}", arg, delta.get_type_of_expr(arg, gamma));
                             transform_expr(
                                 arg,
                                 transform_type,
