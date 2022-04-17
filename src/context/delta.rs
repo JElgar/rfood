@@ -129,7 +129,7 @@ impl GetDeltaTypeFn for FnArg {
         DeltaType {
             name: match self {
                 FnArg::Typed(typed) => typed.ty.get_delta_type().name,
-                _ => panic!("Other types not supported, {:?}", self)
+                FnArg::Receiver(_) => self_type.clone().unwrap(),
             },
             ref_type: self.get_ref_type(),
         }.replace_self(self_type)
@@ -395,8 +395,6 @@ impl Delta {
         }) = &arm.pat {
             // Get the type of the thing being matched
             let enum_name = get_path_call_name(&path);
-
-            println!("Collecting context for arm {:?}", &arm);
             let variant = gamma.get_constructor(&enum_name);
 
             // Get the type of the fields
@@ -432,7 +430,16 @@ impl Delta {
     pub fn get_type_of_expr(&self, expr: &Expr, gamma: &Gamma) -> std::result::Result<DeltaType, TypeInferenceFailed> {
         match expr {
             // TODO Match self.thing here so we can do in any order
-            Expr::Unary(ExprUnary { expr, .. }) => self.get_type_of_expr(expr, gamma),
+            Expr::Unary(ExprUnary { expr, op, .. }) => {
+                let type_ = self.get_type_of_expr(expr, gamma);
+                match (op, &type_) {
+                    (UnOp::Deref(_), Ok(DeltaType{
+                        name,
+                        ref_type: RefType::Box(inner_ref_type) | RefType::Ref(inner_ref_type),
+                    })) => Ok(DeltaType{name: name.clone(), ref_type: *inner_ref_type.clone()}),
+                    _ => type_
+                }
+            },
             Expr::Path(ExprPath { path, .. }) => {
                 Ok(self.get_type(&get_ident_from_path(path)))
             },
@@ -495,6 +502,12 @@ impl Delta {
                     Lit::Float(_) => Ok(DeltaType{name: Ident::new("f32", Span::call_site()), ref_type: RefType::None}),
                     Lit::Bool(_) => Ok(DeltaType{name: Ident::new("bool", Span::call_site()), ref_type: RefType::None}),
                     _ => panic!("Unsupported literal {:?}", lit)
+                }
+            },
+            Expr::Binary(ExprBinary { left, right, op, .. }) => {
+                match op {
+                    BinOp::Eq(_) => Ok(DeltaType{name: Ident::new("bool", Span::call_site()), ref_type: RefType::None}),
+                    _ => panic!("Unsupported op {:?}", op)
                 }
             },
             _ => Err(TypeInferenceFailed{expr: expr.clone()}),

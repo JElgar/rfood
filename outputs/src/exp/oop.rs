@@ -8,7 +8,7 @@ pub fn eval(exp: &Exp) -> i32 {
             return *n;
         }
         Exp::Sub { l, r } => {
-            return eval(&*l) - eval(&*r);
+            return eval(l) - eval(r);
         }
     }
 }

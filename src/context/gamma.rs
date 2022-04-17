@@ -156,11 +156,12 @@ pub struct Gamma {
     // The first ident is the ident of the ItemEnum 
     pub enum_consumers: HashMap<Ident, HashMap<Ident, ItemFn>>, // CSM(DT) - Consumer of DT
 
+    /// The signatures of all the destructors and consumers
+    pub signatures: HashMap<Ident, Signature>,
+
     // Helpers
     /// All structs found in the ast -> Note these may not be inscope!
     _structs: Vec<ItemStruct>,
-
-    pub functions: Vec<ItemFn>, // F - Functions, top level functions to transform
 }
 
 impl Gamma {
@@ -171,9 +172,9 @@ impl Gamma {
             generators: HashMap::new(),
             destructors: HashMap::new(),
             enum_consumers: HashMap::new(),
+            signatures: HashMap::new(),
 
             _structs: Vec::new(),
-            functions: Vec::new(),
         };
     }
 
@@ -181,6 +182,20 @@ impl Gamma {
         let mut gamma = Gamma::empty();
         gamma.visit_file(syntax);
         gamma
+    }
+    
+    pub fn get_signature(&self, ident: &Ident) -> std::result::Result<Signature, NotFound> {
+        match self.signatures.get(ident) {
+            Some(sig) => Ok(sig.clone()),
+            None => Err(NotFound{
+                item_name: ident.to_string(),
+                type_name: "Signature".to_string(),
+            })
+        }
+    }
+
+    pub fn set_signature(&mut self, ident: &Ident, sig: &Signature) {
+        self.signatures.insert(ident.clone(), sig.clone());
     }
 
     pub fn is_trait(&self, ident: &Ident) -> bool {
@@ -345,16 +360,6 @@ impl Gamma {
             .unwrap()
     }
 
-    pub fn get_signature(&self, fn_ident: &Ident) -> std::result::Result<Signature, NotFound> {
-        match self.functions.iter().find(|f| f.sig.ident == *fn_ident) {
-            Some(f) => Ok(f.sig.clone()),
-            None => Err(NotFound {
-                item_name: fn_ident.to_string(),
-                type_name: "function".to_string(),
-            }),
-        }
-    }
-
     pub fn get_destructor_signature(
         &self,
         generator_ident: &Ident,
@@ -483,14 +488,13 @@ impl Gamma {
     pub fn add_enum_consumer(
         &mut self,
         enum_: &ItemEnum,
-        consumer_ident: &Ident,
         consumer: &ItemFn,
     ) {
         self.enum_consumers
             .entry(enum_.ident.clone())
             .or_insert_with(HashMap::new)
-            .insert(consumer_ident.clone(), consumer.clone());
-        self.functions.push(consumer.clone());
+            .insert(consumer.sig.ident.clone(), consumer.clone());
+        self.signatures.insert(consumer.sig.ident.clone(), consumer.sig.clone());
     }
 
     pub fn add_trait(&mut self, trait_: &ItemTrait) {
@@ -521,6 +525,7 @@ impl Gamma {
             .entry(trait_ident.clone())
             .or_insert_with(Vec::new)
             .push(destructor.clone());
+        self.signatures.insert(destructor.sig.ident.clone(), destructor.sig.clone());
     }
 
     pub fn get_type_of_field(&self, struct_ident: &Ident, field_ident: &Ident) -> DeltaType {
@@ -553,7 +558,6 @@ impl Gamma {
 
     /// Given a struct/enum varaient name, get the base type name (trait/enum)
     pub fn get_base_type_name_from_type_name(&self, type_name: &Ident) -> Ident {
-        println!("Getting base type name from type name {:?}", type_name);
         if self.is_trait(type_name) {
             return type_name.clone();
         }
@@ -629,7 +633,10 @@ impl<'ast> Visit<'ast> for Gamma {
             };
             return None;
         }));
-        self.destructors.insert(i.ident.clone(), trait_methods);
+
+        for method in trait_methods {
+            self.add_destructor(&i.ident, &method);
+        }
     }
 
     fn visit_item_struct(&mut self, i: &'ast ItemStruct) {
@@ -664,13 +671,13 @@ impl<'ast> Visit<'ast> for Gamma {
     }
 
     fn visit_item_fn(&mut self, i: &'ast ItemFn) {
-        self.functions.push(i.clone());
+        self.signatures.insert(i.sig.ident.clone(), i.sig.clone());
         // If the first argument of the function is an enum, then it is a consumer so add it to the
         // enum consumers
         if let Some(FnArg::Typed(PatType { ty, .. })) = i.sig.inputs.first() {
             let first_arg_type = ty.get_delta_type().name;
             if self.is_enum(&first_arg_type) {
-                self.add_enum_consumer(&self.get_enum(&first_arg_type).unwrap(), &i.sig.ident, i);
+                self.add_enum_consumer(&self.get_enum(&first_arg_type).unwrap(), i);
             }
         }
     }

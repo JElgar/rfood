@@ -23,7 +23,6 @@ fn get_method_call_ident(expr: &Expr) -> Option<Ident> {
 
 
 pub struct ReplaceFieldCalls {
-    pub delta: Delta,
     pub self_mut_fields: Vec<Ident>,
 }
 impl VisitMut for ReplaceFieldCalls {
@@ -43,24 +42,15 @@ impl VisitMut for ReplaceFieldCalls {
                 return;
             }
             
-            if self.self_mut_fields.contains(&ident) {
-                *expr = create_expr_from_ident(&ident);
-                return;
+            *expr = create_expr_from_ident(&ident);
+            if !self.self_mut_fields.contains(&ident) {
+                *expr = create_dereference_of_expr(expr);
             }
-
-            *expr = Expr::Unary(
-                ExprUnary {
-                    attrs: Vec::new() as Vec<syn::Attribute>,
-                    op: UnOp::Deref(token::Star::default()),
-                    expr: Box::new(Expr::Path(ExprPath { attrs: Vec::new(), qself: None, path: syn::Path { leading_colon: None, segments: Punctuated::from_iter([syn::PathSegment { ident: ident.clone(), arguments: syn::PathArguments::None}]) } })),
-                }
-            );
         }
     }
 }
 
 pub struct ReplaceMethodCalls {
-    pub delta: Delta,
     pub gamma: Gamma,
     pub self_type: Ident,
 }
