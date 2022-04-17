@@ -1,11 +1,11 @@
 #[derive(Debug)]
-enum Set {
+pub enum Set {
     Empty {},
     Insert { s1: Box<Set>, value: i32 },
     Union { s1: Box<Set>, s2: Box<Set> },
 }
 
-fn is_empty(set: &Set) -> bool {
+pub fn is_empty(set: &Set) -> bool {
     return match set {
         Set::Empty {} => true,
         Set::Insert { .. } => false,
@@ -13,15 +13,15 @@ fn is_empty(set: &Set) -> bool {
     };
 }
 
-fn contains(set: &Set, target: i32) -> bool {
+pub fn contains(set: &Set, target: i32) -> bool {
     return match set {
         Set::Empty {} => false,
         Set::Insert { s1, value } => *value == target || contains(s1, target),
-        Set::Union { s1, s2 } => contains(s1, target) && contains(s2, target),
+        Set::Union { s1, s2 } => contains(s1, target) || contains(s2, target),
     };
 }
 
-fn insert(set: Set, value: i32) -> Set {
+pub fn insert(set: Set, value: i32) -> Set {
     if contains(&set, value) {
         return set;
     }
@@ -31,7 +31,7 @@ fn insert(set: Set, value: i32) -> Set {
     };
 }
 
-fn union(left: Set, right: Set) -> Set {
+pub fn union(left: Set, right: Set) -> Set {
     match left {
         Set::Empty{} => right,
         _ => Set::Union {

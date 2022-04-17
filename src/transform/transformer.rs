@@ -1,10 +1,12 @@
 use syn::*;
 use syn::visit_mut::*;
 use syn::punctuated::Punctuated;
-use syn::token::{Comma, Colon};
-use syn::__private::Span;
+use syn::token::Comma;
 use syn::parse::Parser;
-use quote::quote;
+use std::fs::File;
+use std::io::Read;
+use std::path::PathBuf;
+use ast::print::write_and_fmt;
 
 use crate::context;
 use crate::utils::utils::PopFirst;
@@ -18,10 +20,84 @@ use ast::create::*;
 use crate::transform;
 use transform::visitors::*;
 
+use quote::quote;
+
 #[derive(clap::ArgEnum, Clone)]
 pub enum TransformType {
     OOPToFP,
     FPToOOP,
+}
+
+fn remove_item_from_syntax(syntax: &mut syn::File, item: syn::Item) {
+    let index = syntax.items.iter().position(|sitem| *sitem == item);
+    if index.is_some() {
+        syntax.items.remove(index.unwrap());
+    }
+}
+
+pub fn transform_file(path: &PathBuf, output_path: &PathBuf, transform_type: &TransformType) {
+    //-- Do the transfrom --//
+    let mut file = File::open(path).expect("Unable to open file");
+
+    let mut src = String::new();
+    file.read_to_string(&mut src).expect("Unable to read file");
+    let mut syntax: syn::File = syn::parse_file(&src).expect("Unable to parse file");
+    let mut transformed_syntax = syn::File{
+        items: Vec::new(),
+        ..syntax.clone()
+    };
+
+    // Generate global gamma context
+    let mut gamma: Gamma = generate_gamma(&syntax);
+    let gamma_mut_borrow = &mut gamma;
+  
+    match transform_type {
+        TransformType::OOPToFP => {
+            // Transform all the interfaces 
+            for trait_ in gamma_mut_borrow.traits.clone() {
+                // Add the transformed items to the transformed syntax
+                transformed_syntax.items.append(&mut transform_trait(&trait_, gamma_mut_borrow));
+
+                // Remove the original trait from the syntax
+                for (item_struct, item_impl) in gamma_mut_borrow.get_generators(&trait_.ident) {
+                    remove_item_from_syntax(&mut syntax, syn::Item::Struct(item_struct));
+                    remove_item_from_syntax(&mut syntax, syn::Item::Impl(item_impl));
+                }
+                remove_item_from_syntax(&mut syntax, syn::Item::Trait(trait_.clone()));
+            }
+        }, 
+        TransformType::FPToOOP => {
+            // Transform all the enums
+            for enum_ in gamma_mut_borrow.enums.clone() {
+                // Get the consumers for the enum 
+                let consumers = gamma_mut_borrow.get_enum_consumers(&enum_);
+
+                // 1st parse, transform types 
+                transformed_syntax.items.extend(transform_enum(&enum_, gamma_mut_borrow));
+                // 2nd parse, transform items
+                transformed_syntax.items = Vec::from_iter(transformed_syntax.items.iter().map(|item| {
+                    transform_item(&item, &transform_type, &gamma_mut_borrow)
+                }));
+
+                // For all the consumers, for each arm create a method in each impl
+                for consumer in consumers {
+                    remove_item_from_syntax(&mut syntax, syn::Item::Fn(consumer.clone()));
+                }
+                remove_item_from_syntax(&mut syntax, syn::Item::Enum(enum_.clone()));
+            }
+            
+            // Transform all the consumers
+        }
+    }
+
+    for item in &syntax.items {
+        transformed_syntax.items.push(transform_item(item, &transform_type, &gamma));
+    }
+
+    // Write output to file
+    if write_and_fmt(output_path, quote!(#transformed_syntax)).is_err() {
+        panic!("Unable to write output file");
+    }
 }
 
 /// Transform a interface (trait) into a datatype (enum)
@@ -32,7 +108,7 @@ pub fn transform_trait(trait_: &ItemTrait, gamma: &mut Gamma) -> Vec<Item> {
     let variants: Vec<syn::Variant> = Vec::from_iter(gamma.get_generators(&trait_.ident).iter().map(|(generator, _)| create_enum_variant(&generator.ident, generator.fields.clone())));
 
     // Create the enum
-    let new_enum = ast::create::create_enum(&trait_.ident, variants, &trait_.generics);
+    let new_enum = ast::create::create_enum(&trait_.ident, variants, &trait_.generics, trait_.vis.clone());
     gamma.add_enum(&new_enum);
 
     // For each destructor of the trait create a new consumer of the enum 
@@ -82,7 +158,8 @@ pub fn transform_enum(enum_: &ItemEnum, gamma: &mut Gamma) -> Vec<Item> {
                 },
                 ..method.clone()
             })
-        }).collect::<Vec<TraitItem>>()
+        }).collect::<Vec<TraitItem>>(),
+        enum_.vis.clone(),
     );
     gamma.add_trait(&trait_);
 
@@ -91,7 +168,7 @@ pub fn transform_enum(enum_: &ItemEnum, gamma: &mut Gamma) -> Vec<Item> {
     // For each variant of the enum create a struct and an impl
     for variant in enum_.variants.iter() {
         // Create the struct
-        let struct_ = create_struct(&variant.ident, &enum_.ident, variant.fields.clone());
+        let struct_ = create_struct(&variant.ident, &enum_.ident, variant.fields.clone(), enum_.vis.clone());
         gamma.add_struct(&struct_);
         items.push(Item::Struct(struct_.clone()));
 
@@ -236,7 +313,7 @@ fn transform_destructor(trait_: &ItemTrait, destructor: &TraitItemMethod, enum_:
    
         // TODO Currently this Vec::new() means mutable things cannot have a wild card arm. Fix by
         // NOTE trait_ident here is wrong/irrelevant
-        body = transform_destructor_expr(&body, &old_delta, &new_delta, Vec::new(), None, gamma, &enum_instance_name, &trait_.ident, EType::DeltaType(signature.output.get_delta_type(None).unwrap()));
+        body = transform_destructor_expr(&body, &old_delta, &new_delta, Vec::new(), gamma, &enum_instance_name, &trait_.ident, EType::DeltaType(signature.output.get_delta_type(None).unwrap()));
         
         // Create wild card arm with this body
         arms.push(ast::create::create_wildcard_match_arm(body));
@@ -256,8 +333,9 @@ fn transform_destructor(trait_: &ItemTrait, destructor: &TraitItemMethod, enum_:
         let mut rdbdrs = ReplaceDynBoxDestructorReturnStatements;
         rdbdrs.visit_expr_mut(&mut match_expr);
     }
-    
-    let func = ast::create::create_function(signature, vec![Stmt::Expr(match_expr)]);
+   
+    // TODO for now all functions are public -> check if the trait is public
+    let func = ast::create::create_function(signature, vec![Stmt::Expr(match_expr)], trait_.vis.clone());
     gamma.add_enum_consumer(&enum_, &destructor.sig.ident, &func);
     Item::Fn(func)
 }
@@ -288,29 +366,28 @@ fn transform_destructor_impl(generator: &ItemStruct, destructor: &TraitItemMetho
    
     // The name of the varaibles created in the below let expressions 
     let mut self_mutable_fields = Vec::new();
-    let mut new_self_mut_field = None;
-    let mut new_delta = new_delta.clone();
+    // let mut new_delta = new_delta.clone();
     // If the method is mutable self
     if is_mutable_self(&destructor.sig) {
         // Create a new mut variable for each attribute in the struct equal to the value in the struct 
         // Eg for circle
         // let mut radius = self.radius
         // This isnt in delta 
-        new_self_mut_field = Some(Ident::new("new", Span::call_site()));
+        // new_self_mut_field = Some(Ident::new("new", Span::call_site()));
 
-        let local = create_let_stmt(
-            new_self_mut_field.as_ref().unwrap(),
-            &create_expr_from_ident(&enum_instance_name),
-            true
-        );
-        new_delta.collect_for_local(&local, gamma);
-        block = add_stmts_to_block(
-            &Stmt::Local(
-                local,
-            ),
-            &block,
-            0
-        );
+        // let local = create_let_stmt(
+        //     new_self_mut_field.as_ref().unwrap(),
+        //     &create_expr_from_ident(&enum_instance_name),
+        //     true
+        // );
+        // new_delta.collect_for_local(&local, gamma);
+        // block = add_stmts_to_block(
+        //     &Stmt::Local(
+        //         local,
+        //     ),
+        //     &block,
+        //     0
+        // );
         for field in generator.fields.iter() {
             let field_name = field.ident.clone().unwrap();
             self_mutable_fields.push(field_name.clone());
@@ -319,13 +396,25 @@ fn transform_destructor_impl(generator: &ItemStruct, destructor: &TraitItemMetho
         // TODO Add in return statement
         block = add_stmts_to_block(
             &Stmt::Expr(
-                create_expr_from_ident(
-                    &new_self_mut_field.as_ref().unwrap()
-                )
+                Expr::Struct(ExprStruct{
+                    attrs: Vec::new(),
+                    path: create_path_from_ident(&generator.ident),
+                    brace_token: token::Brace::default(),
+                    dot2_token: None,
+                    fields: Punctuated::from_iter(self_mutable_fields.iter().map(|field| {
+                        FieldValue{
+                            attrs: Vec::new(),
+                            member: Member::Named(field.clone()),
+                            colon_token: None, 
+                            expr: Expr::Path(create_expr_path_from_path(create_path_from_ident(&field))),
+                        }
+                    })),
+                    rest: None,
+                })
             ),
             &block,
             block.stmts.len()
-        )
+        );
     }
 
 
@@ -340,12 +429,12 @@ fn transform_destructor_impl(generator: &ItemStruct, destructor: &TraitItemMetho
 
     // Then return a new instance of the type with these mut variables 
     // Transform the body of the method
-    expr = transform_destructor_expr(&expr, &old_delta, &new_delta, self_mutable_fields, new_self_mut_field.clone(), gamma, enum_instance_name, &enum_name, get_return_type_from_signature(consumer_signature));
+    expr = transform_destructor_expr(&expr, &old_delta, &new_delta, self_mutable_fields, gamma, enum_instance_name, &enum_name, get_return_type_from_signature(consumer_signature));
 
     // Create the arm of the match statement
     let path = ast::create::create_path_for_enum(enum_name, &generator.ident);
     Ok(ast::create::create_match_arm(
-        path, get_struct_attrs(&generator), expr,
+        path, get_struct_attrs(&generator), expr, is_mutable_self(&destructor.sig),
     ))
 }
 
@@ -359,11 +448,11 @@ fn transform_destructor_impl(generator: &ItemStruct, destructor: &TraitItemMetho
 /// * `self_mutable_fields` - If this is a mutable self destructor, then all the fields in the
 /// struct are added in here. These are handled seperately in the transform (not deferencced) 
 /// * `gamma` - The gamma that the method call is in
-fn transform_destructor_expr(expr: &Expr, old_delta: &Delta, new_delta: &Delta, self_mutable_fields: Vec<Ident>, new_self_mut_field: Option<Ident>, gamma: &Gamma, enum_name: &Ident, enum_type_name: &Ident, output_type: EType) -> Expr {
+fn transform_destructor_expr(expr: &Expr, old_delta: &Delta, new_delta: &Delta, self_mutable_fields: Vec<Ident>, gamma: &Gamma, enum_name: &Ident, enum_type_name: &Ident, output_type: EType) -> Expr {
     // TODO replace this logic with standard transform_expr
     let mut expr_clone = expr.clone();
     
-    let mut rfc = ReplaceFieldCalls{delta: old_delta.clone(), self_mut_fields: self_mutable_fields, new_self_mut_field};
+    let mut rfc = ReplaceFieldCalls{delta: old_delta.clone(), self_mut_fields: self_mutable_fields};
     rfc.visit_expr_mut(&mut expr_clone);
 
     let mut rmc = ReplaceMethodCalls{delta: old_delta.clone(), gamma: gamma.clone(), self_type: enum_type_name.clone()};
@@ -465,13 +554,22 @@ pub fn transform_consumer_signature(signature: &Signature) -> Signature {
     // Ignoring the first element transfrom each argument
     let mut new_inputs = Vec::from_iter(inputs.iter().skip(1).map(|arg| {
         // TODO make all args with type of enum, Box<dyn T>
-        if arg.get_delta_type(None).name == self_type.name && self_type.ref_type != RefType::Box {
+        if arg.get_delta_type(None).name == self_type.name && !matches!(self_type.ref_type,  RefType::Box(_)) {
             // Create box dyn of fn arg
             return create_dyn_box_arg(&arg);
         }
         arg.clone()
     }));
-    new_inputs.insert(0, create_self_fn_arg(if consumer_arg.get_ref_type() == RefType::Ref {RefType::Ref} else {RefType::Box}));
+    new_inputs.insert(
+        0,
+        create_self_fn_arg(
+            if matches!(consumer_arg.get_ref_type(), RefType::Ref(_)) {
+                consumer_arg.get_ref_type()
+            } else {
+                RefType::Box(Box::new(RefType::None))
+            }
+        )
+    );
 
     let mut output = signature.output.clone();
 
@@ -525,11 +623,11 @@ fn transform_expr_type(expr: &Expr, current_type: &DeltaType, required_type: &De
     if current_type.is_equaivalent(&required_type, &gamma) {
         expr.clone()
     } else if 
-        current_type.ref_type == RefType::Box && required_type.ref_type == RefType::None || 
-        current_type.ref_type == RefType::Ref && required_type.ref_type == RefType::None
+        matches!(current_type.ref_type, RefType::Box(_)) && matches!(required_type.ref_type, RefType::None) || 
+        matches!(current_type.ref_type, RefType::Ref(_)) && matches!(required_type.ref_type, RefType::None)
     {
         create_dereference_of_expr(expr)
-    } else if current_type.ref_type == RefType::None && required_type.ref_type == RefType::Box {
+    } else if current_type.ref_type == RefType::None && matches!(required_type.ref_type, RefType::Box(_)) {
         create_box_of_expr(expr)
     } else {
         panic!("Cannot transform {:?} to {:?}", current_type, required_type)
@@ -553,7 +651,7 @@ fn transform_method_call_arguments(method_call: &ExprMethodCall, gamma: &Gamma, 
     // signatures (as the self arg is handled separately)
     Punctuated::from_iter(method_call.args.iter().zip(old_signature.inputs.iter().skip(1)).zip(transformed_signature.inputs.iter().skip(1)).map(|((arg, old_fn_arg), new_fn_arg)| {
         // If the old arg is a box type and the new arg is not
-        if old_fn_arg.get_ref_type() == RefType::Box && new_fn_arg.get_ref_type() == RefType::None {
+        if matches!(old_fn_arg.get_ref_type(), RefType::Box(_)) && new_fn_arg.get_ref_type() == RefType::None {
             create_dereference_of_expr(&arg.clone())
         } else {
             arg.clone()
@@ -587,7 +685,8 @@ fn transform_expr(expr: &Expr, transform_type: &TransformType, gamma: &Gamma, de
         }
         (TransformType::OOPToFP, Expr::MethodCall(expr_method_call)) if gamma.is_destructor_method_call(&expr_method_call, &delta) => {
             let ExprMethodCall { receiver, method, .. } = expr_method_call;
-            let receiver_expr = if delta.get_type_of_expr(&receiver, gamma).unwrap().ref_type == RefType::Box {
+            // TODO use clean_type
+            let receiver_expr = if matches!(delta.get_type_of_expr(&receiver, gamma).unwrap().ref_type, RefType::Box(_)) {
                 create_dereference_of_expr(&receiver)
             } else {
                 *receiver.clone()
@@ -652,7 +751,7 @@ fn transform_expr(expr: &Expr, transform_type: &TransformType, gamma: &Gamma, de
                 if let EType::DeltaType(dt) = &return_type {
                     println!("Really transforming box call expr {:?}", dt.ref_type);
                     println!("Inner type {:?}, expr: {:?}", delta.get_type_of_expr(&inner_expr, gamma).unwrap().ref_type, inner_expr);
-                    if dt.ref_type != RefType::Box || delta.get_type_of_expr(&inner_expr, gamma).unwrap().ref_type == RefType::Box {
+                    if !matches!(dt.ref_type, RefType::Box(_)) || matches!(delta.get_type_of_expr(&inner_expr, gamma).unwrap().ref_type, RefType::Box(_)) {
                         println!("Actually transforming box call expr");
                         // Then we should transform the expression to a method call
                         return transform_expr(&inner_expr, &transform_type, &gamma, &delta, return_type);

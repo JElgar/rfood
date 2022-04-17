@@ -25,7 +25,6 @@ fn get_method_call_ident(expr: &Expr) -> Option<Ident> {
 pub struct ReplaceFieldCalls {
     pub delta: Delta,
     pub self_mut_fields: Vec<Ident>,
-    pub new_self_mut_field: Option<Ident>,
 }
 impl VisitMut for ReplaceFieldCalls {
     fn visit_expr_mut(&mut self, expr: &mut Expr) {
@@ -45,9 +44,8 @@ impl VisitMut for ReplaceFieldCalls {
             }
             
             if self.self_mut_fields.contains(&ident) {
-                *expr = create_field_call(
-                    self.new_self_mut_field.as_ref().unwrap(), &ident,
-                )
+                *expr = create_expr_from_ident(&ident);
+                return;
             }
 
             *expr = Expr::Unary(

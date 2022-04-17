@@ -36,7 +36,8 @@
 \usepackage{listings}
 \usepackage{xcolor}
 
-\usepackage{minted}
+% \usepackage{minted}
+\usepackage[outputdir=../]{minted}
 \newcommand{\rust}[1]{\mintinline{rust}{#1}}
 
 \newcommand{\codefile}[2]{\inputminted[xleftmargin=20pt,linenos, breaklines]{#1}{#2}}
@@ -426,7 +427,7 @@ Another requirement, is once the AST has be transformed, it must be converted ba
 
 Finally a CLI was created to allow developers to parse in files they want to transform and to specity the direction (OOP to FP or FP to OOP).
 
-\section{Transformer Implementation}
+\section{High level overview}
 
 The transformation is split into 4 step:
 
@@ -437,11 +438,11 @@ The transformation is split into 4 step:
 \end{enumerate}
 
 
-\subsection{Context}
+\section{Context}
 
 Prior to transforming any expressions or statements, the transformer must know the context. This consists of two components, the global context, $\Delta$, and the environment, $\Gamma$.
 
-\subsubsection{Global Context}
+\subsection{Global Context}
 
 In \cite{food} \weixin uses the name "global context", represented by $\Delta$, to represent the store with  the following attributes:
 
@@ -450,8 +451,8 @@ In \cite{food} \weixin uses the name "global context", represented by $\Delta$, 
 \paragraph{Constructor.} Constructor create an instance of a given datatype. In Rust the equivalent is an Enum Variant.
 % TODO update this if it can handle multiple inheritance
 \paragraph{Generator.} Generators create an instance of a given interface. In Rust the equivalent is a struct which has an implementation of a trait (the interface). Note in this implementation a struct cannot be transformed if it implements multiple traits. 
-\paragraph{Consumer.} Consumers are functions that operate on a datatype. In Rust these are functions, with the first argument being a Datatype.
-\paragraph{Destructor.} A destructor is a function that operates on an interface. In Rust these are methods defined on the traits, and then mus either have a default implementation (in the trait) or an implementation in the generators impl of the trait.
+\paragraph{Consumer.} Consumers are functions that operate on a datatype. In Rust these are functions, with the first argument being a Datatype (or some reference to a datatype).
+\paragraph{Destructor.} A destructor is a function that operates on an interface. In Rust these are methods defined on the traits, which must either have a default implementation (in the trait) or an implementation in the generators impl of the trait.
 
 \vspace{10pt}
 
@@ -460,20 +461,36 @@ In the current implementation of the transformer "global context" is an accurate
 % TODO did the change?
 For the Rust implementation the Visitor pattern was used. Provided by the \verb|syn| package these traits (\verb|visit| and \verb|visit_mut|) allow the developer to view/mutate selected types of values in the AST. The default implementation of the visitor trait methods, recursively visits all expression. Using this technique ignores the scope of the current expression meaning all types and methods are collected and therefore assumes the developer has not renamed any types/function in a nested scope. This technique could be improved by a recursive approach to collecting this context along side other transformations, to ensure the correct versions of all the attributes are collected.
 
-\subsubsection{Environment}
+\subsection{Environment}
 
-The environment stores the current types of variables on the stack. In the Scala implementation a type is stored as string, however in the Rust implementation it is stored as a \verb|DeltaType| struct. This allows the encoding of both the type name stored as an Ident (a simple wrapper around String provided by \verb|syn|) and the reference type. 
+The environment stores the types of variables currently on the stack. 
+In the Scala implementation a type is encoded as string, however this is insufficient for Rust as reference types must also be kept track of. For this reason in the Rust implementation types are encoded as \verb|DeltaType| struct. 
+This stores both the type name stored as an Ident (a simple wrapper around String provided by \verb|syn|) and the reference type.
 
-The reference type is currently implemented as an Enum, with a variant for Box, Reference and None. These reference types are later used to transform the types of expressions as required.
+The reference type is currently implemented as an Enum, with a variant for \verb|Box|, \verb|Reference| and \verb|None|. These reference types are later used to transform the types of expressions as required.
 
 % TODO sort this out
 The key limitation of the current implementation is these are not stored as recursive types. This means nested references such as reference of boxes cannot be encoded. 
 
-\subsection{Type Transformations}
+\subsection{Type of Expression}
+
+With these two contexts it is possible to perform basic type inference on expressions. The following rules are used to perform this inference:
+
+\begin{itemize}
+    \item For literals, for example \rust{1} or \rust{true}, a basic type of the literal is returned. In the current implementation only a subset of literals are supported (\rust{i32}, \rust{f32}, \rust{bool}) and they are assumed to be a specific type (i.e. \rust{i32} rather than a generic \verb|Int|).
+    \item For paths, which are expressions referring to some variable in the environment, the type of the variable from the environment is returned 
+    \item For struct/enum instatioation, the struct or enum type is returned.
+    \item For method or function calls, the return type of the function is returned
+    \item For field expressions, for example \rust{self.a} or \rust{item.field}, the type of receiver (the thing the field is being accessed from) is determined using gamma. The type of the field which is being accessed is then returned.
+\end{itemize}
+
+% TODO talk about casting
+
+\section{Type Transformations}
 
 Having collected the global context, the next stage of the transformation is to transform the types, and their associated functions. For OOP to FP this means transforming the traits, structs and impls and for FP to OOP this means transforming the enums and consumers.
 
-\subsubsection{OOP to FP}
+\subsection{OOP to FP}
 
 The top level function for transforming from OOP to FP is \verb|transform_trait|. This does the following:
 
@@ -499,7 +516,7 @@ Additional transformations, such as fixing the return type and use of transforme
 % \label{alg}
 % \end{algorithm}
 
-\subsubsection{FP to OOP}
+\subsection{FP to OOP}
 
 When transforming from FP to OOP a similar structure is used. The top level function is \verb|transform_enum| and is called on each datatype in the global context. This creates a trait with the same fields, but adding in \verb|dyn| references if the type of the field is the enum type which is being transformed.
 
@@ -510,12 +527,62 @@ As the reverse to OOP to FP, any fields in the signature which are Box of the en
 The body of these methods are then transformed. This adds self to method and field calls as required.
 
 
-\subsection{Item Transformations}
+\section{Item Transformations}
 %TODO Talk about this
 \label{sec:item-trans}
 
-After the type transformations are completed a set of recursive functions are used to transform the remaining statements and expressions. These functions require, not only the global and environment context but also the expected return type of the expression and the transform type (direction). 
-The return types are an enum with the following variants:
+After the type transformations are completed the next stage of the transformation is to updates uses of the transformed types. This includes instantiations of the type as well as any destructor/consumer calls.
+
+This transformation is achieved using a recursive function called \verb|transform_expr|. This function takes an expressions and the current contexts and transforms both itself and any nested expressions. For example when transforming an \verb|if| expression both the conditional (the expression inside the if) and block expression (the expression run if the conditional expression is true) are transformed.
+
+The key transformations that this function performs depends on the direction of the transformation. For OOP to FP, the function transforms any calls to destructor or generators. Whilst in FP to OOP it transforms any calls to consumers or constructors.
+
+\subsection{OOP to FP}
+
+\paragraph{Generators. } Generator calls are instations of structs. Gamma is used to determine if the struct is infact a generator. If so the expression is transformed into the instantiation of an enum using a constructor. In Rust this is also represented as a struct expression, however the path to the struct will change. This is because by default, enum variant are not in scope and can be reference by the enum it self. For example \rust{Light::Dimmer}. The alternative to this is to add the enum variant to the scope using \rust{use Ligth::*} however this increases the possibility of name collision and is generally considered bad practice. The other required transformation is ensuring the type of each field in the constructor is correct for the transformed signature. This is dicussed in more detail in \autoref{sec:type-transforms}.
+
+\paragraph{Destructors. } Destructor calls in rust are method calls. Firstly delta is used to determine the type of the receiver, which is the expression the method is being called on. Gamma is then used to check if this type is a datatype (or a generator of that datatype) and that the method is a destructor of that type. If so the method call is replaced with a call to the new consumer. The receiver of the method call is transformed to the first argument of this function call. Similarly to above the nested expressions (the new function arguments and the ) are also recursively transformed.
+
+\subsubsection{FP to OOP}
+
+FP to OOP reflects the logic of OOP to FP.
+
+\paragraph{Constructors. }  Gamma is also used to check it is a constructor, if so the enum prefix is removed (as the enum variant is transformed to a top level struct) and the nexted expressions are transformed.
+
+\paragraph{Consumer. } For calls to consumers, gamma is used to check if a function call is a consumer. If so it is replaced by a method call with the first argument of the function call as the receiver of the method call. Equally the sub expressions are transformed.
+
+\subsection{Rust Type Transformations}
+
+% TODO how is the required return type determined for an expression?
+% TODO how are types of an expression determined - this should probably go in delta but it should also talk about blocks....
+% TODO how are these types encoded (EType and DeltaType) this should also probably be in Delta context
+% TODO how is the transformation applied
+% TODO type simplification
+
+Unlike in the Scala implementation of the transformer the signatures of types' associated functions can change during the transformation. In general this is not the type itself that changes, but rather the reference type (such as converting a type to a box of the type). This therefore requires additional steps in the transformation to ensure the types of expressions are correct. To achieve this the \verb|transform_expr| function is also passed an expected return type.
+
+When recursively transforming nested expression is it the required type of each sub expression must be determined. For each type this is determined as follows:
+
+\begin{itemize}
+    \item Method/Function call - The signature of the function states the expected type of each of the argument expressions. For a method call receiver, in the current implementation any type can be returned. %TODO evaluate this
+    \item Block - For block expressions, all expression should return None, except the last expression which should have the same return type requested for the whole block.
+    \item Generator/Constructor calls - The required types of each field can be determined by the field types (signature) from gamma.
+    \item Match - For match expression each arm is expected to return the same type as the required type for the whole match statement
+    \item Return - The inner expression should match the required type of the return expression
+    % TODO add support for if else
+    \item TODO add support for if else  
+\end{itemize}
+
+Given these expected return types, it is then the responsibility of the \verb|transform_expr| function to also transform the types. This is achieved using \verb|transform_expr_type|.  
+
+In the current implementation, reference types are encoded as a basic enum (either ref, box or none). Given, in general, only the reference type of types change, the \verb|trasnsform_expr_type| can only perform basic transformation on the reference type. The current supported transformations are:
+
+\begin{itemize}
+    \item Box/Reference $\xrightarrow{}$ None - Achieved by dereference
+    \item None $\xrightarrow{}$ Box - Uses \rust{Box::new} method to create box of provided expression
+\end{itemize}
+
+The return types express what the given expression should return after it has been transformed. These return types are expressed as one of the following:
 
 \begin{itemize}
     \item None - No return value
@@ -523,7 +590,21 @@ The return types are an enum with the following variants:
     \item Any - Any type can be returned (no transformation of the return type will be made)
 \end{itemize}
 
-\subsection{Inheritance}
+
+
+\verb|transform_expr| is the core of this recusrsive transformation process. For each type of expression this transforms the expression it self, as well as any nested experssions.
+
+The main transformations performed by this function is updating the use of transformed types. For OOP to FP transformations this involves replacing method calls with function calls to the consumers, whilst for FP to OOP it does the reverse. 
+
+\begin{itemize}
+    \item A consumer/destructor is transformed and the return types changes. E.g. \verb|T| to \verb|Box<T>|. This can have knock on effect where this result is used later.
+    \item A consumer/destructor is transformed and the argument type changes
+\end{itemize}
+
+The transforming of types is handled in the \verb|transform_expr_type| function. This takes the current type of the expression and the 
+
+
+\section{Inheritance}
 \label{sec:inheritance}
 
 Inheritance is one of the central concepts in object oriented programming \cite{cook_palsberg_1989}. It allows developer to share logic between linked classes, preventing duplicate logic. Rust, however, does not support traditional inheritance. Instead it opts for composition, which allows structs to contain other structs directly and default implementations in traits.
@@ -536,24 +617,42 @@ The FP equivalent to these default trait implementations are wildcard matches in
 
 \paragraph{OOP to FP.} If any impls of a trait which is being transformed are missing any of the required methods, then a wildcard arm should be added for that consumer matching that method. The body of the consumer should be taken from the traits default implementation with the same transformations applied to the other arms. The only difference between the transformations is no additional delta collection is required as the pattern match patter is just the underscore token. 
 
-\paragraph{FP to OOP.} If a consumer contains a wildcard match, then the return type of the arm must be checked. If it returns a simple (Sized) type, then a default implementation of the trait can be created and and implementation in the impl block is not required. However if the return type is not sized then a default implementation cannot be used. In this case a copy of the wildcard expression is created for each of the impl blocks. 
+\paragraph{FP to OOP.} If a consumer contains a wildcard match, then the return type of the arm must be checked. If it returns a simple (Sized) type, then a default implementation of the trait can be created and an implementation in the impl block is not required. However if the return type is not sized then a default implementation cannot be used. In this case a copy of the wildcard expression is created for each of the impl blocks. 
 % TODO talk about shared function
 % Although it may seem preferable to create a shared function to handle this logic, this is also not possible (withas the type of the 
 
 
-\subsection{Rust Types}
+\section{Generics}
 
-\subsection{Generics}
+\section{Mutability}
 
-\subsection{Mutability}
+\weixin's transformer focuses on the transformations between Pure OOP style from \cite{cook} and FP style. However this requirement to use pure OOP style can be very restrictive for the types of OOP programs that can be transformed.
+A common style for object oriented programming is to include methods that mutate the state of the class it self. An example is the getter and setter pattern where one functions on a class is responsilbe for returning a value and another mutates it, as shown in \autoref{fig:mutable-example}.
 
-\weixin's transformer focuses on the transformations between Pure OOP style from \cite{cook} and FP style. However this requirement to use pure OOP style can be very restrictive for the types of OOP programs that can be transformed. A common sytle for object orieneted programming is to include methods that mutate the state of the class it self. An example of this is shown in \autoref{}
+In rust, variables are immutable by default. On line 3 of the example, the \verb|mut| token before self, makes self mutable. This can then used in the implementation on line 12 to set the brightness of the Dimmer. 
+
+% Horrible sentence
+In FP, mutability is traditionally avoided. This can have many benefits such as making functions easier to test as no side effects are possible. Therefore to transform this kind of method, the mutations should be wrapped within the method itself and such the method should return a new instance of the self type.
+
+This transformation is performed as follows:
+\begin{itemize}
+    \item When transforming a destructor of a trait, check if it is mutable and if so:
+    \item Create a let expression to reassign the self type to a mutable clone
+    \item Replace all field assignments on self with field assignments on the new mutable clone
+    \item Return the mutated clone from the method
+    \item Update the signature to reflected the new return type
+    \item When transforming method calls to this object, ensure to also overwrite the receiver with the output of the method.
+\end{itemize}
+
+This has 2 key limitations. Firstly the method cannot return any other values. An extension to the existing transfomrer could be added to support returning tuples.
+
+
 
 \begin{figure}
 \centering
 \rustexample{mutable/oop-basic}
-\caption{Recursive Type Definitions}
-\label{fig:recursive-typedef}
+\caption{Mutable class example}
+\label{fig:mutable-example}
 \end{figure}
 
 \subsection{Multiple Inheritance}
@@ -597,8 +696,10 @@ The FP equivalent to these default trait implementations are wildcard matches in
 
 % -----------------------------------------------------------------------------
 
-\chapter{Critical Evaluation}
+\chapter{Evaluation of the Transformer}
 \label{chap:evaluation}
+
+The goal of this section is to evaluate the transformer. It will achieve this by discussing case studies that the transformer can and can't transform and explore why this is the case. It will compare the Rust implementation with the Scala implementation in \cite{food}, and discuss future improvements that are possible for the transformer. 
 
 % {\bf A topic-specific chapter} 
 % \vspace{1cm} 

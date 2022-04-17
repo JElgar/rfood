@@ -1,9 +1,9 @@
-enum Set {
+pub enum Set {
     Empty {},
     Insert { set1: Box<Set>, value: i32 },
     Union { set1: Box<Set>, set2: Box<Set> },
 }
-fn is_empty(set: &Set) -> bool {
+pub fn is_empty(set: &Set) -> bool {
     match &set {
         Set::Empty {} => {
             return true;
@@ -16,7 +16,7 @@ fn is_empty(set: &Set) -> bool {
         }
     }
 }
-fn contains(set: &Set, i: i32) -> bool {
+pub fn contains(set: &Set, i: i32) -> bool {
     match &set {
         Set::Empty {} => {
             return false;
@@ -29,7 +29,7 @@ fn contains(set: &Set, i: i32) -> bool {
         }
     }
 }
-fn insert(set: Set, i: i32) -> Set {
+pub fn insert(set: Set, i: i32) -> Set {
     match &set {
         Set::Empty {} => {
             if contains(&set, i) {
@@ -60,7 +60,7 @@ fn insert(set: Set, i: i32) -> Set {
         }
     }
 }
-fn union(set: Set, s: Set) -> Set {
+pub fn union(set: Set, s: Set) -> Set {
     match &set {
         Set::Empty {} => {
             return s;
@@ -79,7 +79,7 @@ fn union(set: Set, s: Set) -> Set {
         }
     }
 }
-fn type_id(set: &Set) -> i32 {
+pub fn type_id(set: &Set) -> i32 {
     match &set {
         Set::Empty {} => {
             return 10;
