@@ -485,6 +485,15 @@ With these two contexts it is possible to perform basic type inference on expres
 \end{itemize}
 
 % TODO talk about casting
+There are a few key limitations to the current type inference:
+
+\begin{itemize}
+    \item  Currently the transformer only support single file transformations. This means it cannot perform type inference on imported or built in functions. Supported has been added for a small subset of built in functions such as clone but this is currently a manual process rather than the importing definitions.
+    \item  Currently a limited subset of expressions are supported. With time the types of expressions that are supported could be extended.
+    \item Currently type names are encoded as strings and as such no casting is supported. For example when if a literal is marked as an \rust{i8} the transformer is unable to cast that to an \rust{i32} if required.
+\end{itemize}
+
+One approach to resolving these issues is to use the built in type inference in the rust compiler. The rust compiler parses the source code (including all dependencies) and converts it to an AST, then to a HIR (High-Level Intermediate Representation) and then finally a THIR (Typed High-Level Intermediate Representation), where the typing information is added. It collects (and checks) these types using the \verb|rustc_typecheck| package which can be exposed using the nightly compiler. Currently the documentation for this package is very limited and the API for all of rustc remains unstable. For this reason this approach was not developed for this version of the compiler, but could create some tangible improvements to the type checking in the future. Another improvement of using this crate is the type checking could automatically track with the version of rust the developer is using. This means as rust add or changes features in the langauge the type inference of the transformer would not have to be updated directly.
 
 \section{Type Transformations}
 
@@ -621,26 +630,42 @@ The FP equivalent to these default trait implementations are wildcard matches in
 % TODO talk about shared function
 % Although it may seem preferable to create a shared function to handle this logic, this is also not possible (withas the type of the 
 
+\section{Macros}
 
-\section{Generics}
+In Rust macros are a form of "metaprogramming", meaning they allow developers to write code that writes other code. 
+
+Although not unique to Rust, macros play a far greater role in Rust that most other programming languages, and for this reason it is an important topic to cover. 
+
+In Rust there are 2 kinds of macros, declarative and procedural. Macros operate over token trees which contain the tokens parsed by the compiler. SAY SOMETHING BETTER HERE  https://reberhardt.com/cs110l/spring-2020/slides/lecture-17.pdf
+
+Macros are an incredibly powerful tool and are very effective at reducing code duplication. However this flexibility creates many difficulties for the transformer. Given the macros inputs are parsed as tokens, it is not possible to predict what the macro will do to the input. For example, if a macro was created to strip method calls, it would not be possible for the transformer to predict this behaviour. In this case it could there transform a method call to a function and change the resultant meaning of the expression. 
+Therefor it is not possible to reliably transform the inputs of macros. As a compromise the current implementation attempts to parse the inputs to any macros as comma separated set of expressions. If this is successful it will transform each expression as before using \verb|transform_expr|. After the transformations it will covert the transformed expressions back to the tokens format.
+
+In many cases this limited approach is sufficient to maintain the correctness of the code and transform the required expressions. Critically this approach allows the use of basic macros included in rust such as \rust{println!} and \rust{vec!}. However as mentioned there is no guarantee of correctness when using these transformations with arbitrary macros.
+
+\chapter{Extensions to the Transformer}
+
+\weixin's transformer focuses on the transformations between Pure OOP style from \cite{cook} and FP style. For the transformer to be a truely useful tool for developers, it must support the majority of styles of programming. 
+The requirement to use pure OOP style is extremely restrictive, and often requires large refactoring of code before it can be transformed.
+This means the types of OOP programs that can be transformed are limited.
 
 \section{Mutability}
 
-\weixin's transformer focuses on the transformations between Pure OOP style from \cite{cook} and FP style. However this requirement to use pure OOP style can be very restrictive for the types of OOP programs that can be transformed.
-A common style for object oriented programming is to include methods that mutate the state of the class it self. An example is the getter and setter pattern where one functions on a class is responsilbe for returning a value and another mutates it, as shown in \autoref{fig:mutable-example}.
+A common style for object oriented programming is to include methods that mutate the state of the class it self. An example is the getter and setter pattern where one functions on a class is responsible for returning a value and another to mutates it, as shown in \autoref{fig:mutable-example}.
 
-In rust, variables are immutable by default. On line 3 of the example, the \verb|mut| token before self, makes self mutable. This can then used in the implementation on line 12 to set the brightness of the Dimmer. 
+In rust, variables are immutable by default. To make a varaible mutable the \rust{mut} token must be used before variable assignment. This can be seen on line 3 of the example in \autoref{fig:mutable-example} where the \verb|mut| token allows the self object to be mutated. This is then used for the implementation of \rust{set_brightness} on line 12 to set the brightness of the Dimmer. 
 
 % Horrible sentence
-In FP, mutability is traditionally avoided. This can have many benefits such as making functions easier to test as no side effects are possible. Therefore to transform this kind of method, the mutations should be wrapped within the method itself and such the method should return a new instance of the self type.
+"Functional programming aims to minimise or eliminate side-effects" \cite{fp-uok}. This can have many benefits such as reducing complexity of programs and making them easier to test. For this reason when transforming this style of OOP programming to FP, the mutations should wrapped within the consumers. This means the consumers should parse in an instance, and a new instance should be returned by the consumer. When the consumer is used, the parsed in object should then be overwritten by the output of the function.  In simple cases this inherently make the transformed function pure by removing the mutation of the argument.
 
-This transformation is performed as follows:
+To achieve this kind of transformation, the transfomer check each destructor, checking if the self argument is mutable, if so the following additional steps are added:
+
 \begin{itemize}
-    \item When transforming a destructor of a trait, check if it is mutable and if so:
-    \item Create a let expression to reassign the self type to a mutable clone
-    \item Replace all field assignments on self with field assignments on the new mutable clone
-    \item Return the mutated clone from the method
-    \item Update the signature to reflected the new return type
+    \item Update the arguments of the signature of the destructor, updating the first argument to remove the mutability and borrow. Removing the borrow means the ownership of the passed in variable is taken and thus it will go out of scope after the consumer is called. This is desireable as the variable should be overwritten anyway using the result of the consumer. 
+    \item Update the return type of the signature of the destructor. Currently only destructor with no returns are supported. Set the return to trait type that destructor is for.
+    \item In the match statement, make each field mutable. This allows reassignment of these local variables.
+    \item Replace all field assignments on self with field assignments on these new mutable varaibles. 
+    \item Return a new instance of the matched enum with the values of the fields equal to the local variable from the match expression. 
     \item When transforming method calls to this object, ensure to also overwrite the receiver with the output of the method.
 \end{itemize}
 
@@ -655,7 +680,9 @@ This has 2 key limitations. Firstly the method cannot return any other values. A
 \label{fig:mutable-example}
 \end{figure}
 
-\subsection{Multiple Inheritance}
+\section{Generics}
+
+% \subsection{Multiple Inheritance}
 
 % \begin{figure}[t]
 % \centering
@@ -699,7 +726,17 @@ This has 2 key limitations. Firstly the method cannot return any other values. A
 \chapter{Evaluation of the Transformer}
 \label{chap:evaluation}
 
-The goal of this section is to evaluate the transformer. It will achieve this by discussing case studies that the transformer can and can't transform and explore why this is the case. It will compare the Rust implementation with the Scala implementation in \cite{food}, and discuss future improvements that are possible for the transformer. 
+This section will explore some case studies of programs which the tansformer can and cannot transform. It will discuss why certain programs cannot be transformed by the current implementation and determine if possible, how difficult extending the transformer to support these feature would be. It will also compare the Rust implementation of the transformer with the Scala version from \cite{food}.
+
+% TODO talk about testing
+
+\section{Supported Transformations}
+
+\section{Limitations}
+
+\subsection{Nested pattern matching and guards}
+
+\subsection{Macros}
 
 % {\bf A topic-specific chapter} 
 % \vspace{1cm} 
