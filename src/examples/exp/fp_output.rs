@@ -2,7 +2,7 @@ trait Exp {
     fn eval(&self) -> i32;
 }
 struct Lit {
-    n: i32,
+    pub n: i32,
 }
 impl Exp for Lit {
     fn eval(&self) -> i32 {
@@ -10,8 +10,8 @@ impl Exp for Lit {
     }
 }
 struct Sub {
-    l: Box<dyn Exp>,
-    r: Box<dyn Exp>,
+    pub l: Box<dyn Exp>,
+    pub r: Box<dyn Exp>,
 }
 impl Exp for Sub {
     fn eval(&self) -> i32 {

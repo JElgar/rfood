@@ -107,7 +107,7 @@ pub fn transform_trait(trait_: &ItemTrait, gamma: &mut Gamma) -> Vec<Item> {
     let variants: Vec<syn::Variant> = Vec::from_iter(gamma.get_generators(&trait_.ident).iter().map(|(generator, _)| create_enum_variant(&generator.ident, generator.fields.clone())));
 
     // Create the enum
-    let new_enum = ast::create::create_enum(&trait_.ident, variants, &trait_.generics);
+    let new_enum = ast::create::create_enum(&trait_.ident, variants, &trait_.generics, trait_.vis.clone());
     gamma.add_enum(&new_enum);
 
     // For each destructor of the trait create a new consumer of the enum 
@@ -157,7 +157,8 @@ pub fn transform_enum(enum_: &ItemEnum, gamma: &mut Gamma) -> Vec<Item> {
                 },
                 ..method.clone()
             })
-        }).collect::<Vec<TraitItem>>()
+        }).collect::<Vec<TraitItem>>(),
+        enum_.vis.clone(),
     );
     gamma.add_trait(&trait_);
 
@@ -166,7 +167,7 @@ pub fn transform_enum(enum_: &ItemEnum, gamma: &mut Gamma) -> Vec<Item> {
     // For each variant of the enum create a struct and an impl
     for variant in enum_.variants.iter() {
         // Create the struct
-        let struct_ = create_struct(&variant.ident, &enum_.ident, variant.fields.clone());
+        let struct_ = create_struct(&variant.ident, &enum_.ident, variant.fields.clone(), enum_.vis.clone());
         gamma.add_struct(&struct_);
         items.push(Item::Struct(struct_.clone()));
 
@@ -331,8 +332,9 @@ fn transform_destructor(trait_: &ItemTrait, destructor: &TraitItemMethod, enum_:
         let mut rdbdrs = ReplaceDynBoxDestructorReturnStatements;
         rdbdrs.visit_expr_mut(&mut match_expr);
     }
-    
-    let func = ast::create::create_function(signature, vec![Stmt::Expr(match_expr)]);
+   
+    // TODO for now all functions are public -> check if the trait is public
+    let func = ast::create::create_function(signature, vec![Stmt::Expr(match_expr)], trait_.vis.clone());
     gamma.add_enum_consumer(&enum_, &destructor.sig.ident, &func);
     Item::Fn(func)
 }

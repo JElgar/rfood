@@ -17,7 +17,7 @@ pub fn contains(set: &Set, target: i32) -> bool {
     return match set {
         Set::Empty {} => false,
         Set::Insert { s1, value } => *value == target || contains(s1, target),
-        Set::Union { s1, s2 } => contains(s1, target) && contains(s2, target),
+        Set::Union { s1, s2 } => contains(s1, target) || contains(s2, target),
     };
 }
 

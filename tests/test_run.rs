@@ -21,7 +21,7 @@ fn test_run_transform_example(example_path: PathBuf, example_output_path: PathBu
 fn test_run_transform_example_oop_exp() {
     test_run_transform_example(
         PathBuf::from(r"./src/examples/exp/oop.rs"),
-        PathBuf::from(r"./src/examples/exp/oop-output.rs"),
+        PathBuf::from(r"./src/examples/exp/oop_output.rs"),
         TransformType::OOPToFP
     )
 }
@@ -30,7 +30,7 @@ fn test_run_transform_example_oop_exp() {
 fn test_run_transform_example_oop_set() {
     test_run_transform_example(
         PathBuf::from(r"./src/examples/set/oop.rs"),
-        PathBuf::from(r"./src/examples/set/oop-output.rs"),
+        PathBuf::from(r"./src/examples/set/oop_output.rs"),
         TransformType::OOPToFP
     )
 }
@@ -39,7 +39,7 @@ fn test_run_transform_example_oop_set() {
 fn test_run_transform_example_fp_exp() {
     test_run_transform_example(
         PathBuf::from(r"./src/examples/exp/fp.rs"),
-        PathBuf::from(r"./src/examples/exp/fp-output.rs"),
+        PathBuf::from(r"./src/examples/exp/fp_output.rs"),
         TransformType::FPToOOP
     )
 }
@@ -48,7 +48,7 @@ fn test_run_transform_example_fp_exp() {
 fn test_run_transform_example_fp_set() {
     test_run_transform_example(
         PathBuf::from(r"./src/examples/set/fp.rs"),
-        PathBuf::from(r"./src/examples/set/fp-output.rs"),
+        PathBuf::from(r"./src/examples/set/fp_output.rs"),
         TransformType::FPToOOP
     )
 }

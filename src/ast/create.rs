@@ -5,10 +5,10 @@ use syn::token::{Comma, Colon};
 
 use crate::context::delta::{GetDeltaType, RefType, get_ident_from_path};
 
-pub fn create_enum(name: &Ident, variants: Vec<syn::Variant>, generics: &syn::Generics) -> ItemEnum {
+pub fn create_enum(name: &Ident, variants: Vec<syn::Variant>, generics: &syn::Generics, vis: Visibility) -> ItemEnum {
     ItemEnum {
         attrs: [].to_vec(),
-        vis: Visibility::Inherited,
+        vis,
         enum_token: token::Enum{
             span: Span::call_site(),
         },
@@ -21,10 +21,10 @@ pub fn create_enum(name: &Ident, variants: Vec<syn::Variant>, generics: &syn::Ge
     }
 }
 
-pub fn create_trait(name: &Ident, items: &Vec<TraitItem>) -> ItemTrait {
+pub fn create_trait(name: &Ident, items: &Vec<TraitItem>, vis: Visibility) -> ItemTrait {
     ItemTrait {
         attrs: Vec::new(),
-        vis: Visibility::Inherited,
+        vis,
         unsafety: None,
         auto_token: None,
         trait_token: token::Trait::default(),
@@ -181,16 +181,19 @@ pub fn create_dyn_box_arg(fn_arg: &FnArg) -> FnArg {
     }
 }
 
-pub fn create_struct(ident: &Ident, trait_ident: &Ident, mut fields: Fields) -> ItemStruct {
+pub fn create_struct(ident: &Ident, trait_ident: &Ident, mut fields: Fields, vis: Visibility) -> ItemStruct {
     match &mut fields {
         Fields::Named(fields) => {
             ItemStruct {
                 attrs: Vec::new(),
-                vis: Visibility::Inherited,
+                vis,
                 struct_token: token::Struct::default(),
                 fields: Fields::Named(FieldsNamed{
                     brace_token: token::Brace::default(),
                     named: Punctuated::from_iter(fields.named.iter_mut().map(|field| {
+                        // Set the field to public 
+                        field.vis = Visibility::Public(VisPublic{pub_token: token::Pub::default()});
+
                         let delta_type = field.ty.get_delta_type();
                         // If a field is a box of the self type then make it dyn
                         if matches!(delta_type.ref_type, RefType::Box(_)) && delta_type.name == *trait_ident {
@@ -275,10 +278,10 @@ pub fn create_impl_method(sig: &Signature, block: &Block) -> ImplItemMethod {
     }
 }
 
-pub fn create_function(sig: Signature, stmts: Vec<Stmt>) -> ItemFn {
+pub fn create_function(sig: Signature, stmts: Vec<Stmt>, vis: Visibility) -> ItemFn {
    syn::ItemFn{
        sig,
-       vis: syn::Visibility::Inherited,
+       vis,
        attrs: Vec::new() as Vec<syn::Attribute>,
        block: Box::new(syn::Block{
            brace_token: syn::token::Brace{span: syn::__private::Span::call_site()},

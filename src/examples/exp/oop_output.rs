@@ -1,8 +1,8 @@
-enum Exp {
+pub enum Exp {
     Lit { n: i32 },
     Sub { l: Box<Exp>, r: Box<Exp> },
 }
-fn eval(exp: &Exp) -> i32 {
+pub fn eval(exp: &Exp) -> i32 {
     match &exp {
         Exp::Lit { n } => {
             return *n;
