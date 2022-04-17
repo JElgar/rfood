@@ -3,6 +3,8 @@ use syn::visit_mut::*;
 use syn::punctuated::Punctuated;
 use syn::token::{Comma, Colon};
 use syn::__private::Span;
+use syn::parse::Parser;
+use quote::quote;
 
 use crate::context;
 use crate::utils::utils::PopFirst;
@@ -779,7 +781,32 @@ fn transform_expr(expr: &Expr, transform_type: &TransformType, gamma: &Gamma, de
                     ..expr_match.clone()
                 }
             )
-        }
+        },
+        (_, Expr::Macro(expr_macro)) => {
+            // Try and parse the macros parameters into expressions
+            let parser = Punctuated::<Expr, Token![,]>::parse_separated_nonempty;
+            let params = parser.parse2(expr_macro.mac.tokens.clone());
+
+            if params.is_err() {
+                panic!("Could not parse macro params, only macros with expr params are supported");
+            }
+
+            let params = params.unwrap();
+            // Transform the parameter expressions
+            let params: Punctuated<Expr, Token![,]> = params.iter().map(
+                |param| {
+                    transform_expr(param, transform_type, gamma, &delta, return_type.clone())
+                }
+            ).collect();
+
+            Expr::Macro(ExprMacro{
+                mac: Macro{
+                    tokens: quote!(#params),
+                    ..expr_macro.mac.clone()
+                },
+                ..expr_macro.clone()
+            })
+        },
         _ => {
             // println!("Skipping unsupported {:?} with delta {:?}", expr, delta);
             expr.clone()

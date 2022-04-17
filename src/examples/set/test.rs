@@ -24,5 +24,5 @@ pub fn demo() {
         r: Box::new(Lit { n: 2 }),
     });
     let out = exp.eval();
-    print!("{}", out);
+    print!("{:?}", out);
 }
