@@ -17,6 +17,6 @@ pub fn demo() {
         l: Box::new(Exp::Lit { n: 2 }),
         r: Box::new(Exp::Lit { n: 1 }),
     });
-    let _result = eval(*e);
-    println!("{}", eval(*e));
+    let _result = eval(&*e);
+    println!("{}", eval(&*e));
 }

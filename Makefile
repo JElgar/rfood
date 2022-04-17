@@ -3,6 +3,6 @@ clean:
 
 test:
 	# Generate the output files with basic tests, test examples 
-	cargo test
+	cargo +nightly test
 	# Test the generated files
-	cargo test -- --ignored
+	cargo +nightly test -- --ignored
