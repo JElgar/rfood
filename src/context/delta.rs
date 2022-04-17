@@ -386,6 +386,31 @@ impl Delta {
         self.types.extend(types);
     }
 
+    /// Collect delta info from 
+    pub fn collect_for_arm(&mut self, arm: &Arm, gamma: &Gamma) {
+        if let Pat::Struct(PatStruct{
+            path,
+            fields,
+            ..
+        }) = &arm.pat {
+            // Get the type of the thing being matched
+            let enum_name = get_path_call_name(&path);
+
+            println!("Collecting context for arm {:?}", &arm);
+            let variant = gamma.get_constructor(&enum_name);
+
+            // Get the type of the fields
+            match variant {
+                Ok(variant) => {
+                    // TODO this collects all the filed, it should only collect the fileds that are
+                    // in the fileds above.
+                    self.collect_for_enum_variant(&variant);
+                },
+                Err(_) => (),
+            }
+        }
+    }
+
     pub fn collect_for_local(&mut self, local: &Local, gamma: &Gamma) {
         // If the type is specified, use that
         if let Local { pat: Pat::Type(PatType{pat, ty, ..}), .. } = local {

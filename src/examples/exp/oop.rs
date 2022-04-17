@@ -26,5 +26,6 @@ pub fn demo() {
         l: Box::new(Lit{n: 2}),
         r: Box::new(Lit{n: 1})
     });
+    let _result = e.eval();
     println!("{}", e.eval());
 }

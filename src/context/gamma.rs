@@ -219,17 +219,49 @@ impl Gamma {
         }
     }
 
-    pub fn get_enum_variant(&self, enum_ident: &Ident, enum_variant_ident: &Ident) -> Variant {
+    pub fn get_enum_variant(&self, enum_ident: &Ident, enum_variant_ident: &Ident) -> std::result::Result<Variant, NotFound> {
         let enum_ = self
-            .get_enum(&self.get_base_type_name_from_type_name(enum_ident))
-            .unwrap();
-        enum_
+            .get_enum(&self.get_base_type_name_from_type_name(enum_ident));
+
+        if enum_.is_err() {
+            return Err(enum_.err().unwrap());
+        }
+
+        match enum_.unwrap()
             .variants
             .clone()
             .iter()
-            .find(|v| v.ident == enum_variant_ident.clone())
-            .unwrap()
-            .clone()
+            .find(|v| v.ident == enum_variant_ident.clone()) {
+            Some(v) => Ok(v.clone()),
+            None => Err(NotFound{
+                item_name: enum_variant_ident.to_string(),
+                type_name: "enum variant".to_string(),
+            }),
+        }
+    }
+
+    pub fn get_constructor(&self, ident: &Ident) -> std::result::Result<Variant, NotFound> {
+        match self.enums.iter().find_map(|e| {
+            self.get_enum_variant(&e.ident, &ident).ok()
+        }) {
+            Some(v) => Ok(v),
+            None => Err(NotFound{
+                item_name: ident.to_string(),
+                type_name: "constructor".to_string(),
+            }),
+        }
+    }
+
+    pub fn get_enum_variant_enum(&self, enum_variant_ident: &Ident) -> std::result::Result<ItemEnum, NotFound> {
+        match self.enums.iter().find(|e| {
+            e.variants.iter().any(|v| v.ident == enum_variant_ident.clone())
+        }) {
+            Some(e) => Ok(e.clone()),
+            None => Err(NotFound{
+                item_name: enum_variant_ident.to_string(),
+                type_name: "enum for enum variant".to_string(),
+            }),
+        }
     }
 
     pub fn get_generators(&self, trait_ident: &Ident) -> Vec<(ItemStruct, ItemImpl)> {
@@ -521,11 +553,20 @@ impl Gamma {
 
     /// Given a struct/enum varaient name, get the base type name (trait/enum)
     pub fn get_base_type_name_from_type_name(&self, type_name: &Ident) -> Ident {
-        if !self.is_trait(type_name) {
-            self.get_generator_trait(type_name).unwrap().ident
-        } else {
-            type_name.clone()
+        println!("Getting base type name from type name {:?}", type_name);
+        if self.is_trait(type_name) {
+            return type_name.clone();
         }
+
+        if let Some(trait_) = self.get_generator_trait(type_name) {
+            return trait_.ident;
+        }
+        
+        if let Ok(enum_) = self.get_enum_variant_enum(type_name) {
+            return enum_.ident;
+        }
+
+        type_name.clone()
     }
 
     pub fn get_enum_consumers(&self, enum_: &ItemEnum) -> Vec<ItemFn> {

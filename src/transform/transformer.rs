@@ -621,42 +621,14 @@ fn transform_struct_instantiation_path_for_enum(expr_struct: &ExprStruct, gamma:
 
 fn transform_expr_type(expr: &Expr, current_type: &DeltaType, required_type: &DeltaType, gamma: &Gamma) -> Expr {
     if current_type.is_equaivalent(&required_type, &gamma) {
-        expr.clone()
-    } else if 
-        matches!(current_type.ref_type, RefType::Box(_)) && matches!(required_type.ref_type, RefType::None) || 
-        matches!(current_type.ref_type, RefType::Ref(_)) && matches!(required_type.ref_type, RefType::None)
-    {
-        create_dereference_of_expr(expr)
-    } else if current_type.ref_type == RefType::None && matches!(required_type.ref_type, RefType::Box(_)) {
-        create_box_of_expr(expr)
-    } else {
-        panic!("Cannot transform {:?} to {:?}", current_type, required_type)
+        return expr.clone();
     }
-}
-
-// TODO can old_delta be replaced with get type of expr
-fn transform_method_call_arguments(method_call: &ExprMethodCall, gamma: &Gamma, delta: &Delta) -> Punctuated<Expr, Comma> {
-    if method_call.args.len() == 0 {
-        return method_call.args.clone();
+    match (&current_type.ref_type, &required_type.ref_type) {
+        (RefType::Box(_) | RefType::Ref(_), RefType::None) => create_dereference_of_expr(expr),
+        (RefType::None, RefType::Box(_)) => create_box_of_expr(expr),
+        (RefType::Box(_), RefType::Ref(_)) => create_reference_of_expr(&create_dereference_of_expr(expr)),
+        _ => panic!("Cannot transform {:?} to {:?}", current_type, required_type)
     }
-
-    let reciever_ident = delta.get_type_of_expr(&method_call.receiver, gamma).unwrap().name;
-    let method_ident = method_call.method.clone();
-
-    // Get the old and new signature
-    let old_signature = gamma.get_destructor_signature(&reciever_ident, &method_ident).unwrap();
-    let transformed_signature = gamma.get_transformed_destructor_signature(&reciever_ident, &method_ident);
-
-    // Iterate over all the arguments of the method, ignoring the first argment of both the
-    // signatures (as the self arg is handled separately)
-    Punctuated::from_iter(method_call.args.iter().zip(old_signature.inputs.iter().skip(1)).zip(transformed_signature.inputs.iter().skip(1)).map(|((arg, old_fn_arg), new_fn_arg)| {
-        // If the old arg is a box type and the new arg is not
-        if matches!(old_fn_arg.get_ref_type(), RefType::Box(_)) && new_fn_arg.get_ref_type() == RefType::None {
-            create_dereference_of_expr(&arg.clone())
-        } else {
-            arg.clone()
-        }
-    }))
 }
 
 fn transform_block(block: &Block, transform_type: &TransformType, gamma: &Gamma, delta: &Delta, return_type: EType) -> Block {
@@ -684,7 +656,7 @@ fn transform_expr(expr: &Expr, transform_type: &TransformType, gamma: &Gamma, de
             return expr.clone();
         }
         (TransformType::OOPToFP, Expr::MethodCall(expr_method_call)) if gamma.is_destructor_method_call(&expr_method_call, &delta) => {
-            let ExprMethodCall { receiver, method, .. } = expr_method_call;
+            let ExprMethodCall { receiver, method, args, .. } = expr_method_call;
             // TODO use clean_type
             let receiver_expr = if matches!(delta.get_type_of_expr(&receiver, gamma).unwrap().ref_type, RefType::Box(_)) {
                 create_dereference_of_expr(&receiver)
@@ -692,10 +664,13 @@ fn transform_expr(expr: &Expr, transform_type: &TransformType, gamma: &Gamma, de
                 *receiver.clone()
             };
 
-            let mut new_args = Punctuated::from_iter(vec![receiver_expr]);
-            new_args.extend(transform_method_call_arguments(&expr_method_call, gamma, &delta));
+            let mut new_args = vec![receiver_expr];
+            let old_args: Vec<Expr> = args.iter().cloned().collect();
+            new_args.extend(old_args);
+            let mut fn_expr = create_function_call(&method, Punctuated::from_iter(new_args));
 
-            let fn_expr = create_function_call(&method, new_args);
+            // Perform regular transform on function call
+            fn_expr = transform_expr(&fn_expr, &transform_type, &gamma, &delta, return_type);
        
             // If the method is a mutable self call
             if gamma.is_mutable_self_method_call(&expr_method_call, &delta) {
@@ -704,7 +679,6 @@ fn transform_expr(expr: &Expr, transform_type: &TransformType, gamma: &Gamma, de
             } else {
                 fn_expr
             }
-
         },
         // Any other method call, transform all the args and the receiver
         (_, Expr::MethodCall(method_call)) => {
@@ -796,7 +770,7 @@ fn transform_expr(expr: &Expr, transform_type: &TransformType, gamma: &Gamma, de
                     let enum_variant_ident = expr_struct.path.get_delta_type().name;
                     let enum_variant = gamma.get_enum_variant(&enum_variant_ident, &enum_variant_ident);
                     let mut enum_delta = Delta::new();
-                    enum_delta.collect_for_enum_variant(&enum_variant);
+                    enum_delta.collect_for_enum_variant(&enum_variant.unwrap());
 
                     let required_type = enum_delta.get_type_of_member(&field.member);
                     let new_expr = transform_expr(&field.expr, transform_type, gamma, &delta, EType::DeltaType(required_type.clone()));
@@ -867,11 +841,8 @@ fn transform_expr(expr: &Expr, transform_type: &TransformType, gamma: &Gamma, de
                         // happen for enums)
                         // Then each value collected is a borrow
                         // TODO
-                        // if gamma.is_trait(expr_match.expr) {
-                        // }
-                        // let mut delta = delta.clone();
-                        // delta.collect_for_arm()
-                        
+                        let mut delta = delta.clone();
+                        delta.collect_for_arm(&arm, &gamma);
                         Arm {
                             body: Box::new(transform_expr(&arm.body, transform_type, gamma, &delta, return_type.clone())),
                             ..arm.clone()
