@@ -30,6 +30,12 @@ pub struct DeltaType {
     pub ref_type: RefType,
 }
 impl DeltaType {
+    pub fn new(name: &str, ref_type: RefType) -> Self {
+        DeltaType {
+            name: Ident::new(name, Span::call_site()),
+            ref_type
+        }
+    }
     pub fn is_equaivalent(&self, other: &Self, gamma: &Gamma) -> bool {
         self == other || (self.ref_type == other.ref_type && gamma.is_subtype_of(&self.name, &other.name))
     }

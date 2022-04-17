@@ -1215,6 +1215,35 @@ fn transform_expr(
                 ..expr_binary.clone()
             })
         },
+        (_, Expr::If(expr_if)) => {
+            Expr::If(ExprIf{
+                cond: Box::new(
+                    transform_expr(&*expr_if.cond, transform_type, gamma, &delta, EType::DeltaType(DeltaType::new("bool", RefType::None)))
+                ),
+                then_branch: transform_block(
+                    &expr_if.then_branch,
+                    transform_type,
+                    gamma,
+                    &delta,
+                    return_type.clone(),
+                ),
+                else_branch: if let Some((else_token, box else_branch)) = expr_if.else_branch.clone() {
+                    Some((
+                        else_token,
+                        Box::new(transform_expr(
+                            &else_branch,
+                            transform_type,
+                            gamma,
+                            &delta,
+                            return_type,
+                        ))
+                    ))
+                } else {
+                    None
+                },
+                ..expr_if.clone()
+            })
+        }
         _ => {
             // println!("Skipping unsupported {:?} with delta {:?}", expr, delta);
             expr.clone()
