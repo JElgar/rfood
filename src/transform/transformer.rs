@@ -1,8 +1,11 @@
 use syn::*;
 use syn::visit_mut::*;
 use syn::punctuated::Punctuated;
-use syn::token::{Comma, Colon};
-use syn::__private::Span;
+use syn::token::Comma;
+use std::fs::File;
+use std::io::Read;
+use std::path::PathBuf;
+use ast::print::write_and_fmt;
 
 use crate::context;
 use crate::utils::utils::PopFirst;
@@ -16,10 +19,84 @@ use ast::create::*;
 use crate::transform;
 use transform::visitors::*;
 
+use quote::quote;
+
 #[derive(clap::ArgEnum, Clone)]
 pub enum TransformType {
     OOPToFP,
     FPToOOP,
+}
+
+fn remove_item_from_syntax(syntax: &mut syn::File, item: syn::Item) {
+    let index = syntax.items.iter().position(|sitem| *sitem == item);
+    if index.is_some() {
+        syntax.items.remove(index.unwrap());
+    }
+}
+
+pub fn transform_file(path: &PathBuf, output_path: &PathBuf, transform_type: &TransformType) {
+    //-- Do the transfrom --//
+    let mut file = File::open(path).expect("Unable to open file");
+
+    let mut src = String::new();
+    file.read_to_string(&mut src).expect("Unable to read file");
+    let mut syntax: syn::File = syn::parse_file(&src).expect("Unable to parse file");
+    let mut transformed_syntax = syn::File{
+        items: Vec::new(),
+        ..syntax.clone()
+    };
+
+    // Generate global gamma context
+    let mut gamma: Gamma = generate_gamma(&syntax);
+    let gamma_mut_borrow = &mut gamma;
+  
+    match transform_type {
+        TransformType::OOPToFP => {
+            // Transform all the interfaces 
+            for trait_ in gamma_mut_borrow.traits.clone() {
+                // Add the transformed items to the transformed syntax
+                transformed_syntax.items.append(&mut transform_trait(&trait_, gamma_mut_borrow));
+
+                // Remove the original trait from the syntax
+                for (item_struct, item_impl) in gamma_mut_borrow.get_generators(&trait_.ident) {
+                    remove_item_from_syntax(&mut syntax, syn::Item::Struct(item_struct));
+                    remove_item_from_syntax(&mut syntax, syn::Item::Impl(item_impl));
+                }
+                remove_item_from_syntax(&mut syntax, syn::Item::Trait(trait_.clone()));
+            }
+        }, 
+        TransformType::FPToOOP => {
+            // Transform all the enums
+            for enum_ in gamma_mut_borrow.enums.clone() {
+                // Get the consumers for the enum 
+                let consumers = gamma_mut_borrow.get_enum_consumers(&enum_);
+
+                // 1st parse, transform types 
+                transformed_syntax.items.extend(transform_enum(&enum_, gamma_mut_borrow));
+                // 2nd parse, transform items
+                transformed_syntax.items = Vec::from_iter(transformed_syntax.items.iter().map(|item| {
+                    transform_item(&item, &transform_type, &gamma_mut_borrow)
+                }));
+
+                // For all the consumers, for each arm create a method in each impl
+                for consumer in consumers {
+                    remove_item_from_syntax(&mut syntax, syn::Item::Fn(consumer.clone()));
+                }
+                remove_item_from_syntax(&mut syntax, syn::Item::Enum(enum_.clone()));
+            }
+            
+            // Transform all the consumers
+        }
+    }
+
+    for item in &syntax.items {
+        transformed_syntax.items.push(transform_item(item, &transform_type, &gamma));
+    }
+
+    // Write output to file
+    if write_and_fmt(output_path, quote!(#transformed_syntax)).is_err() {
+        panic!("Unable to write output file");
+    }
 }
 
 /// Transform a interface (trait) into a datatype (enum)

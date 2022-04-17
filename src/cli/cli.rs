@@ -22,6 +22,8 @@ pub enum Commands {
         /// The path of the file to transform
         #[clap(required = true, parse(from_os_str))]
         path: PathBuf,
+        #[clap(default_value = "outputs/output.rs", parse(from_os_str))]
+        output_path: PathBuf,
         #[clap(arg_enum, default_value_t = TransformType::OOPToFP)]
         transform_type: TransformType,
     },
