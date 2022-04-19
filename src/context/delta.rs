@@ -436,6 +436,7 @@ impl Delta {
     pub fn get_type_of_expr(&self, expr: &Expr, gamma: &Gamma) -> std::result::Result<DeltaType, TypeInferenceFailed> {
         match expr {
             // TODO Match self.thing here so we can do in any order
+            // TODO add handling reference
             Expr::Unary(ExprUnary { expr, op, .. }) => {
                 let type_ = self.get_type_of_expr(expr, gamma);
                 match (op, &type_) {
@@ -450,11 +451,12 @@ impl Delta {
                 Ok(self.get_type(&get_ident_from_path(path)))
             },
             Expr::Call(ExprCall {..}) if new_box_call_expr(expr).is_ok() => {
-                let inner_expr_type_name = self.get_type_of_expr(&new_box_call_expr(expr).unwrap(), gamma);
-                if inner_expr_type_name.is_err() {
-                    return inner_expr_type_name;
+                let inner_expr_type = self.get_type_of_expr(&new_box_call_expr(expr).unwrap(), gamma);
+                if inner_expr_type.is_err() {
+                    return inner_expr_type;
                 }
-                Ok(DeltaType{name: inner_expr_type_name.unwrap().name, ref_type: RefType::Box(Box::new(RefType::None))})
+                let inner_expr_type = inner_expr_type.unwrap();
+                Ok(DeltaType{name: inner_expr_type.name, ref_type: RefType::Box(Box::new(inner_expr_type.ref_type))})
             },
             // TODO this is wrong if the call is not being transformed, this should be checked for
             // both the call and method call. Might be worth taking in a "transformed" boolean
@@ -513,9 +515,11 @@ impl Delta {
             Expr::Binary(ExprBinary { left, right, op, .. }) => {
                 match op {
                     BinOp::Eq(_) => Ok(DeltaType{name: Ident::new("bool", Span::call_site()), ref_type: RefType::None}),
+                    BinOp::Add(_) | BinOp::Div(_) => self.get_type_of_expr(left, gamma),
                     _ => panic!("Unsupported op {:?}", op)
                 }
             },
+            Expr::Paren(ExprParen { expr, .. }) => self.get_type_of_expr(expr, gamma),
             _ => Err(TypeInferenceFailed{expr: expr.clone()}),
         }
     }

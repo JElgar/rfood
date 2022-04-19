@@ -7,4 +7,5 @@ pub mod multi_interface;
 pub mod mutable;
 pub mod report;
 pub mod shape;
+pub mod shape2;
 pub mod list;

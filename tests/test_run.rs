@@ -52,3 +52,12 @@ fn test_run_transform_example_fp_set() {
         TransformType::FPToOOP
     )
 }
+
+#[test]
+fn test_run_transform_example_oop_shape2() {
+    test_run_transform_example(
+        PathBuf::from(r"./examples/src/shape2/oop.rs"),
+        PathBuf::from(r"./outputs/src/shape2/oop.rs"),
+        TransformType::OOPToFP
+    )
+}
