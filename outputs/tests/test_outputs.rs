@@ -40,3 +40,16 @@ fn test_output_set_fp() {
     let set3 = set3.insert(2);
     assert!(set3.contains(2));
 }
+
+#[test]
+fn test_output_shape_oop() {
+    use outputs::shape2::oop::*;
+    
+    let circle = Shape::Circle;
+    assert!(side_count(&circle) == 1);
+    assert!(internal_angle(&circle) == 0);
+    
+    let triangle = Shape::Triangle;
+    assert!(side_count(&triangle) == 3);
+    assert!(internal_angle(&triangle) == 180);
+}
