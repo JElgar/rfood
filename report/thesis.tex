@@ -295,6 +295,8 @@ Therefore, to truly harness the value of both paradigms, in \cite{food} \weixin 
 
 The goal of this paper is to replicate this implementation in Rust. Rust was created by the Mozilla foundation with the intention of replacing C++ in their stack. It has a strong focus on performance and safety which it achieves partly through its borrow checker. With Rust being a low level language it exposes concepts to the developer which are not available in Scala, such as references and borrows. This requires extension to the existing transformer to allow it to transform with these concepts. 
 
+
+
 % -----------------------------------------------------------------------------
 
 % \noindent
@@ -305,22 +307,78 @@ The goal of this paper is to replicate this implementation in Rust. Rust was cre
 \chapter{Background}
 \label{chap:technical}
 
-% Following on from this dudes work with rust
+In \cite{warburton}, Warburton discusses the on going evolution of modern languages focusing on their adoptions of functional and object oriented features. He states, object oriented and functional features were both introduced as improvements to more traditional procedural (imperative) languages in the 1980s. In these early days languages inherently had a combination of both paradigms. For example LISP, a functional language, had the CLOS (common LISP object system), and Smalltalk, an object oriented language, had lambda expression and operations equivalent to map, reduce and filter.
 
-This paper extends and evaluates the work of \weixin in \cite{food}. \weixin proposes a framework for a sub set of possible transformations and creates an implementation of this framework in a single programming language Scala. 
+Between the 1990s and the 2000s this mulit-paradigm trend died down as Object-oriented programming became the dominant style with popular languages such as Java and C++.
 
-The work of \weixin in \cite{food} focuses on the transformation of the
+However, since then the popularity of multi-paradigm features has risen again. Traditionally object oriented languages (including C++ and Java) are adding in functional features, whilst new languages such as Rust and Go are created with multi-paradigm features.
+
+Warburton concludes with "The future is hybrid: pick the best features and ideas from both
+functional and object-oriented approaches in order to solve the
+problem at hand." \cite{warburton}. This statement is the motivation for this paper. Programmers are increasingly working within multi-paradigm projects and are expected to pick the "best" features from a paradigm depending on their task at hand. Selecting the "wrong" style or if requirements change, can be a costly as refactoring between styles is a time consuming process.
+
+With this it is clear there is value in a tool which can automatically switch between features in these paradigms. The work of \weixin \cite{food}, demonstrates, that practical equivalence can be drawn between certain features and as such an automatic transformer, in some capacity, can be created. The goal of this paper, is to both replicate the functionality of that paper in a different language, but also to extend the transformer to support a wider range of input programs.
 
 \section{Decomposition}
 
-Decomposition in computer science, is how a problem is broken down into smaller parts. Object oriented programming uses classes or objects for this whilst functional programming uses functions and data types.
+% "There are important design tradeoffs between functional and object-oriented decom-
+% positions in terms of extensibility and expressiveness. As acknowledged by the notorious
+% Expression Problem [18, 7, 23], these two decomposition styles are complementary in terms
+% of extensibility."
 
-The pure OOP style described by Cook in \cite{cook} and used by \weixin to restrict the input to the transformer, maps closely to the object style in Rust. In pure OOP interfaces are used as types. Interfaces describe required operations which a class must implement to be of this type. These operations are referred to as destructors throughout this paper, as these operations "tear down" the object to another type. Classes which define these operations are then implementations of this interface. In Rust, interfaces are implemented as traits, whilst classes are implemented as structs. Structs can then explicitly implement traits with an impl statement as shown in \autoref{fig:dec-ex-oop}. 
+Both object oriented and functional programming are approaches to decomposition, which is the process of breaking a complex problem down into less complex sub problems. The primary difference between these two paradigms, is how data abstraction is achieved.
 
-With this style, destructors are used as method calls on an object that implements the interface. These methods can optionally have \verb|self| as the first argument, which allows self-reference within these methods, as shown in \autoref{fig:dec-ex-oop}. If required this argument is automatically passed in.
+\subsection{Object Oriented Decomposition}
 
-%TODO fix the 2nd sentence
-In functional style types are algebraic datatypes with various constructors. Constructor are variation of this type. Consumers can then be defined, which are functions that take in a datatype and pattern match on its constructors. The equivalent in Rust, are Enums. Enums contain Enum variant which are the constructors of the datatypes. Consumers are then function which take in an instance of the Enum as the first argument.  \autoref{fig:dec-ex-fp} shows an equivalent example to above in functional style.
+Object oriented decomposition achieves data abstraction through the creation of interfaces. This is an "operation first" \cite{food} approach as these interfaces describe the operations that can be applied to the type but not the data within the types.
+Throughout this paper these operations are referred to as "destructors" as they "tear down" an object into another type.
+Throughout \cite{food} \weixin uses Pure OOP from \cite{cook} as the style of object oriented decomposition. In Pure OOP, these interfaces are types rather than classes.
+In this style, classes are "object generators" \cite{food} meaning they create objects which satisfy a specified interface.
+
+Although Rust's OOP features do not map directly to Pure OOP style, equivalence between the styles can be drawn. In Rust interfaces are defined as \rust{trait}s. Lines 3-6 demonstrate the definition of a trait called \rust{Shape}. \rust{Shape} defines two destructors, \rust{area} and \rust{perimeter}. 
+
+In Rust the concept of classes are split into two components, \rust{struct} and \rust{impl}. A \rust{struct} defines a collection of attributes (the data), whilst the \rust{impl} block can implement a given trait on the struct (the operations). In Rust a \rust{struct} can implement multiple traits. \rust{struct}s are also treated a types them selves, meaning methods can be defined directly on them (using an \rust{impl} block with no \rust{for} trait). Despite this a \rust{struct} which implements a single \rust{trait} is equivalent to a Pure OOP class. 
+Lines 8-19 demonstrte how a Pure OOP style class, which implements the \rust{Shape} interface, can be created in Rust. 
+Lines 8-10 create the \rust{Circle} \rust{struct} with a single attribute \rust{radius}. Lines 11-19, then implement the \rust{Circle} \rust{trait}. In the implementation an definition for each of the required methods in included. 
+Lines 21-32 demonstrate another implementation of a Pure OOP class. Therefore in this example the shape interface has two generators, \rust{Circle} and \rust{Square}.
+
+% This section will describe the key components of this style and their equivalence in Rust. \autoref{fig:dec-ex-oop} will be used throughout as an example of a basic object oriented program in Rust. 
+
+\subsubsection{Inheritance}
+
+Inheritance is one of the central concepts in object oriented programming \cite{cook_palsberg_1989}. It allows developers to share logic between linked classes, preventing duplicate logic. 
+However Rust has very limited support for traditional inheritance. Instead Rust opts for composition, which enables structs to reference other objects (structs and traits).
+Rust also has support for default implementations. These are definitions of destructors directly in the trait, meaning structs that then implement the method do not have to provide a definition. In this case if a definition is provided in an impl block, that definition is used other wise the default implementation is used.
+An example is provided in \autoref{fig:shape2}. In this example the \rust{Shape} trait, defines two operations \rust{side_count} with no default implementation and \rust{internal_angle}, which provides a default implementation.
+Two structs then implement this trait, \rust{Circle} and \rust{Square}. Both provide an implementation for the \rust{side_count}, method as required (as there is no default), whilst only \rust{Circle} provides an implementation for the \rust{internal_angle} method.
+As a result, calling \rust{internal_angle} on a \rust{Circle} object uses the overridden definition (returning 0) whilst calling it on \rust{Triangle} will use the default implementation.
+
+\subsubsection{Self Reference}
+
+When defining a destructors on a trait, an optional argument \rust{self} can be included as the first argument in the signature. 
+This argument has type \rust{Self} and allows self-reference within the destructor implementation.
+With in an \rust{impl} block for a \rust{struct}, the \rust{Self} type is equivalent to the struct, this therefore allows the method to access both attributes and operations on the object the method is called on.
+However, in default implementations (on traits) \rust{Self} is equivalent to the trait. Therefore, the method will not be able to access the fields of \rust{self} and instead only be able to access the operations.  
+
+In Rust if the self argument is not included in the method this is actually called an "associated function" as it no longer has access to an instance of the type.
+
+
+\subsection{Functional Decomposition}
+
+In contrast to object oriented decomposition, the first stage of data abstraction for functional decomposition is the creation of datatypes.
+These data types specify the attributes of each variant, hence functional decomposition is described as "data first" \cite{food}. 
+Similarly to the OOP style, \weixin uses a very restricted form of functional programming for defining the transformer.  
+In this style consumers of datatypes are defined which pattern match on the type.
+
+In Rust \rust{enum}s are equivalent to datatypes. Lines 3-6 of \autoref{fig:dec-ex-fp} demonstrate the creation of an \rust{enum} with two variants \rust{Circle} and \rust{Square}. Note how the attributes of these variants (radius for circle and side for square) are defined directly in the datatype.
+
+In Rust consumers are top level functions, which take a datatypes as the first argument. They then contain a single match statement on the datatype argument, with an arm for each of the variants. In \autoref{fig:dec-ex-fp} both \rust{area} and \rust{perimeter} are consumers of the \rust{Shape} datatype. 
+They both pattern match on the parameter of type shape, defining responses for each variant. The patterns of arms of the matches statement such as \rust{Shape::Square { side }}, destruct the type of parameter, giving access to the attributes of the provided \rust{Shape} variant. 
+
+\subsubsection{Wildcard}
+
+In a similar vein to inheritance in OOP, match statements support the wildcard operator. This will match any pattern that has not yet been matched by a match arm. This is demonstatetd in \autoref{fig:inherintance-example}
+Similarly if all variants of the datatype have the implementation, no match statement is required. 
 
 \begin{figure}
 \centering
@@ -332,6 +390,22 @@ In functional style types are algebraic datatypes with various constructors. Con
 \begin{subfigure}{.5\textwidth}
     \rustexample{shape/fp}
     \caption{Functional Programming - Datatype with two consumers}
+    \label{fig:dec-ex-fp}
+\end{subfigure}
+\caption{Rust Decomposition Examples}
+\label{fig:dec-ex}
+\end{figure}
+
+\begin{figure}
+\centering
+\begin{subfigure}{.5\textwidth}
+    \rustexample{shape2/oop}
+    \caption{Object Oriented Programming - Default implementation}
+    \label{fig:dec-ex-oop}
+\end{subfigure}%
+\begin{subfigure}{.5\textwidth}
+    \rustexample{shape2/fp}
+    \caption{Functional Programming - Wildcard pattern}
     \label{fig:dec-ex-fp}
 \end{subfigure}
 \caption{Rust Decomposition Examples}
@@ -354,9 +428,9 @@ In functional style types are algebraic datatypes with various constructors. Con
 \label{fig:recursive-typedef}
 \end{figure}
 
+\section{Rust}
 
-
-\section{Rust Type System}
+\subsection{Rust Type System}
 "Rust is the first industry-supported programming language to overcome the longstanding tradeoff between the safety guarantees of higher-level languages (like Java) and the control over resource management provided by lower-level “systems programming” languages (like C and C++)" \cite{rustsafesystems}. Rust achieves this by using an ownership type system. This gives developers the control to express low level concept, in a similar way to languages such as C, whilst maintaining the safety of higher level languages by catching potential errors at compile time with the strong type system. 
 
 This unique and strong type system of Rust presents additional challenges when creating a transformer for the rust programming 
@@ -376,6 +450,17 @@ In a similar vein, return types of methods cannot be the trait type itself, with
 
 % TODO This needs to validation
 Although traits are not a fixed size, enums are. This means in OOP style the dyn tokens must be removed. With these additional requirements of the rust typing system, additional steps are required to transform the code.
+
+\section{Decomposition without Regrets}
+% Following on from this dudes work with rust
+
+In "Decomposition without Regrest" \cite{food}, \weixin claims to have created a language agnostic framework which can transform between object oriented and functional decomposition styles. \weixin outlines a syntax called "FOOD calculus", which is heavily based on Scala. Using this syntax, \weixin defines a set of type-directed transformation rules, to formalise transformations between Cook's pure OOP decomposition style, outlined in \cite{food} and functional decomposition style.
+
+These rules outline the fundamental transformations required to convert between the two styles within FOOD calculus, including transforming the top level types (datatype and traits) and their associated functions (generators, constructors, destructors and consumers).
+
+% \weixin uses type directed rules to formalize the transformation to perform.
+
+\weixin creates an implementation of this transformer in Scala and demonstrates the mapping between the theoretical rules in FOOD, and practical Scala examples.
 
 
 
@@ -617,6 +702,7 @@ The transforming of types is handled in the \verb|transform_expr_type| function.
 \section{Inheritance}
 \label{sec:inheritance}
 
+% TODO as metnitioned in \sec oop
 Inheritance is one of the central concepts in object oriented programming \cite{cook_palsberg_1989}. It allows developer to share logic between linked classes, preventing duplicate logic. Rust, however, does not support traditional inheritance. Instead it opts for composition, which allows structs to contain other structs directly and default implementations in traits.
 
 A limitation of default implementations is Rust cannot call methods on dynamic types, or use them to create structs.
@@ -739,11 +825,30 @@ This section will explore some case studies of programs which the tansformer can
 \section{Comparison with Scala transformer} 
 
 % TODO is this actually the set example from food?
-\autoref{fig:trans-set-ex} demonstrates that the transformer successfully transforms the set example from \cite{food}. The input, show in \autoref{fig:trans-set-ex-input} is written in the pure OOP style outlined in \autoref{sec:}. The trait (lines 1-3) is transformed into an enum and each struct is transformed into one of the enum variants. For each of the variants the fileds are successfully transformed with the dyn token removed. For each of the trait functions a consumer has been created with correspoding match expressions with the body as a transformed version from the struct implementation block.
+% TODO explain what the xample is -> its a way to construct expressions
+% TODO A subsection of the example form food has been included for the dicussion, however a transfomration of the full example can be found int he appendix.
+\autoref{fig:trans-set-ex} demonstrates that the transformer successfully transforms the set example from \cite{food}. 
+The outputted code passes a set of unit tests, which checks the functionality remains the same after the transformation.
+
+The input, show in \autoref{fig:trans-set-ex-input} is written in the pure OOP style outlined in \autoref{sec:}. The trait (lines 1-3) is transformed into an enum and each struct is transformed into one of the enum variants. For each of the variants the fileds are successfully transformed with the dyn token removed. For each of the trait functions a consumer has been created with correspoding match expressions with the body as a transformed version from the struct implementation block.
 
 Each use of the type is also transformed, meaning destructor calls are replaced with the \rust{eval} consumer, both in the match statements and in the demo function.
 
-The outputed code is correct and matches the same behaviour as the original. Similarly the typing of the outputted code is valid.
+% TODO In reverse... FP to OOP
+
+\subsection{Visibility}
+
+% TODO summarise what visibility is
+The expression example also demonstrates that the visibility on the inputs is maintained where possible. The visitiblity of the enum is taken directly from the trait. Enum variants inherently match the publicity of the enum, this means the visibility of the individual structs cannot be maintained. Equally in a trait the publicity of the items cannot be controller. Therefore visibility of the consumers is also taken directly from the trait. The visibility of other definitions (such as the \rust{demo} function) are unchanged.
+% TODO include a not pub example somewhere so this actually makes sense
+
+\subsection{Typing}
+
+Similarly the typing of the outputted code is valid. The notible transfomrations are:
+
+On line 20 the call to the eval consumer, the first argument is successfully converted from a box to a reference using firstly the \rust{*} operator, to deference the box and then using the reference \rust{&} expression, to create a reference of the value.
+
+In the eval consumer, the match expression is on a borrow of the expression. This means the fields exposed in the match pattern are also borrows. This is why the value (\rust{n}) must be dereferenced on line 8, and why they can be used directly for the calls to \rust{eval} on line 11.
 
 Although the output typing is correct, it is clear in the demo function the typing could be simplified. On line 16 a Box of an expression is defined. This expression is then deferenced (using the \rust{*} operator) before each use. This demo function could therefore be simplified by removing the box and the dereferences throughout. In this simple example this approach could work however if the box expression was later used as a box there is no guarantee that this would be simplest solution. Although not address in this paper, a metric could be determined for the "optimal" typing solution, for example based on the number of operations applied. This could then be used to find a simpler solution.
 
@@ -765,15 +870,50 @@ Although the output typing is correct, it is clear in the demo function the typi
 \label{fig:trans-set-ex}
 \end{figure}
 
+\subsection{Macros}
+
+The Expression example also demonstrates the successful transformation of macros arguments. However as mentioned in the implementation section \autoref{sec:}, this approach is very limited and relies on both the arguments to the macro being an expression and the result of the expression being used explicitly, rather than manipulating the expression it self.
+
+Improvements to this approach could definitely be made, however a generalized solution for transforming macros is not possible given their flexibility. Going forward some macros would require custom transformations, which would have to be written by the developers before full transformations could be performed. 
+
+\subsection{Inheritance}
+
+% TODO add in example
+% TODO xplain the example
+In order to demonstrate the inheritance functionality, sections of the transformation of a Shape are included in \autoref{fig:}. The full example can be found in the \autoref{appx:}.
+
+The trait includes two methods, one with a default implementation and one without. The method without the default implementation is handled as before, creating a consumer with a match for each struct with an implementation of the trait. The \rust{internal_angle} function, however is handled differently. Given the circle method overrides the default implementation, this is handled the same as before with a match arm created for it. In contrast, the triangle class, which does not override the method, does not have a match arm. This type is instead caught by the wildcard pattern which contains the transformed block from the trait default implementation.   
+
+% TODO explian this waaay better
+Note, the example default implementation returns an primative type, i32. Currently the transformer does not support returning the Self type of the trait as mentioned in \autoref{sec:}. This is beacuse the return type must be sized, and there is no guarantee Self type will be sized. 
+
+Limited support could be added, life times or somethng...
+
 \section{Additional features} 
 
-\section{Limitations}
+\subsection{Mutability}
+
+\autoref{fig:} shows the output of the transformation of the example discussed in \autoref{fig:}. This demonstrates how the mutability can be wrapped inside the constructor, such that the method returns a new instance of the class.
+
+This demonstrates that the transformer can be extended to support multiple different styles of input. However currently the transformer only supports a single outputs style. This means if this style is transfomred from OOP to FP and back again, it will be transfomred in the pure OOP style outlined in \autoref{sec:}.
+In the future it would be feasible for the transfomrer to support different outputs formats and styles. This would allow developers to not only select the paradigm by also the style within that paradigm to use.
+
+Despite this the current implementation is very limited. The destructors cannot have ant return values, and the created implementations are not optimatal. \autoref{fig:} shows an ideal output, with the mutable variables removed. Although not in scope of this transformer these method bodies may be possible to simplify in the future.
+
+\subsection{Generics}
 
 \section{Wider picture}
 
+Despite the improvements included in the Rust implementation of the transformer, there are still many limitations that prevent the tool from being widely useful in its current state. Expecting developers to transform sections of code before using the transformer removes the real benifits of the tool in a paractical setting.
+
+One key limitation of the tool is the lack of support for different expressions. The current tool support a small subsect of possible expression in Rust which means many programs would be using unsupported feature. Examples of this include unnamed enums, and certain binary expressions. However, in most cases these missing feature can simply be added to the tool with minimal effort.
+
 \subsection{Nested pattern matching and guards}
 
-\subsection{Macros}
+Similarly to \cite{food}, another key limitation is not supporting nested pattern matching. Nested pattern matching is a very useful tool in the functional decomposition style. Example
+
+Nester pattern matching can also support matching on mutliple objects at the same time, as this is simply nested pattern matching on a tuple. Example 
+
 
 % {\bf A topic-specific chapter} 
 % \vspace{1cm} 
@@ -807,6 +947,17 @@ Although the output typing is correct, it is clear in the demo function the typi
 
 \chapter{Conclusion}
 \label{chap:conclusion}
+
+The Rust transformer demonstrates the feasibility of using the framework outlined by \weixin in \cite{food}, with a different languages. It shows that, the fundamental features from the transformer can be mapped to the rust language, with transformation of datattype, traits and their associated functions all possible. 
+
+However to achieve this additional cosiderations are required. Primarily, Rust low level type system, introduces many additional challenges not addressed in the \cite{food} transformer. This requires the transformer to have a greater degree of type inference, maintaining the reference type as well as type name.
+
+Rust was selected for this project as many multiparadigm languages exist with greater level of abstractions, whilst rust reamins low level and has a unique typing system. With this there are many differences from Scala. This allows Rust to demonstate the limitation in the generalization provided by 
+\weixin. It is worth multi-paradigm langauges more similar to scala, may pose fewer issue in the implementation.
+
+This paper also demostrates that the transfomrer can be extended to support addiitonal styles. Althrough limited in the current implemnetation, this could be extended in the future to support a variety of input and output formats.
+
+There is still a large amount of work reuired for the tool to become a practical tool for developer. The basic mutability support and addiiton of generics in the paper is a step in the right direction to support more styles of input, however with the vast input spaces there are many feature which remain unsupported.
 
 % \noindent
 % The concluding chapter of a dissertation is often underutilised because it 
