@@ -41,14 +41,15 @@ fn test_set_fp() {
     assert!(contains(&set3, 2));
 }
 
+#[test]
 fn test_shape2_oop() {
     use examples::shape2::oop::*;
 
-    let circle = Circle{};
+    let circle = Circle;
     assert!(circle.side_count() == 1);
     assert!(circle.internal_angle() == 0);
 
-    let triangle = Triange{};
+    let triangle = Triangle;
     assert!(triangle.side_count() == 3);
-    assert!(triangle.internal_angle() == 3);
+    assert!(triangle.internal_angle() == 180);
 }

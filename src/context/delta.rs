@@ -302,6 +302,7 @@ fn fields_to_delta_types(fields: &Fields) -> Vec<(Ident, DeltaType)> {
                 (field.ident.clone().unwrap(), field.ty.get_delta_type())
             ).into_iter().collect()
         },
+        Fields::Unit => vec![],
         _ => panic!("Unanmed structs/enums are not supported")
     }
 }
