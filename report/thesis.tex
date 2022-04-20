@@ -335,23 +335,23 @@ Throughout this paper these operations are referred to as "destructors" as they 
 Throughout \cite{food} \weixin uses Pure OOP from \cite{cook} as the style of object oriented decomposition. In Pure OOP, these interfaces are types rather than classes.
 In this style, classes are "object generators" \cite{food} meaning they create objects which satisfy a specified interface.
 
-Although Rust's OOP features do not map directly to Pure OOP style, equivalence between the styles can be drawn. In Rust interfaces are defined as \rust{trait}s. Lines 3-6 demonstrate the definition of a trait called \rust{Shape}. \rust{Shape} defines two destructors, \rust{area} and \rust{perimeter}. 
+Although Rust's OOP features do not map directly to Pure OOP style, equivalence between the styles can be drawn. In Rust interfaces are defined as \rust{trait}s. Lines 3-6 of \autoref{fig:dec-ex-oop} demonstrate the definition of a trait called \rust{Shape}. \rust{Shape} defines two destructors, \rust{area} and \rust{perimeter}. 
 
 In Rust the concept of classes are split into two components, \rust{struct} and \rust{impl}. A \rust{struct} defines a collection of attributes (the data), whilst the \rust{impl} block can implement a given trait on the struct (the operations). In Rust a \rust{struct} can implement multiple traits. \rust{struct}s are also treated a types them selves, meaning methods can be defined directly on them (using an \rust{impl} block with no \rust{for} trait). Despite this a \rust{struct} which implements a single \rust{trait} is equivalent to a Pure OOP class. 
 Lines 8-19 demonstrte how a Pure OOP style class, which implements the \rust{Shape} interface, can be created in Rust. 
-Lines 8-10 create the \rust{Circle} \rust{struct} with a single attribute \rust{radius}. Lines 11-19, then implement the \rust{Circle} \rust{trait}. In the implementation an definition for each of the required methods in included. 
-Lines 21-32 demonstrate another implementation of a Pure OOP class. Therefore in this example the shape interface has two generators, \rust{Circle} and \rust{Square}.
+Lines 8-10 create the \rust{Circle} \rust{struct} with a single attribute \rust{radius}. Lines 11-19, then implement the \rust{Circle} \rust{trait}. In the implementation a definition for each of the required methods in included. 
+Lines 21-32 demonstrate another implementation of a Pure OOP class. Therefore in this example the shape interface has two generators, \rust{Circle} and \rust{Square}. These generators can then be used to create an instance of a \rust{Shape} with the following syntax \rust{Circle{radius: 12.0}}.
 
 % This section will describe the key components of this style and their equivalence in Rust. \autoref{fig:dec-ex-oop} will be used throughout as an example of a basic object oriented program in Rust. 
 
 \subsubsection{Inheritance}
 
-Inheritance is one of the central concepts in object oriented programming \cite{cook_palsberg_1989}. It allows developers to share logic between linked classes, preventing duplicate logic. 
+Inheritance is one of the central concepts in object oriented programming \cite{cook_palsberg_1989}. It allows developers to share logic between linked classes, preventing duplication. 
 However Rust has very limited support for traditional inheritance. Instead Rust opts for composition, which enables structs to reference other objects (structs and traits).
 Rust also has support for default implementations. These are definitions of destructors directly in the trait, meaning structs that then implement the method do not have to provide a definition. In this case if a definition is provided in an impl block, that definition is used other wise the default implementation is used.
-An example is provided in \autoref{fig:shape2}. In this example the \rust{Shape} trait, defines two operations \rust{side_count} with no default implementation and \rust{internal_angle}, which provides a default implementation.
+An example is provided in \autoref{fig:inheritance-example-oop}. In this example the \rust{Shape} trait, defines two operations \rust{side_count} with no default implementation and \rust{internal_angle}, which provides a default implementation.
 Two structs then implement this trait, \rust{Circle} and \rust{Square}. Both provide an implementation for the \rust{side_count}, method as required (as there is no default), whilst only \rust{Circle} provides an implementation for the \rust{internal_angle} method.
-As a result, calling \rust{internal_angle} on a \rust{Circle} object uses the overridden definition (returning 0) whilst calling it on \rust{Triangle} will use the default implementation.
+As a result, calling \rust{internal_angle} on a \rust{Circle} object uses the overridden definition (returning 0) whilst calling that method on \rust{Triangle} will use the default implementation.
 
 \subsubsection{Self Reference}
 
@@ -368,17 +368,17 @@ In Rust if the self argument is not included in the method this is actually call
 In contrast to object oriented decomposition, the first stage of data abstraction for functional decomposition is the creation of datatypes.
 These data types specify the attributes of each variant, hence functional decomposition is described as "data first" \cite{food}. 
 Similarly to the OOP style, \weixin uses a very restricted form of functional programming for defining the transformer.  
-In this style consumers of datatypes are defined which pattern match on the type.
+In this style consumers of datatypes are defined with pattern matches on the type.
 
 In Rust \rust{enum}s are equivalent to datatypes. Lines 3-6 of \autoref{fig:dec-ex-fp} demonstrate the creation of an \rust{enum} with two variants \rust{Circle} and \rust{Square}. Note how the attributes of these variants (radius for circle and side for square) are defined directly in the datatype.
 
-In Rust consumers are top level functions, which take a datatypes as the first argument. They then contain a single match statement on the datatype argument, with an arm for each of the variants. In \autoref{fig:dec-ex-fp} both \rust{area} and \rust{perimeter} are consumers of the \rust{Shape} datatype. 
-They both pattern match on the parameter of type shape, defining responses for each variant. The patterns of arms of the matches statement such as \rust{Shape::Square { side }}, destruct the type of parameter, giving access to the attributes of the provided \rust{Shape} variant. 
+In Rust consumers are top level functions, which take a datatype as the first argument. They then contain a single match statement on the datatype, with an arm for each of its variants. In \autoref{fig:dec-ex-fp} both \rust{area} and \rust{perimeter} are consumers of the \rust{Shape} datatype. 
+They both pattern match on the parameter of type shape, defining responses for each variant. Each arm of the match statement, such \rust{Shape::Square { side } => side * side}, contains a pattern which destruct the type of the parameter, giving access to the attributes of the provided \rust{Shape} variant.
 
 \subsubsection{Wildcard}
 
-In a similar vein to inheritance in OOP, match statements support the wildcard operator. This will match any pattern that has not yet been matched by a match arm. This is demonstatetd in \autoref{fig:inherintance-example}
-Similarly if all variants of the datatype have the implementation, no match statement is required. 
+In a similar vein to inheritance in OOP, match statements support the wildcard pattern, \rust{_ =>}. This will match any pattern that has not yet been matched by a match arm. This is demonstrated on line 11 in \autoref{fig:inheritance-example-fp}. Here the shape will match circles for the first arm of the match statement, but for any other shape variant will use the wildcard expression.
+Similarly if all variants of the datatype have the same implementation, (i.e. the match statement only requires a single wild card match) no match statement is required. 
 
 \begin{figure}
 \centering
@@ -401,16 +401,85 @@ Similarly if all variants of the datatype have the implementation, no match stat
 \begin{subfigure}{.5\textwidth}
     \rustexample{shape2/oop}
     \caption{Object Oriented Programming - Default implementation}
-    \label{fig:dec-ex-oop}
+    \label{fig:inheritance-example-oop}
 \end{subfigure}%
 \begin{subfigure}{.5\textwidth}
     \rustexample{shape2/fp}
     \caption{Functional Programming - Wildcard pattern}
-    \label{fig:dec-ex-fp}
+    \label{fig:inheritance-example-fp}
 \end{subfigure}
 \caption{Rust Decomposition Examples}
-\label{fig:dec-ex}
+\label{fig:inheritance-example}
 \end{figure}
+
+\section{Decomposition without Regrets}
+% Following on from this dudes work with rust
+
+In "Decomposition without Regrets" \cite{food}, \weixin proposes a framework for a bidirectional transformer between these two decomposition styles. \weixin introduces a syntax called "FOOD calculus", which is heavily based on Scala. Using this syntax, \weixin defines a set of type-directed transformation rules, to formalise transformations between Cook's pure OOP decomposition style, outlined in \cite{food} and functional decomposition style.
+
+These rules outline the fundamental transformations required to convert between the two styles within FOOD calculus, including transforming the top level types (datatype and traits) and their associated functions (generators, constructors, destructors and consumers).
+
+% \weixin uses type directed rules to formalize the transformation to perform.
+
+\weixin creates an implementation of this transformer in Scala and demonstrates the mapping between the theoretical rules in FOOD, and practical examples in Scala.
+\weixin claims that the transformation rules are not Scala specific and can therefore be applied to other multi-paradigm languages. The primary goal of this paper is to replicate the work of \weixin's Scala transformer in another programming language, Rust, in order to validate this claim.
+
+
+
+\section{Rust}
+
+% Both Rust and Scala offer high level safety guarantees using the typing system.
+% Rust 
+Unlike Scala, Rust's API offers direct control over resource management, much like low-level languages such as C. However in order to maintain the safety guarantees, Rust approaches this control using a type system based on the principles of ownership and borrowing. For features that cannot be implemented with in Rust's strict type system, rust uses the concept of \rust{unsafe} code. This allows developer to directly use raw pointers and thus make use of shared mutable state. For these cases Rust's embraces the concept of "unsafe code encapsulated within safe APIs" \cite{rustsafesystems}.
+The unique and strong type system of Rust presents additional challenges when creating a transformer for the rust programming language.
+
+\subsection{Ownership, Borrows and References}
+
+In system level programming languages such as C, developers have direct control over memory management. With this developers can create shared mutable state, using pointers to reference objects in memory. With this control, there is an inherently lack of safety. Developers are able to create references to objects which are then later mutated and such the pointer becomes invalid.
+
+In order to maintain safety guarantees, programming languages have developed ways to obfuscate this memory management. High level languages such as Scala, often implement a garbage collector. This is a separate process which periodically frees any memory that can no longer be accessed by the program. This approach, however, comes at a performance cost as the garbage collector is repeatedly having to run through the program in order to detect memory which can be freed.
+
+\subsubsection{Ownership}
+
+In order to maintain control for the developers, instead of using a garbage collector, Rust opts for the principal of ownership. Rust wraps the use of raw pointers in \rust{unsafe} blocks. Outside of these blocks Rust enforces the strict "ownership" system.
+
+The key principal of ownership is every variable in Rust has a single owner. Once the owner of a variable goes out of scope, the drop operation is run, which generally means the memory is freed. Ownership of a variable can be transferred by either, reassigning to a new variable, returning from a function or passing directly into a function. Note for types which implement the Copy trait (there are type which have a fixed size such as primitive types) these operations actually copy the values instead of changing ownership.
+
+\subsubsection{References}
+
+References provide a way to refer to a value without taking ownership of that value. A reference can be created with the \rust{&} symbol. For example:
+
+\begin{minted}{rust}
+let a = String::from("Hello world");
+let b = &a;
+\end{minted}
+
+By default references are immutable, so in this example \rust{b} is an immutable reference of the variable \rust{a}.
+There is no limit on the number of immutable references which can be created for a value. Mutable references however allow direct mutation of the underlying value and can be created with \rust{&mut}. Therefore for a value, only a single mutable reference can be created at one time. Moreover if a mutable reference exits, no immutable references can exits. This approach allows Rust to prevent the creation of dangling references as compile time and thus without impact on performance.
+
+\subsubsection{Smart Pointers}
+
+Rust also has a set of Smart pointers, these are data structures which "act like pointers" but include additional functionality. This paper currently only support the Box smart pointer. This pointer, allows the developer to assign a value on the heap. The Box is stored on the stack and stores a pointer to the value on the heap. Note the box is the owner of the data on the heap.
+% Talk aobut smart pointers
+
+\subsubsection{Dereferencing}
+
+In Rust the "indirection", \rust{*}, operator can be used to access the value within a reference or pointer. 
+
+A convenient feature in rust is the \rust{.} operator will automatically reference or dereference a value where possible. For example when using method with signature \rust{fn double(&self)} or \rust{fn double(self: Box<Self>)} an owned values of type Self can be called and the reference/box will be created.
+% Talk about dereferencing
+% Talk about clone 
+% Talk about how the dot operator auto references or dereferences a thing
+
+% DYN%
+
+\subsection{\rust{dyn} and Recursive types}
+
+In order to create a type in Rust, the compiler must know its size. When types have a another value within them, which is/contains a value of the same type, they are called "recursive types". These kinds of types inherently do not have fixes sizes, as there is no limit to the nesting of the type. 
+An example of a recursive type in Scala is shown in \autoref{fig:recursive-typedef-scala}. In this case Cons, contains a List within it. In Scala this issue of recursive types is obfuscated from the programmer.
+In Rust, however, this construction is not permitted. Instead a pointer must be used and throughout this paper the Box smart pointer will be used. The Box datatype has a fixed sized and contains a pointer to the location of the nested value. Therefore this smart pointer can be used to create recursive types as shown in \autoref{fig:recursive-typedef-rust}.
+
+Notice also how the \rust{dyn} prefix is used in the \rust{Box}. The \rust{dyn} prefix allows dynamic dispatch for a trait, by storing a pointer to the object data as well as a pointer to a map of the methods for the concrete type. Therefore without \rust{dyn} the concrete type of the attribute would be unknown and the methods could not be called (this will result in a compile time error). This \rust{dyn} prefix is required each type a generic trait is reference rather than a concrete type, for example in parameter arguments or return types. These limitation can be overcome with trait bounds, but these are beyond the scope of this transformer.
 
 \begin{figure}
 \centering
@@ -427,41 +496,6 @@ Similarly if all variants of the datatype have the implementation, no match stat
 \caption{Recursive Type Definitions}
 \label{fig:recursive-typedef}
 \end{figure}
-
-\section{Rust}
-
-\subsection{Rust Type System}
-"Rust is the first industry-supported programming language to overcome the longstanding tradeoff between the safety guarantees of higher-level languages (like Java) and the control over resource management provided by lower-level “systems programming” languages (like C and C++)" \cite{rustsafesystems}. Rust achieves this by using an ownership type system. This gives developers the control to express low level concept, in a similar way to languages such as C, whilst maintaining the safety of higher level languages by catching potential errors at compile time with the strong type system. 
-
-This unique and strong type system of Rust presents additional challenges when creating a transformer for the rust programming 
-
-\subsection{References language}
-
-In many high level languages, such as Scala, developer are not required to assign and free memory explicitly. In Scala a garbage collector is used to automatically free memory that can no longer be accessed by the program. This improves memory safety, as memory cannot be accessed after it has been freed. In contrast low level languages like C, requires developers to create and free memory as required. This gives developers greater control and has efficiency gains as the expensive garbage collection task is not required. The trade off is code can be unsafe as developers can try and access memory that has previously been freed.
-
-\subsection{Recursive types}
-
-For a compiler to create an instance of a type, it must know the exact size of the object. Recursive types are types which reference themselves. See \autoref{fig:recursive-typedef} for an example, where \verb|Cons| is a \verb|List| which contains another \verb|List|. At face value it would therefore seem impossible to know the size of a \verb|Cons| object. In Rust this is not allowed and therefore for recursive types to be defined, the developer must use a pointer. In Rust there are many kinds of pointers, but the simplest for this use case is the \verb|Box|. 
-Moreover when creating a pointer to a trait the developer must use the \verb|dyn|, which tells the compiler the size of the reference object is not fixed (in this case could either be \verb|Empty| or \verb|Cons|). 
-
-In Scala this concept is obfuscated by the high level API exposed to the developer and thus they are allowed to define recursive types directly (as shown in \autoref{fig:recursive-typedef-scala}).  
-
-In a similar vein, return types of methods cannot be the trait type itself, without the use of a dynamic pointer. 
-
-% TODO This needs to validation
-Although traits are not a fixed size, enums are. This means in OOP style the dyn tokens must be removed. With these additional requirements of the rust typing system, additional steps are required to transform the code.
-
-\section{Decomposition without Regrets}
-% Following on from this dudes work with rust
-
-In "Decomposition without Regrest" \cite{food}, \weixin claims to have created a language agnostic framework which can transform between object oriented and functional decomposition styles. \weixin outlines a syntax called "FOOD calculus", which is heavily based on Scala. Using this syntax, \weixin defines a set of type-directed transformation rules, to formalise transformations between Cook's pure OOP decomposition style, outlined in \cite{food} and functional decomposition style.
-
-These rules outline the fundamental transformations required to convert between the two styles within FOOD calculus, including transforming the top level types (datatype and traits) and their associated functions (generators, constructors, destructors and consumers).
-
-% \weixin uses type directed rules to formalize the transformation to perform.
-
-\weixin creates an implementation of this transformer in Scala and demonstrates the mapping between the theoretical rules in FOOD, and practical Scala examples.
-
 
 
 % -----------------------------------------------------------------------------
