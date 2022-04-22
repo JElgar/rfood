@@ -36,6 +36,8 @@
 \usepackage{listings}
 \usepackage{xcolor}
 
+\usepackage{mathtools}
+
 % \usepackage{minted}
 \usepackage[outputdir=../]{minted}
 \newcommand{\rust}[1]{\mintinline{rust}{#1}}
@@ -50,6 +52,21 @@
 
 \usepackage{caption}
 \usepackage{subcaption}
+
+\usepackage{soul}
+
+\usepackage{xspace}
+\usepackage{listings}
+\usepackage{xypic}
+\usepackage{mathpartir}
+\usepackage{stmaryrd}
+\usepackage{longtable}
+\usepackage{subcaption}
+\usepackage{diagbox}
+\usepackage{enumitem}
+\usepackage{mathtools}
+
+\input{report/syntax}
 
 \begin{document}
 
@@ -474,6 +491,7 @@ A convenient feature in rust is the \rust{.} operator will automatically referen
 % DYN%
 
 \subsection{\rust{dyn} and Recursive types}
+\label{sec:dyn}
 
 In order to create a type in Rust, the compiler must know its size. When types have a another value within them, which is/contains a value of the same type, they are called "recursive types". These kinds of types inherently do not have fixes sizes, as there is no limit to the nesting of the type. 
 An example of a recursive type in Scala is shown in \autoref{fig:recursive-typedef-scala}. In this case Cons, contains a List within it. In Scala this issue of recursive types is obfuscated from the programmer.
@@ -549,18 +567,110 @@ Finally a CLI was created to allow developers to parse in files they want to tra
 
 \section{High level overview}
 
-The transformation is split into 4 step:
+The high level algorithms for transforming in both directions are show in \autoref{alg:high-level}
 
-\begin{enumerate}
-    \item Collect global context
-    \item Transform the types
-    \item Recursively transform other items
-\end{enumerate}
+% for enujm in gamma.enums...
+\begin{figure}
+\begin{minipage}{0.46\textwidth}
+    \begin{algorithm}[H]
+    delta $\leftarrow$ collect delta \\
+    \For{int {\bf in} delta.interfaces}{
+        create enum\\
+        \For{gen {\bf in} int.generators}{
+            create enum variant\\
+        }
+        
+        \For{dest {\bf in} int.destructors} {
+            create consumer function\\
+            \For{gen {\bf in} int.generators}{
+                create match arm\\
+            }
+            \uIf{required} {
+                create wildcard arm\\
+            }
+        }
+    }
+    \caption{OOP Transformation}
+    \label{alg:high-level-oop}
+    \end{algorithm}
+\end{minipage}
+\hfill
+\begin{minipage}{0.46\textwidth}
+    \begin{algorithm}[H]
+    \For{$i=0$ {\bf upto} $n$}{
+      $t_i \leftarrow 0$\;
+    }
+    \caption{FP Transformations}
+    \label{alg:high-level-fp}
+    \end{algorithm}
+\end{minipage}
+\caption{High level overview of transformations}
+\label{alg:high-level}
+\end{figure}
 
+In both cases the first stage is to collect the global context, delta. This is used throughout the transformations to prevent repeated searches for items.
+
+The next stage is the transformation of the user defined types (either datatypes or traits). With this stage the associated destructors/consumers are also transformed both updating the signature and the body. Implementations of destructors are converted into a match arm in a consumers, whilst consumers match arms are converted into  destructor implementations.
+
+With the type transformations completed a additional parse over the code is completed to transform all other expressions, including the output of the type transformations. This transforms any references to transformed function and methods, and updates the types of expressions which have been changed as a result of the transformations.
+
+\section{Syntax}
+
+In \cite{food} \weixin uses a syntax called FOOD to formalize the transformation rules. In order to formalize the transformations in Rust, the following extensions to the FOOD syntax are required. Primarily two additional types are added, $\sim T$ and $\& T$ where T is type. These represent a pointer and a borrow respectively. Note for this report only the Box pointer is considered, but future extensions of this work could include other pointer types. The $\sim e$ and $\& e$ expression are then also added in order to create pointers and references of the expression $e$. The additional $*e$ expression can then be used to dereference these types. This extended syntax has been called RFOOD and is given in full in \autoref{fig:syntax}.
+
+\begin{figure}[t]
+  \setstcolor{red}
+  \begin{displaymath}
+    \begin{array}{l}
+      \begin{array}{llcl}
+        \text{Program}
+        & L & \Coloneqq & Def ; L \mid e\\
+        \text{Definition}
+        & Def & \Coloneqq & Dt \mid It \mid Ctr \mid Gen \mid Csm \\
+        \text{Datatype}
+         & Dt & \Coloneqq & \sealed D\\
+        \text{Interface}
+         & It & \Coloneqq & \interface D {Dtr}\\
+        \text{Destructor}
+         & Dtr & \Coloneqq & \textcolor{red}{\destr \& x \mid \destr \sim x}\\
+        \text{Constructor}
+         & Ctr & \Coloneqq & \ctr C D\\
+        \text{Generator}
+        %  & gen & \Coloneqq & \class C {C(\overline{e})} {fun}\\
+         & Gen & \Coloneqq & \class C D {Fun}\\
+         \text{Consumer}
+         & Csm & \Coloneqq & \textcolor{red}{\csmcase \& e} \\
+         &     &           & \textcolor{red}{\mid \csmcase{}{e}}\\
+        %  \text{Body}
+        %  & body & \Coloneqq & \overline{P \Rightarrow e} \mid e\\
+         \text{Declaration}
+         & Dec & \Coloneqq & \dec x\\
+         \text{\st{Function}}
+         & \text{\st{Fun}} & \text{\st{$\Coloneqq$}} & \text{\st{Dec = e}}\\
+        \text{Expression}
+         & e & \Coloneqq & x %\mid \overline{(x: T)} \Rightarrow t 
+          \mid e_1.f(\overline{e_2})  \mid f(e_1)(\overline{e_2}) \mid C(\overline{e}) \mid \newSeq{C}{e} \mid \textcolor{red}{\sim e\mid \&e \mid *e}\\
+         \text{Pattern}
+         & P & \Coloneqq & C(\overline{x}) \mid \_ \\
+        %  \text{Modifier}
+        %  & m & \Coloneqq & \kwsealed \mid \kwabstract \mid \kwcase\\
+        \text{Types}
+        & T & \Coloneqq & D \mid \overline{T} \rightarrow T \mid \textcolor{red}{\sim  T \mid \& T} \\
+        & D & \Coloneqq & \text{datatype or interface names} \\
+        & C & \Coloneqq & \text{constructor or generator names} \\
+        & f & \Coloneqq & \text{consumer or destructor names} \\
+        % \text{Names}
+        % & D & datatype or interface name \\
+      \end{array}
+    \end{array}
+  \end{displaymath}
+  \caption{Syntax of RFOOD. Red denotes deviation from FOOD syntax.}
+  \label{fig:syntax}
+\end{figure}
 
 \section{Context}
 
-Prior to transforming any expressions or statements, the transformer must know the context. This consists of two components, the global context, $\Delta$, and the environment, $\Gamma$.
+Each transformation rule provided in \cite{food} takes two context variables, the global context, $\Delta$, and the environment, $\Gamma$.
 
 \subsection{Global Context}
 
@@ -568,7 +678,7 @@ In \cite{food} \weixin uses the name "global context", represented by $\Delta$, 
 
 \paragraph{Datatypes.} Datatypes are equivalent to Enums in Rust.
 \paragraph{Interfaces.} Interfaces are equivalent to Traits in Rust.
-\paragraph{Constructor.} Constructor create an instance of a given datatype. In Rust the equivalent is an Enum Variant.
+\paragraph{Constructor.} Constructors create an instance of a given datatype. In Rust the equivalent is an Enum Variant.
 % TODO update this if it can handle multiple inheritance
 \paragraph{Generator.} Generators create an instance of a given interface. In Rust the equivalent is a struct which has an implementation of a trait (the interface). Note in this implementation a struct cannot be transformed if it implements multiple traits. 
 \paragraph{Consumer.} Consumers are functions that operate on a datatype. In Rust these are functions, with the first argument being a Datatype (or some reference to a datatype).
@@ -617,7 +727,112 @@ One approach to resolving these issues is to use the built in type inference in 
 
 \section{Type Transformations}
 
-Having collected the global context, the next stage of the transformation is to transform the types, and their associated functions. For OOP to FP this means transforming the traits, structs and impls and for FP to OOP this means transforming the enums and consumers.
+\begin{figure}[t]
+% \framebox{$\dtrToCsm {Dtr} {Csm}$}
+\begin{mathpar}
+
+\inferrule[Dt2It]
+{ D \in \dt \\ \overline{f} = \consumer{D} \\ \overline{\Delta; \Gamma \vdash \defs(f) \leadsto Dtr}  \\ \trans L T L'}
+{ \trans {\sealed D; L} T {\kwinterface \; D \{ \overline{Dtr}\} }; L'}
+ 
+\inferrule[Ctr2Gen]
+{ D \in \dt \\ \overline{f} = \consumer{D} \\ \overline{\Delta;\Gamma,\overline{x: T} \vdash_C {\defs(f)} \leadsto {Fun}}\\ \trans L T L'}
+{ \trans {\ctr{C}{D}; L} T \classf{C}{x}{T}{D}{\overline{Fun}}; L'}
+% { \textsf{fresh } x \\ \overline{Gen} = \generator{D} \\  }
+
+\inferrule[CsmElim]
+{ D \in \ct \\ \trans L T L'}
+{ \trans {\csmcase e; L} {T} L'}
+\end{mathpar}
+
+
+% \framebox{$\Delta; \Gamma \vdash Csm \leadsto Dtr$}
+\begin{mathpar}
+% \inferrule[Csm2Dec]
+% { {\kwcase\; \_ \Rightarrow e} \notin \overline{P}}
+% {  \Gamma \vdash \csm P \leadsto \dec }
+
+\inferrule[Csm2Fun]
+{ {\kwcase\; \_ \Rightarrow e} \in \overline{\case P e} \\ \transCtx{\kwself: D,\overline{x:T}} e T e'}
+{  \Delta; \Gamma \vdash \csmcase e  \leadsto \dec x = [\kwself \mapsto \kwthis]e'}
+
+\inferrule[Csm2Dec]
+% { {\kwcase\; \_ \Rightarrow e} \notin \overline{P}}
+{}
+{  \Delta; \Gamma \vdash \csmcase e \leadsto \dec x}
+\end{mathpar}
+%% \cristina{Do we need Fun2Case as well? I don't fully follow Case2Fun as opposed to Csm2Fun.}
+%% \weixin{Rename Gen2Case as Fun2Case}
+% \framebox{$\csmToDtr {Csm} {Fun}$}
+\begin{mathpar}
+\inferrule[Case2Fun]
+{ \case {C(\overline{y})}{e}  \in \overline{\case P e} \\ \transCtx{\kwself: D,\overline{x:T}} e T e'}
+{ \csmToDtr { \csmcase e} {\dec x = [\kwself \mapsto \kwthis]e'}}
+
+\appCsm
+
+\inferrule[Obj2New]
+{ \sig(C) = \overline{T} \rightarrow D \\ C \in \ctrs{D} \\ \overline{\trans e T e'}}
+{ \trans{C(\overline{e})}{D}{\newSeq C {e'}}}
+\end{mathpar}
+
+\begin{mathpar}
+\inferrule[CreateRef]
+{}
+{ \trans{e}{T}{\& e \Rightarrow \& T}}
+
+\inferrule[CreatePointer]
+{}
+{ \trans{e}{T}{\sim e \Rightarrow \sim T}} \\
+
+\inferrule[DerefRef]
+{}
+{ \trans{e}{\&T}{*e \Rightarrow T}}
+
+\inferrule[DerefPointer]
+{}
+{ \trans{e}{\sim T}{*e \Rightarrow T}} \\
+
+\inferrule[Pointer2Ref]
+{}
+{ \trans{e}{\sim T}{\&*e \Rightarrow \&T}}
+
+\end{mathpar}
+\caption{Core translation rules for functional decomposition}
+\label{fig:trans-fp}
+\end{figure}
+
+
+Having collected the global context, the next stage of the transformation is to transform the user defined types, and their associated functions. 
+
+\subsection{Transformation of Type Definitions}
+The first stage of this process is to transform the types themselves. The rules for this process are unchanged, however there are some additional considerations in Rust, including visibility and dyn traits. A demo of this transformation stage is shown in \autoref{fig:trans-type-stage}
+
+For OOP to FP the following steps are followed for each trait:
+\begin{enumerate}
+    \item Create an enum with the same identifier and visibility as the trait
+    \item For each generator of the trait (a struct which only implements that trait), add an enum variant to the enum. The enum variant should have the same identifier and fields as the struct. However if the struct is a recursive type (it has fields which reference the trait) then remove the dyn token from any references to the trait. This is because, once the trait is converted to an enum, it will no longer have methods associated with it. Therefore the pointer for dynamic dispatch (as outlined in \autoref{sec:dyn}) is no longer required. Note if this token is left in a compile-time error will occur. 
+    Similarly in Rust, enum variants and thier fields do not have visibility separate from the Enum it self and therefore all visibility tokens (\rust{pub}) must be removed from the structs and their fields. This transformation will therefore result in a loss of information as if the program is transformed back the original, the visibility of the structs and fields will be unknown.
+\end{enumerate}
+
+For FP to OOP the following steps are followed for each enum:
+\begin{enumerate}
+    \item Create a (for now empty) trait with the same identifier and publicity as the enum  
+    \item For each variant of the enum create a struct. The structs should have the same identifier and contain the same fields as the enum variant.
+    However, as above, when an enum is transformed any recursive reference to the enum, inside the enum variant fields, will require a dyn token with in the pointer (\rust{Box<T>} to \rust{Box<dyn T>}). Given the visibility of enums is only set on the enum itself (rather than on any variant or fields), the visibility of the structs and their fields are copied from the enum.
+\end{enumerate}
+
+\subsection{Transformation of Associated Functions}
+
+Having transformed the definitions of each type, the next stage of the transformation is to convert the associated functions. For OOP this involves transforming the implementations of the trait methods into consumers, whilst for FP, it involves transforming the consumers into the trait methods and associated implementations for the structs. The rules for these transformations require some minor alteration in order the accommodate the change in type of the function arguments and return types.
+
+As mention in \autoref{sec:dyn}, a reference to a trait cannot be created, without the \rust{dyn} token. This means when converting a method from FP, if a consumer has any function arguments which type match that of the enum, the type must be updated to a \rust{dyn} reference.
+
+The following equivalnce has been created
+dyn Box thing -> thing
+&thing -> &thing
+
+For OOP to FP this means transforming the traits, structs and impls and for FP to OOP this means transforming the enums and consumers.
 
 \subsection{OOP to FP}
 

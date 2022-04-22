@@ -1,0 +1,215 @@
+% \newcommand{\binderspacing}{\,}
+% \newcommand\keyword[1]{\mbox{\lstinline@#1@}}
+\newcommand{\kw}[1]{\texttt{#1}}
+\newcommand{\hast}{\!:\!}
+\newcommand{\app}[2]{#1 \; #2}
+\newcommand{\tapp}[2]{#1 \; @ #2}
+\newcommand{\mergeop}{\; ,, \;}
+\newcommand{\lam}[3]{\lambda (#1 \hast #2).\binderspacing #3}
+\newcommand{\blam}[2]{\Lambda #1.\binderspacing #2}
+\newcommand{\proj}[2]{{\code{proj}}_{#1} #2}
+% \renewcommand{\for}[2]{\forall #1. \binderspacing #2}
+\newcommand{\reccon}[2]{\{ #1=#2 \}}
+\newcommand{\recty}[2]{\{ #1 \hast #2 \}}
+\newcommand{\letexpr}[3]{\kwlet \; #1 = #2 \; \kwin \; #3}
+\newcommand{\context}[2]{#1 \; {\vdash} \; #2}
+
+% \newcommand{\eval}[2]{#1 \longrightarrow #2}
+\newcommand{\eval}[2]{#1 \longrightarrow #2}
+
+
+\newcommand{\sig}{\textsc{Sig}}
+\newcommand{\defs}{\textsc{Def}}
+\newcommand{\dtrBody}{\textsc{dtrBody}}
+\newcommand{\csmBody}{\textsc{csmBody}}
+\newcommand{\dtrType}{\textsc{dtrSig}}
+\newcommand{\body}{\textsc{body}}
+\newcommand{\fun}[2]{\dec{#1} = #2}
+% \newcommand{\data}{\kw{data}\; C \{ \overline{P}\}}
+% \newcommand{\case}{\kwcase\; C(\overline{x: T})}
+\newcommand{\sealed}[1]{\kwdata \; #1}
+\newcommand{\inter}[2]{\kwabstract \; \kwclass \; #1 \{ \overline{#2} \}}
+\newcommand{\interface}[2]{\kwinterface \; #1 \; \{ \overline{#2}\}}
+\newcommand{\new}[2]{\kwnew \; #1(#2)}
+\newcommand{\newSeq}[2]{\new #1{\overline{#2}}}
+\newcommand{\ctr}[2]{\kwcase \; #1(\overline{x : T}) \; \kwextends \; #2}
+\newcommand{\classf}[5]{\kwclass \; #1(\overline{#2 : #3}) \; \kwimplements \; #4 \; \{ #5 \}}
+\newcommand{\class}[3]{\classf #1 x T #2 {\overline{#3}}}
+
+\newcommand{\kwinterface}{\kw{interface}}
+\newcommand{\kwextends}{\kw{extends}}
+\newcommand{\kwimplements}{\kw{implements}}
+\newcommand{\kwtrait}{\kw{trait}}
+\newcommand{\kwdata}{\kw{data}}
+\newcommand{\kwabstract}{\kw{abstract}}
+\newcommand{\kwclass}{\kw{class}}
+\newcommand{\kwsealed}{\kw{sealed}}
+\newcommand{\kwcase}{\kw{case}}
+\newcommand{\kwdef}{\kw{def}}
+\newcommand{\kwsuper}{\kw{super}}
+\newcommand{\kwthis}{\kw{this}}
+\newcommand{\kwmatch}{\kw{match}}
+\newcommand{\kwoverride}{\kw{override}}
+
+\newcommand{\kwobj}{\kw{obj}}
+\newcommand{\obj}[1]{C({\overline{#1}})}
+\newcommand{\kwself}{\kw{self}}
+\newcommand{\kwnew}{\kw{new}}
+\newcommand{\kwarr}{\kw{=>}}
+\newcommand{\kwint}{\kw{Int}}
+
+\newcommand{\inbracket}[1]{\llbracket#1\rrbracket}
+\newcommand{\dt}{\textsc{Dt}}
+\newcommand{\ct}{\textsc{It}}
+\newcommand{\dtr}[1]{\textsc{Dtr}(#1)}
+\newcommand{\destr}[2]{\kwdef \ f(\overline{self: #1D, #2 : T}): T}
+\newcommand{\consumer}[1]{\textsc{Csm}(#1)}
+\newcommand{\case}[2]{\kwcase\ {#1} \Rightarrow {#2}}
+\newcommand{\csmcase}[2]{\kwdef \ f(\kwself:#1D)(\overline{x : T}): T = \overline{\case P{#2}}}
+\newcommand{\csm}[1]{\kwdef \ f(\kwself:D)(\overline{x : T}): T = #1}
+\newcommand{\dec}[1]{\kwdef \ f(\overline{#1 : T}): T}
+\newcommand{\generator}[1]{\textsc{Gen}(#1)}
+\newcommand{\toCase}[2]{\textsc{ToCase}(#1,#2)}
+\newcommand{\ctrs}[1]{\textsc{Ctr}(#1)}
+\newcommand{\dtrToCsm}[2]{\Delta;\Gamma \vdash_D #1 \leadsto #2}
+\newcommand{\dtrToCsmCtx}[4]{\Delta;\Gamma, #1 : #2 \vdash_D #3 \leadsto #4}
+\newcommand{\dtrToCase}[2]{\Delta;\Gamma \vdash_f {#1} \leadsto {#2}}
+\newcommand{\csmToDtr}[2]{\Delta;\Gamma \vdash_C #1 \leadsto #2}
+\newcommand{\csmSig}{\textsf{csm2dtrsig}}
+\newcommand{\map}[3]{\langle #1 \; | \; #2 \leftarrow #3 \rangle}
+
+\newcommand{\transCtx}[4]{\Delta;\Gamma, #1 \vdash #2 \Rightarrow #3 \leadsto #4}
+\newcommand{\trans}[3]{\Delta; \Gamma \vdash #1 \Rightarrow #2 \leadsto #3}
+\newcommand{\transGeneric}[4]{#1 \vdash #2 \Rightarrow #3 \leadsto #4}
+\newcommand{\aliasCtx}{\Delta}
+\newcommand{\toplike}[1]{\rceil #1 \lceil}
+\newcommand{\subtype}[2]{#1 <: #2}
+\newcommand{\Tau}{\mathrm{T}}
+\newcommand{\all}[3]{\forall(#1*#2).#3}
+\newcommand{\pr}[1]{\langle #1 \rangle}
+\newcommand{\tid}{\kw{id}}
+\newcommand{\ttop}{\kw{top}}
+\newcommand{\tbot}{\kw{bot}}
+\newcommand{\tdist}{\kw{dist}}
+\newcommand{\returntype}{\textsc{returntype}}
+\newcommand{\distinguish}{\textsc{distinguish}\xspace}
+\newcommand{\sortCtx}{\Sigma}
+\newcommand{\desugarType}[4]{\sortCtx \vdash_{#1}^{#2} #3 \Rightarrow #4}
+\newcommand{\desugarTypeCtx}[5]{#1 \vdash_{#2}^{#3} #4 \Rightarrow #5}
+% \newcommand{\ctrs}{\textsc{fields}}
+\newcommand{\ctype}{\textsc{fieldType}}
+\newcommand{\forward}{\textasciicircum\xspace}
+\newcommand{\exclu}{\backslash}
+
+\newcommand{\selDtr}{
+\inferrule[Sel2App]
+{ \trans {e_1} D {e_1'} \\ f \in \dtr{D} \\ \dtrType(f,D) = \overline{T} \rightarrow T\\ \overline{\trans {e_2} T {e_2'}}}
+{ \trans{e_1.f(\overline{e_2})}{T}{f(e_1')(\overline{e_2'})}}
+}
+\newcommand{\appCsm}{
+\inferrule[App2Sel]
+{ \trans {e_1} D {e_1'} \\ f \in \consumer{D} \\ \sig(f) = D \rightarrow \overline{T} \rightarrow T \in \Gamma \\ \overline{\trans {e_2} T {e_2'}}}
+{ \trans{f(e_1)(\overline{e_2})}{T}{e_1'.f(\overline{e_2'})}}
+}
+\newcommand{\appCtr}{
+\inferrule[Obj2New]
+{ \sig(C) = \overline{T} \rightarrow D \\ C \in \ctrs{D} \\ \overline{\trans e T e'}}
+{ \trans{C(\overline{e})}{D}{\new C {e'}}}
+}
+\newcommand{\newGen}{
+\inferrule[New2Obj]
+{  \sig(C) = \overline{T} \rightarrow D \\ C \in \generator{D} \\ \overline{\trans e T e'}} %\\ {\trans t {\overline{T} \arrow T} {t'}} }
+{ \trans{\newSeq C e}{D}{C(\overline{e'})}}
+}
+
+\newcommand{\eCongr}{
+\inferrule[E-Congr]
+{ \eval {e_1} {e_2}}
+{ \eval{E[e_1]}{E[e_2]}}
+}
+
+% \inferrule[E-Var]
+% { \overline{\eval e v}}
+% { \eval{\new C e} obj(C,\overline{v})}
+
+\newcommand{\enew}{
+\inferrule[E-New]
+{ }
+{ \eval{\newSeq{C}{v}} {obj(C,\overline{v})}}
+}
+
+\newcommand{\ectr}{
+\inferrule[E-Ctr]
+{ }
+{ \eval{C(\overline{v})}{obj(C,\overline{v})}}
+}
+
+% \newcommand{\edtr}{
+% \inferrule[E-Dtr]
+% { \eval{e_1}{obj(C,\overline{v_1})} \\ \overline{\eval{e_2}{v_2}} \\ \dtrBody(f,C) = (\overline{y},\overline{x},e) \\ \eval {[\kwthis \mapsto obj(C,\overline{v_1}),\overline{y} \mapsto \overline{v_1}, \overline{x} \mapsto \overline{v_2} ]e} v}
+% { \eval{e_1.f(\overline{e_2})}{v} }
+% }
+
+\newcommand{\edtrInvk}{
+\inferrule[E-Dtr]
+{ \dtrBody(f,C) = (\overline{y},\overline{x},e)}
+{ \eval{obj(C,\overline{v_1}).f(\overline{v_2})}{[\kwthis \mapsto obj(C,\overline{v_1}),\overline{y} \mapsto \overline{v_1}, \overline{x} \mapsto \overline{v_2} ]e}} 
+}
+
+\newcommand{\ecsmInvk}{
+\inferrule[E-Csm]
+{\csmBody(f,C) = (\overline{y},\overline{x},e)}
+{ \eval {f(obj(C,\overline{v_1}))(\overline{v_2})} {[\kwself \mapsto obj(C,\overline{v_1}),\overline{y} \mapsto \overline{v_1}, \overline{x} \mapsto \overline{v_2}]e}}
+}
+\newcommand{\edtrRecv}{
+\inferrule[E-Dtr-Recv]
+{ \eval{e_1}{e_1'} }
+{ \eval{e_1.f(\overline{e})}{e_1'.f(\overline{e})} }
+}
+
+\newcommand{\edtrArg}{
+\inferrule[E-Dtr-Arg]
+{ \eval{e_i}{e_i'} }
+{ \eval{v_1.f(\overline{v},e_i, \overline{e})}{v_1.f(\overline{v},e_i,'\overline{e})} }
+}
+
+\newcommand{\ecsmDt}{
+\inferrule[E-Csm-Dt]
+{ \eval {e_1} {e_1'} }
+{ \eval {f(e_1')(\overline{e_2})}{f(e_1')(\overline{e_2})}}
+}
+
+\newcommand{\ecsmArg}{
+\inferrule[E-Csm-Arg]
+{ \eval {e_i} {e_i'} }
+{ \eval {f(v_1)(\overline{v},e_i,\overline{e})} {f(v_1)(\overline{v},e_i,\overline{e})}}
+}
+\newcommand{\efun}{
+\inferrule[E-Fun]
+{ \overline{\eval e v} \\ \body(f) = (\overline{x},e) \\ \eval {[\overline{x} \mapsto \overline{v}]e} v}
+{ \eval {f(\overline{e})} v}
+}
+
+\newcommand{\dtrGen}{
+\inferrule[DtrGen]
+{ \defs(C) = \classf C y T D {\overline{Fun}} \\ \fun x {e} \in \overline{Fun} }
+{ \dtrBody(f,C) = (\overline{y},\overline{x},e)}
+}
+
+\newcommand{\dtrIt}{
+\inferrule[DtrIt]
+{ \defs(C) = \classf C y T D {\overline{Fun}} \\ \defs(D) = \interface D {Dtr} \\ \fun x e \in \overline{Dtr}}
+{ \dtrBody(f,C) = (\varnothing,\overline{x},e)}
+}
+
+\newcommand{\csmCtr}{
+\inferrule[CsmCtr]
+{ \defs(f) = \csmcase e \\ \case {C(\overline{y})}{e}  \in \overline{\case P e}}
+{ \csmBody(f,C) = (\overline{y},\overline{x},e) }
+}
+
+\newcommand{\csmDt}{
+\inferrule[CsmDt]
+{ \defs(f) = \csmcase e \\ \case {\_}{e}  \in \overline{\case P e}}
+{ \csmBody(f,C) = (\varnothing,\overline{x},e) }
+}
