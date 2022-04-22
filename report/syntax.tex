@@ -62,10 +62,10 @@
 \newcommand{\dt}{\textsc{Dt}}
 \newcommand{\ct}{\textsc{It}}
 \newcommand{\dtr}[1]{\textsc{Dtr}(#1)}
-\newcommand{\destr}[2]{\kwdef \ f(\overline{self: #1D, #2 : T}): T}
+\newcommand{\destr}[2]{\kwdef \ f(\kwself:#1D)(\overline{#2 : T}): T}
 \newcommand{\consumer}[1]{\textsc{Csm}(#1)}
 \newcommand{\case}[2]{\kwcase\ {#1} \Rightarrow {#2}}
-\newcommand{\csmcase}[2]{\kwdef \ f(\kwself:#1D)(\overline{x : T}): T = \overline{\case P{#2}}}
+\newcommand{\csmcase}[3]{\kwdef \ f(#1:#2D)(\overline{x : T}): T = \overline{\case P{#3}}}
 \newcommand{\csm}[1]{\kwdef \ f(\kwself:D)(\overline{x : T}): T = #1}
 \newcommand{\dec}[1]{\kwdef \ f(\overline{#1 : T}): T}
 \newcommand{\generator}[1]{\textsc{Gen}(#1)}

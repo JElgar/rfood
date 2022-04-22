@@ -43,6 +43,7 @@
 \newcommand{\rust}[1]{\mintinline{rust}{#1}}
 
 \newcommand{\codefile}[2]{\inputminted[xleftmargin=20pt,linenos, breaklines]{#1}{#2}}
+\newcommand{\rustsnippet}[1]{\codefile{rust}{snippets/#1.rs}}
 \newcommand{\rustfile}[1]{\codefile{rust}{../#1.rs}}
 \newcommand{\rustexample}[1]{\rustfile{examples/src/#1}}
 \newcommand{\rustoutput}[1]{\rustfile{outputs/src/#1}}
@@ -639,14 +640,14 @@ In \cite{food} \weixin uses a syntax called FOOD to formalize the transformation
         %  & gen & \Coloneqq & \class C {C(\overline{e})} {fun}\\
          & Gen & \Coloneqq & \class C D {Fun}\\
          \text{Consumer}
-         & Csm & \Coloneqq & \textcolor{red}{\csmcase \& e} \\
-         &     &           & \textcolor{red}{\mid \csmcase{}{e}}\\
+         & Csm & \Coloneqq & \textcolor{red}{\csmcase d \& e} \\
+         &     &           & \textcolor{red}{\mid \csmcase{d}{}{e}}\\
         %  \text{Body}
         %  & body & \Coloneqq & \overline{P \Rightarrow e} \mid e\\
          \text{Declaration}
          & Dec & \Coloneqq & \dec x\\
-         \text{\st{Function}}
-         & \text{\st{Fun}} & \text{\st{$\Coloneqq$}} & \text{\st{Dec = e}}\\
+         \text{Function}
+         & \text{Fun} & \text{$\Coloneqq$} & \text{Dec = e}\\
         \text{Expression}
          & e & \Coloneqq & x %\mid \overline{(x: T)} \Rightarrow t 
           \mid e_1.f(\overline{e_2})  \mid f(e_1)(\overline{e_2}) \mid C(\overline{e}) \mid \newSeq{C}{e} \mid \textcolor{red}{\sim e\mid \&e \mid *e}\\
@@ -728,53 +729,30 @@ One approach to resolving these issues is to use the built in type inference in 
 \section{Type Transformations}
 
 \begin{figure}[t]
-% \framebox{$\dtrToCsm {Dtr} {Csm}$}
+
 \begin{mathpar}
-
-\inferrule[Dt2It]
-{ D \in \dt \\ \overline{f} = \consumer{D} \\ \overline{\Delta; \Gamma \vdash \defs(f) \leadsto Dtr}  \\ \trans L T L'}
-{ \trans {\sealed D; L} T {\kwinterface \; D \{ \overline{Dtr}\} }; L'}
- 
-\inferrule[Ctr2Gen]
-{ D \in \dt \\ \overline{f} = \consumer{D} \\ \overline{\Delta;\Gamma,\overline{x: T} \vdash_C {\defs(f)} \leadsto {Fun}}\\ \trans L T L'}
-{ \trans {\ctr{C}{D}; L} T \classf{C}{x}{T}{D}{\overline{Fun}}; L'}
-% { \textsf{fresh } x \\ \overline{Gen} = \generator{D} \\  }
-
-\inferrule[CsmElim]
-{ D \in \ct \\ \trans L T L'}
-{ \trans {\csmcase e; L} {T} L'}
+\inferrule[DecRef2Csm]
+{ \overline{C} = \generator{D} \\ \overline{\dtrToCase{\defs(C)} {\case P e}}}
+{ \dtrToCsm {\destr \& x} {\csmcase d \& e}}
 \end{mathpar}
 
-
-% \framebox{$\Delta; \Gamma \vdash Csm \leadsto Dtr$}
 \begin{mathpar}
-% \inferrule[Csm2Dec]
-% { {\kwcase\; \_ \Rightarrow e} \notin \overline{P}}
-% {  \Gamma \vdash \csm P \leadsto \dec }
-
-\inferrule[Csm2Fun]
-{ {\kwcase\; \_ \Rightarrow e} \in \overline{\case P e} \\ \transCtx{\kwself: D,\overline{x:T}} e T e'}
-{  \Delta; \Gamma \vdash \csmcase e  \leadsto \dec x = [\kwself \mapsto \kwthis]e'}
-
-\inferrule[Csm2Dec]
-% { {\kwcase\; \_ \Rightarrow e} \notin \overline{P}}
-{}
-{  \Delta; \Gamma \vdash \csmcase e \leadsto \dec x}
+\inferrule[DecRef2Csm]
+{ \overline{C} = \generator{D} \\ \overline{\dtrToCase{\defs(C)} {\case P e}}}
+{ \dtrToCsm {\destr \& x} {\csmcase d \& e}}
 \end{mathpar}
-%% \cristina{Do we need Fun2Case as well? I don't fully follow Case2Fun as opposed to Csm2Fun.}
-%% \weixin{Rename Gen2Case as Fun2Case}
-% \framebox{$\csmToDtr {Csm} {Fun}$}
+
 \begin{mathpar}
-\inferrule[Case2Fun]
-{ \case {C(\overline{y})}{e}  \in \overline{\case P e} \\ \transCtx{\kwself: D,\overline{x:T}} e T e'}
-{ \csmToDtr { \csmcase e} {\dec x = [\kwself \mapsto \kwthis]e'}}
-
-\appCsm
-
-\inferrule[Obj2New]
-{ \sig(C) = \overline{T} \rightarrow D \\ C \in \ctrs{D} \\ \overline{\trans e T e'}}
-{ \trans{C(\overline{e})}{D}{\newSeq C {e'}}}
+\inferrule[DecPointer2Csm]
+{ \overline{C} = \generator{D} \\ \overline{\dtrToCase{\defs(C)} {\case P e}}}
+{ \dtrToCsm {\destr \sim x} {\csmcase{d}{}{e}}}
 \end{mathpar}
+
+\caption{Expression type transformation rules}
+\label{fig:trans-fp}
+\end{figure}
+
+\begin{figure}[t]
 
 \begin{mathpar}
 \inferrule[CreateRef]
@@ -798,7 +776,7 @@ One approach to resolving these issues is to use the built in type inference in 
 { \trans{e}{\sim T}{\&*e \Rightarrow \&T}}
 
 \end{mathpar}
-\caption{Core translation rules for functional decomposition}
+\caption{Expression type transformation rules}
 \label{fig:trans-fp}
 \end{figure}
 
@@ -806,7 +784,23 @@ One approach to resolving these issues is to use the built in type inference in 
 Having collected the global context, the next stage of the transformation is to transform the user defined types, and their associated functions. 
 
 \subsection{Transformation of Type Definitions}
-The first stage of this process is to transform the types themselves. The rules for this process are unchanged, however there are some additional considerations in Rust, including visibility and dyn traits. A demo of this transformation stage is shown in \autoref{fig:trans-type-stage}
+The first stage of this process is to transform the types themselves. These transformations follow the \verb|IT2DT|, \verb|GEN2CTR|, \verb|DT2IT| and \verb|CTR2GEN| rules which remain unchanged from \cite{food}. However there are some additional considerations in the Rust implementation, including visibility and dyn traits. A demo of this transformation stage is shown in \autoref{fig:trans-type-stage}
+
+\begin{figure}
+\centering
+\begin{subfigure}{.5\textwidth}
+    \rustsnippet{type_def_transfom_oop}
+    \caption{OOP decomposition style}
+    \label{fig:dec-ex-oop}
+\end{subfigure}%
+\begin{subfigure}{.5\textwidth}
+    \rustsnippet{type_def_transfom_fp}
+    \caption{FP decomposition style}
+    \label{fig:dec-ex-fp}
+\end{subfigure}
+\caption{Rust Decomposition Examples}
+\label{fig:dec-ex}
+\end{figure}
 
 For OOP to FP the following steps are followed for each trait:
 \begin{enumerate}
@@ -824,7 +818,7 @@ For FP to OOP the following steps are followed for each enum:
 
 \subsection{Transformation of Associated Functions}
 
-Having transformed the definitions of each type, the next stage of the transformation is to convert the associated functions. For OOP this involves transforming the implementations of the trait methods into consumers, whilst for FP, it involves transforming the consumers into the trait methods and associated implementations for the structs. The rules for these transformations require some minor alteration in order the accommodate the change in type of the function arguments and return types.
+Having transformed the definitions of each type, the next stage of the transformation is to convert the associated functions. For OOP this involves transforming the implementations of the trait methods into consumers, whilst for FP, it involves transforming the consumers into the trait methods and associated implementations for the structs. The rules for these transformations require some minor alteration in order the accommodate the Rust typing system.
 
 As mention in \autoref{sec:dyn}, a reference to a trait cannot be created, without the \rust{dyn} token. This means when converting a method from FP, if a consumer has any function arguments which type match that of the enum, the type must be updated to a \rust{dyn} reference.
 
