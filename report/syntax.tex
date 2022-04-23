@@ -34,7 +34,7 @@
 \newcommand{\newSeq}[2]{\new #1{\overline{#2}}}
 \newcommand{\ctr}[2]{\kwcase \; #1(\overline{x : T}) \; \kwextends \; #2}
 \newcommand{\classf}[5]{\kwclass \; #1(\overline{#2 : #3}) \; \kwimplements \; #4 \; \{ #5 \}}
-\newcommand{\class}[3]{\classf #1 x T #2 {\overline{#3}}}
+\newcommand{\class}[3]{\classf{#1}{x}{T}{#2}{\overline{#3}}}
 
 \newcommand{\kwinterface}{\kw{interface}}
 \newcommand{\kwextends}{\kw{extends}}
@@ -62,24 +62,32 @@
 \newcommand{\dt}{\textsc{Dt}}
 \newcommand{\ct}{\textsc{It}}
 \newcommand{\dtr}[1]{\textsc{Dtr}(#1)}
-\newcommand{\destr}[2]{\kwdef \ f(\kwself:#1D)(\overline{#2 : T}): T}
+\newcommand{\destr}[2]{\kwdef \ f(\kwself:#1)(\overline{#2 : Ts}): T}
 \newcommand{\consumer}[1]{\textsc{Csm}(#1)}
 \newcommand{\case}[2]{\kwcase\ {#1} \Rightarrow {#2}}
-\newcommand{\csmcase}[3]{\kwdef \ f(#1:#2D)(\overline{x : T}): T = \overline{\case P{#3}}}
-\newcommand{\csm}[1]{\kwdef \ f(\kwself:D)(\overline{x : T}): T = #1}
-\newcommand{\dec}[1]{\kwdef \ f(\overline{#1 : T}): T}
+\newcommand{\csm}[3]{\kwdef \ f(#1, \overline{#2}): #3}
+\newcommand{\csmcase}[4]{\csm {#1} {#2} {#3} = \overline{\case P{#4}}}
+\newcommand{\dec}[2]{\kwdef \ f(\overline{#1}): #2}
+\newcommand{\decD}[3]{\kwdef \ f(#1, \overline{#2}): #3}
 \newcommand{\generator}[1]{\textsc{Gen}(#1)}
 \newcommand{\toCase}[2]{\textsc{ToCase}(#1,#2)}
 \newcommand{\ctrs}[1]{\textsc{Ctr}(#1)}
 \newcommand{\dtrToCsm}[2]{\Delta;\Gamma \vdash_D #1 \leadsto #2}
 \newcommand{\dtrToCsmCtx}[4]{\Delta;\Gamma, #1 : #2 \vdash_D #3 \leadsto #4}
-\newcommand{\dtrToCase}[2]{\Delta;\Gamma \vdash_f {#1} \leadsto {#2}}
+\newcommand{\dtrToCase}[3]{\Delta;\Gamma \vdash_{f}^{#1} {#2} \leadsto {#3}}
 \newcommand{\csmToDtr}[2]{\Delta;\Gamma \vdash_C #1 \leadsto #2}
 \newcommand{\csmSig}{\textsf{csm2dtrsig}}
 \newcommand{\map}[3]{\langle #1 \; | \; #2 \leftarrow #3 \rangle}
 
-\newcommand{\transCtx}[4]{\Delta;\Gamma, #1 \vdash #2 \Rightarrow #3 \leadsto #4}
-\newcommand{\trans}[3]{\Delta; \Gamma \vdash #1 \Rightarrow #2 \leadsto #3}
+\newcommand{\transCtx}[5]{\Delta;\Gamma, #1 \vdash^{#2} #3 \Rightarrow #4 \leadsto #5 \Rightarrow #2}
+\newcommand{\transType}[3]{#2 \overset{#1}{\leadsto} #3}
+\newcommand{\transTypeExpr}[2]{\Delta;\Gamma \vdash^{\sigma} e \Rightarrow #1T \leadsto #2 e \Rightarrow \sigma}
+\newcommand{\transTypeExprE}[3]{\Delta;\Gamma \vdash^{\sigma} #1 \Rightarrow #2 \leadsto #3 \Rightarrow \sigma}
+\newcommand{\transTypeVal}[2]{\vdash_{#1} #2 \quad \text{\textbf{val}}}
+\newcommand{\oldtrans}[3]{\Delta; \Gamma \vdash #1 \Rightarrow #2 \leadsto #3}
+\newcommand{\trans}[4]{\Delta; \Gamma \vdash #1 \Rightarrow #2 \leadsto #3 \Rightarrow #4}
+\newcommand{\transSigma}[4]{\transSigmaCtx{} {#1} {#2} {#3} {#4}}
+\newcommand{\transSigmaCtx}[5]{\Delta; \Gamma #1 \vdash^{#2} #3 \Rightarrow #4 \leadsto #5 \Rightarrow #2}
 \newcommand{\transGeneric}[4]{#1 \vdash #2 \Rightarrow #3 \leadsto #4}
 \newcommand{\aliasCtx}{\Delta}
 \newcommand{\toplike}[1]{\rceil #1 \lceil}
