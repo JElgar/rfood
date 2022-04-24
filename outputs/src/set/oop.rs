@@ -12,7 +12,7 @@ pub fn is_empty(set: &Set) -> bool {
             return false;
         }
         Set::Union { set1, set2 } => {
-            return is_empty(set1) && is_empty(set2);
+            return is_empty(&*set1) && is_empty(&*set2);
         }
     }
 }
@@ -22,10 +22,10 @@ pub fn contains(set: &Set, i: i32) -> bool {
             return false;
         }
         Set::Insert { set1, value } => {
-            return *value == i || contains(set1, i);
+            return value == &i || contains(&*set1, i);
         }
         Set::Union { set1, set2 } => {
-            return contains(set1, i) || contains(set2, i);
+            return contains(&*set1, i) || contains(&*set2, i);
         }
     }
 }

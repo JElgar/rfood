@@ -3,12 +3,12 @@ pub enum Exp {
     Sub { l: Box<Exp>, r: Box<Exp> },
 }
 pub fn eval(exp: &Exp) -> i32 {
-    match &exp {
+    match exp {
         Exp::Lit { n } => {
             return *n;
         }
         Exp::Sub { l, r } => {
-            return 2;
+            return eval(&*l) - eval(&*r);
         }
     }
 }
@@ -18,4 +18,5 @@ pub fn demo() {
         r: Box::new(Exp::Lit { n: 1 }),
     });
     let _result = eval(&*e);
+    println!("{}", eval(&*e));
 }

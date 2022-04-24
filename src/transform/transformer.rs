@@ -59,6 +59,12 @@ pub fn transform_file(path: &PathBuf, output_path: &PathBuf, transform_type: &Tr
                 transformed_syntax
                     .items
                     .append(&mut transform_trait(&trait_, gamma_mut_borrow));
+                transformed_syntax.items = Vec::from_iter(
+                    transformed_syntax
+                        .items
+                        .iter()
+                        .map(|item| transform_item(&item, &transform_type, &gamma_mut_borrow)),
+                );
 
                 // Remove the original trait from the syntax
                 for (item_struct, item_impl) in gamma_mut_borrow.get_generators(&trait_.ident) {
@@ -784,20 +790,37 @@ fn transform_struct_instantiation_path_for_enum(
 fn transform_expr_type(
     expr: &Expr,
     current_type: &DeltaType,
-    required_type: &DeltaType,
+    required_type: &EType,
     gamma: &Gamma,
 ) -> Expr {
-    if current_type.is_equaivalent(&required_type, &gamma) {
-        return expr.clone();
-    }
-    match (&current_type.ref_type, &required_type.ref_type) {
-        (RefType::Box(_) | RefType::Ref(_), RefType::None) => create_dereference_of_expr(expr),
-        (RefType::None, RefType::Box(_)) => create_box_of_expr(expr),
-        (RefType::None, RefType::Ref(_)) => create_reference_of_expr(expr),
-        (RefType::Box(_), RefType::Ref(_)) => {
-            create_reference_of_expr(&create_dereference_of_expr(expr))
+    println!("Transforming expr type for {:?} to {:?}", current_type, required_type);
+
+    // If the current type equivalent to the required type
+    if let EType::DeltaType(required_type) = required_type {
+        if current_type.is_equaivalent(&required_type, &gamma) {
+            return expr.clone();
         }
-        _ => panic!("Cannot transform {:?} to {:?}", current_type, required_type),
+    }
+
+    match &required_type {
+        EType::Any | EType::None => expr.clone(),
+        EType::RefType(rt) | &EType::DeltaType(DeltaType{ref_type: rt, ..}) => match (&current_type.ref_type, rt){
+            (left, right) if left == right => expr.clone(),
+            (RefType::Box(_) | RefType::Ref(_), RefType::None) => create_dereference_of_expr(expr),
+            // (RefType::Box(box inner) | RefType::Ref(box inner), RefType::None) => create_dereference_of_expr(&transform_expr_type(
+            //         expr,
+            //         &DeltaType{name: required_type.name.clone(), ref_type: inner.clone()},
+            //         &DeltaType{name: required_type.name.clone(), ref_type: RefType::None},
+            //         &gamma
+            // )),
+            (RefType::None, RefType::Box(_)) => create_box_of_expr(expr),
+            (RefType::None, RefType::Ref(_)) => create_reference_of_expr(expr),
+            (RefType::Box(_), RefType::Ref(_)) => {
+                create_reference_of_expr(&create_dereference_of_expr(expr))
+            }
+            _ => panic!("Cannot transform {:?} to {:?}", current_type, required_type),
+            // _ => expr.clone(),
+        }
     }
 }
 
@@ -828,25 +851,23 @@ fn transform_block(
     }
 }
 
-fn transform_expr(
+fn transform_expr_inner(
     expr: &Expr,
     transform_type: &TransformType,
     gamma: &Gamma,
-    delta: &Delta,
+    delta: &mut Delta,
     return_type: EType,
 ) -> Expr {
-    // Clone the delta at this stage
-    let mut delta = delta.clone();
     match (transform_type, expr) {
         (_, Expr::Unary(_) | Expr::Path(_)) => {
             // Remove any existing derefs so we can fix the type manually
-            if let EType::DeltaType(delta_type) = return_type {
-                let expr = clean_type(expr);
-                let current_type = delta.get_type_of_expr(&expr, gamma);
-                if let Ok(current_type) = current_type {
-                    return transform_expr_type(&expr, &current_type, &delta_type, gamma);
-                }
-            }
+            // if let EType::DeltaType(delta_type) = return_type {
+            //     let expr = clean_type(expr);
+            //     let current_type = delta.get_type_of_expr(&expr, gamma);
+            //     if let Ok(current_type) = current_type {
+            //         return transform_expr_type(&expr, &current_type, &delta_type, gamma);
+            //     }
+            // }
             return expr.clone();
         },
         (TransformType::OOPToFP, Expr::MethodCall(expr_method_call))
@@ -876,7 +897,7 @@ fn transform_expr(
             let mut fn_expr = create_function_call(&method, Punctuated::from_iter(new_args));
 
             // Perform regular transform on function call
-            fn_expr = transform_expr(&fn_expr, &transform_type, &gamma, &delta, return_type);
+            fn_expr = transform_expr(&fn_expr, &transform_type, &gamma, &delta, return_type.clone());
 
             // If the method is a mutable self call
             if gamma.is_mutable_self_method_call(&expr_method_call, &delta) {
@@ -894,6 +915,9 @@ fn transform_expr(
                 .get_type_of_expr(&method_call.receiver, &gamma)
                 .unwrap();
             let signature = gamma.get_signature(&method_call.method);
+            
+            println!("Transforming method call {}", signature.as_ref().unwrap().ident);
+            println!("Delta is {:?}", delta);
             Expr::MethodCall(ExprMethodCall {
                 receiver: Box::new(transform_expr(
                     &method_call.receiver,
@@ -905,6 +929,7 @@ fn transform_expr(
                 // Skip one to skip the receiver argument
                 args: Punctuated::from_iter(method_call.args.iter().enumerate().map(
                     |(index, arg)| {
+                        println!("Transforming type of arg to {:?}", signature.as_ref().unwrap().inputs[index + 1].get_delta_type(Some(reciever_type.name.clone())));
                         transform_expr(
                             arg,
                             transform_type,
@@ -936,7 +961,7 @@ fn transform_expr(
             let method_call =
                 create_method_call(&get_function_call_name(expr_call), &first_arg, &args);
             // Performance regular transformations to the new method call (fix typing of args)
-            transform_expr(&method_call, &transform_type, &gamma, &delta, return_type)
+            transform_expr(&method_call, &transform_type, &gamma, &delta, return_type.clone())
         }
         (_, Expr::Call(expr_call)) if new_box_call_expr(expr).is_ok() => {
             // Get the inner extression of the box call
@@ -978,13 +1003,16 @@ fn transform_expr(
                     .unwrap();
 
                 return Expr::Call(ExprCall {
-                    func: Box::new(transform_expr(
-                        &expr_call.func,
-                        transform_type,
-                        gamma,
-                        &delta,
-                        EType::Any,
-                    )),
+                    func: Box::new(match &*expr_call.func {
+                        Expr::Path(_) => *expr_call.func.clone(),
+                        _ => transform_expr(
+                                &expr_call.func,
+                                transform_type,
+                                gamma,
+                                &delta,
+                                EType::Any,
+                        ),
+                    }),
                     args: Punctuated::from_iter(expr_call.args.iter().enumerate().map(
                         |(index, arg)| {
                             transform_expr(
@@ -1002,16 +1030,18 @@ fn transform_expr(
             }
             panic!("Cannot transform non path calls")
         }
-        (_, Expr::Return(expr_return)) if expr_return.expr.is_some() => Expr::Return(ExprReturn {
-            expr: Some(Box::new(transform_expr(
-                &expr_return.clone().expr.unwrap(),
-                transform_type,
-                gamma,
-                &delta,
-                return_type,
-            ))),
-            ..expr_return.clone()
-        }),
+        (_, Expr::Return(expr_return)) if expr_return.expr.is_some() => {
+            Expr::Return(ExprReturn {
+                expr: Some(Box::new(transform_expr(
+                    &expr_return.clone().expr.unwrap(),
+                    transform_type,
+                    gamma,
+                    &delta,
+                    return_type.clone(),
+                ))),
+                ..expr_return.clone()
+            }
+        )},
         (TransformType::OOPToFP, Expr::Struct(expr_struct))
             if gamma
                 .get_generator_trait(&expr_struct.path.get_delta_type().name)
@@ -1025,7 +1055,7 @@ fn transform_expr(
                     let enum_variant =
                         gamma.get_enum_variant(&enum_variant_ident, &enum_variant_ident);
                     let mut enum_delta = Delta::new();
-                    enum_delta.collect_for_enum_variant(&enum_variant.unwrap());
+                    enum_delta.collect_for_enum_variant(&enum_variant.unwrap(), false);
 
                     let required_type = enum_delta.get_type_of_member(&field.member);
                     let new_expr = transform_expr(
@@ -1037,28 +1067,29 @@ fn transform_expr(
                     );
 
                     // Check type of expr matches required type
-                    let new_expr_type = delta.get_type_of_expr(&new_expr, gamma).unwrap();
+                    // let new_expr_type = delta.get_type_of_expr(&new_expr, gamma).unwrap();
 
                     FieldValue {
-                        expr: transform_expr_type(
-                            &new_expr,
-                            &new_expr_type,
-                            &required_type,
-                            &gamma,
-                        ),
+                        expr: new_expr,
+                        // expr: transform_expr_type(
+                        //     &new_expr,
+                        //     &new_expr_type,
+                        //     &required_type,
+                        //     &gamma,
+                        // ),
                         ..field.clone()
                     }
                 })),
                 ..expr_struct.clone()
             });
-            if let EType::DeltaType(dt) = return_type {
-                return transform_expr_type(
-                    &struct_,
-                    &delta.get_type_of_expr(&struct_, gamma).unwrap(),
-                    &dt,
-                    &gamma,
-                );
-            }
+            // if let EType::DeltaType(dt) = return_type {
+            //     return transform_expr_type(
+            //         &struct_,
+            //         &delta.get_type_of_expr(&struct_, gamma).unwrap(),
+            //         &dt,
+            //         &gamma,
+            //     );
+            // }
             return struct_;
         }
         (TransformType::FPToOOP, Expr::Struct(expr_struct))
@@ -1092,29 +1123,30 @@ fn transform_expr(
                     );
 
                     // Check type of expr matches required type
-                    let new_expr_type = delta.get_type_of_expr(&new_expr, gamma).unwrap();
+                    // let new_expr_type = delta.get_type_of_expr(&new_expr, gamma).unwrap();
 
                     FieldValue {
                         // TODO Move this transform type into transform expr
-                        expr: transform_expr_type(
-                            &new_expr,
-                            &new_expr_type,
-                            &required_type,
-                            &gamma,
-                        ),
+                        expr: new_expr,
+                        // expr: transform_expr_type(
+                        //     &new_expr,
+                        //     &new_expr_type,
+                        //     &required_type,
+                        //     &gamma,
+                        // ),
                         ..field.clone()
                     }
                 })),
                 ..expr_struct.clone()
             });
-            if let EType::DeltaType(dt) = return_type {
-                return transform_expr_type(
-                    &struct_,
-                    &delta.get_type_of_expr(&struct_, gamma).unwrap(),
-                    &dt,
-                    &gamma,
-                );
-            }
+            // if let EType::DeltaType(dt) = return_type {
+            //     return transform_expr_type(
+            //         &struct_,
+            //         &delta.get_type_of_expr(&struct_, gamma).unwrap(),
+            //         &dt,
+            //         &gamma,
+            //     );
+            // }
             return struct_;
         }
         (_, Expr::Block(expr_block)) => Expr::Block(ExprBlock {
@@ -1123,20 +1155,31 @@ fn transform_expr(
                 transform_type,
                 gamma,
                 &delta,
-                return_type,
+                return_type.clone(),
             ),
             ..expr_block.clone()
         }),
         (_, Expr::Match(expr_match)) => {
-            Expr::Match(ExprMatch {
-                // Transform the match epxr,
-                expr: Box::new(transform_expr(
+            println!("Transforming expr match");
+            println!("Transforming pat");
+            let e1 = Box::new(transform_expr(
                     &*expr_match.expr,
                     transform_type,
                     gamma,
                     &delta,
-                    EType::Any,
-                )),
+                    EType::RefType(RefType::Ref(Box::new(RefType::None))),
+                ));
+            println!("Transformed pat, e1: {:?}", e1);
+            let e = Expr::Match(ExprMatch {
+                // Transform the match epxr,
+                // expr: Box::new(transform_expr(
+                //     &*expr_match.expr,
+                //     transform_type,
+                //     gamma,
+                //     &delta,
+                //     EType::Any,
+                // )),
+                expr: e1,
                 // Transform the body of the match with the context of the struct (all borrows)
                 arms: expr_match
                     .arms
@@ -1146,7 +1189,6 @@ fn transform_expr(
                         // happen for enums)
                         // Then each value collected is a borrow
                         // TODO
-                        let mut delta = delta.clone();
                         delta.collect_for_arm(&arm, &gamma);
                         Arm {
                             body: Box::new(transform_expr(
@@ -1161,7 +1203,9 @@ fn transform_expr(
                     })
                     .collect(),
                 ..expr_match.clone()
-            })
+            });
+            println!("Done Transforming expr match");
+            e
         }
         (_, Expr::Macro(expr_macro)) => {
             // Try and parse the macros parameters into expressions
@@ -1190,7 +1234,6 @@ fn transform_expr(
             })
         }
         (_, Expr::Binary(expr_binary)) => {
-            println!("Transforming binary expr {:?}", expr_binary.op);
             let new_left_expr = transform_expr(
                 &*expr_binary.left,
                 transform_type,
@@ -1199,7 +1242,6 @@ fn transform_expr(
                 EType::Any,
             );
             let new_left_expr_type = delta.get_type_of_expr(&new_left_expr, gamma).unwrap();
-            println!("Left type is: {:?}", new_left_expr_type);
 
             Expr::Binary(ExprBinary{
                 left: Box::new(new_left_expr),
@@ -1235,7 +1277,7 @@ fn transform_expr(
                             transform_type,
                             gamma,
                             &delta,
-                            return_type,
+                            return_type.clone(),
                         ))
                     ))
                 } else {
@@ -1248,6 +1290,29 @@ fn transform_expr(
             // println!("Skipping unsupported {:?} with delta {:?}", expr, delta);
             expr.clone()
         }
+    }
+}
+
+fn transform_expr(
+    expr: &Expr,
+    transform_type: &TransformType,
+    gamma: &Gamma,
+    delta: &Delta,
+    return_type: EType,
+) -> Expr {
+    // Clone the delta at this stage
+    let mut delta = delta.clone();
+
+    // Transform the expr
+    let expr = clean_type(&transform_expr_inner(expr, transform_type, gamma, &mut delta, return_type.clone()));
+
+    // Transform the expression type
+    let expr_type = delta.get_type_of_expr(&expr, gamma);
+    match expr_type {
+        Ok(et) => {
+            transform_expr_type(&expr, &et, &return_type, gamma)
+        },
+        _ => expr
     }
 }
 

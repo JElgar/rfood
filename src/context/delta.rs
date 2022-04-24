@@ -21,6 +21,7 @@ pub enum RefType {
 pub enum EType {
     None,
     DeltaType(DeltaType),
+    RefType(RefType),
     Any,
 }
 
@@ -58,7 +59,7 @@ pub struct Delta {
 }
 
 pub fn get_struct_attrs(struct_: &ItemStruct) -> Vec<Ident> {
-    Vec::from_iter(fields_to_delta_types(&struct_.fields).iter().map(|(field, _)| field.clone()))
+    Vec::from_iter(fields_to_delta_types(&struct_.fields, false).iter().map(|(field, _)| field.clone()))
 }
 
 pub fn get_type_from_box(segment: &PathSegment) -> std::result::Result<Ident, NotABoxType> {
@@ -295,12 +296,19 @@ pub fn get_attribute_ident_from_function_arg(arg: &FnArg) -> Ident {
     panic!("Could not get attribute name from function argument");
 }
 
-fn fields_to_delta_types(fields: &Fields) -> Vec<(Ident, DeltaType)> {
+fn fields_to_delta_types(fields: &Fields, is_ref: bool) -> Vec<(Ident, DeltaType)> {
     match fields {
         Fields::Named(fields_named) => {
-            fields_named.named.iter().map(|field|
-                (field.ident.clone().unwrap(), field.ty.get_delta_type())
-            ).into_iter().collect()
+            fields_named.named.iter().map(|field| {
+                let dt = field.ty.get_delta_type();
+                (field.ident.clone().unwrap(), DeltaType{
+                    name: dt.name,
+                    ref_type: if is_ref && dt.ref_type == RefType::None {
+                        RefType::Ref(Box::new(dt.ref_type))
+                    } else {
+                        dt.ref_type 
+                    }})
+            }).into_iter().collect()
         },
         Fields::Unit => vec![],
         _ => panic!("Unanmed structs/enums are not supported")
@@ -358,7 +366,7 @@ impl Delta {
     }
 
     pub fn collect_for_struct(&mut self, struct_: &ItemStruct, struct_ref_type: RefType) {
-        let mut field_type = fields_to_delta_types(&struct_.fields);
+        let mut field_type = fields_to_delta_types(&struct_.fields, false);
         if matches!(struct_ref_type, RefType::Ref(_)) {
             field_type.iter_mut().for_each(|(_, delta_type)| {
                 delta_type.ref_type = RefType::Ref(Box::new(RefType::None));
@@ -369,9 +377,9 @@ impl Delta {
         );
     }
     
-    pub fn collect_for_enum_variant(&mut self, enum_variant: &Variant) {
+    pub fn collect_for_enum_variant(&mut self, enum_variant: &Variant, is_ref: bool) {
         self.types.extend(
-            fields_to_delta_types(&enum_variant.fields)
+            fields_to_delta_types(&enum_variant.fields, is_ref)
         );
     }
     
@@ -405,14 +413,7 @@ impl Delta {
             let variant = gamma.get_constructor(&enum_name);
 
             // Get the type of the fields
-            match variant {
-                Ok(variant) => {
-                    // TODO this collects all the filed, it should only collect the fileds that are
-                    // in the fileds above.
-                    self.collect_for_enum_variant(&variant);
-                },
-                Err(_) => (),
-            }
+            self.collect_for_enum_variant(&variant.unwrap(), true);
         }
     }
 
@@ -447,6 +448,18 @@ impl Delta {
                     })) => Ok(DeltaType{name: name.clone(), ref_type: *inner_ref_type.clone()}),
                     _ => type_
                 }
+            },
+            Expr::Reference(ExprReference{ expr, .. }) => {
+                let inner_expr_type = self.get_type_of_expr(expr, gamma);
+                if inner_expr_type.is_err() {
+                    return inner_expr_type;
+                }
+
+                let inner_expr_type = inner_expr_type.unwrap();
+                Ok(DeltaType{
+                    name: inner_expr_type.clone().name,
+                    ref_type: RefType::Ref(Box::new(inner_expr_type.clone().ref_type))
+                })
             },
             Expr::Path(ExprPath { path, .. }) => {
                 Ok(self.get_type(&get_ident_from_path(path)))
@@ -510,13 +523,15 @@ impl Delta {
                     Lit::Int(_) => Ok(DeltaType{name: Ident::new("i32", Span::call_site()), ref_type: RefType::None}),
                     Lit::Float(_) => Ok(DeltaType{name: Ident::new("f32", Span::call_site()), ref_type: RefType::None}),
                     Lit::Bool(_) => Ok(DeltaType{name: Ident::new("bool", Span::call_site()), ref_type: RefType::None}),
+                    Lit::Str(_) => Ok(DeltaType{name: Ident::new("str", Span::call_site()), ref_type: RefType::None}),
                     _ => panic!("Unsupported literal {:?}", lit)
                 }
             },
             Expr::Binary(ExprBinary { left, right, op, .. }) => {
                 match op {
                     BinOp::Eq(_) => Ok(DeltaType{name: Ident::new("bool", Span::call_site()), ref_type: RefType::None}),
-                    BinOp::Add(_) | BinOp::Div(_) => self.get_type_of_expr(left, gamma),
+                    BinOp::Add(_) | BinOp::Div(_) | BinOp::Sub(_) | BinOp::Mul(_) => self.get_type_of_expr(left, gamma),
+                    BinOp::And(_) | BinOp::Or(_) => Ok(DeltaType{name: Ident::new("bool", Span::call_site()), ref_type: RefType::None}),
                     _ => panic!("Unsupported op {:?}", op)
                 }
             },
