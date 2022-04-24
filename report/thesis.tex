@@ -649,44 +649,48 @@ Note the changing in type, never effects the base type, but only the references/
         \text{Program}
         & L & \Coloneqq & Def ; L \mid e\\
         \text{Definition}
-        & Def & \Coloneqq & Dt \mid It \mid Ctr \mid Gen \mid Csm \\
-        \text{Type Assignment}
-        & \textcolor{red}{Tas} & \Coloneqq & \textcolor{red}{d: T} \\
+        % & Def & \Coloneqq & Dt \mid It \mid Gen \mid Csm \\
+        & Def & \Coloneqq & Dt \mid It \mid Gen \mid  Dec \\
         \text{Datatype}
-         & Dt & \Coloneqq & \sealed D\\
+         & Dt & \Coloneqq & \datatype {Dtn} {Ctr}\\
         \text{Interface}
-         & It & \Coloneqq & \interface D {Dtr}\\
+         & It & \Coloneqq & \interface {Itn} {Dtr}\\
         \text{Destructor}
-         & Dtr & \Coloneqq & \textcolor{red}{\destr {\&Self} x \mid \destr {\sim Self} x}\\
-        \text{Constructor}
-         & Ctr & \Coloneqq & \ctr C Itn\\
+         & Dtr & \Coloneqq & \fnDstr {self: \&Self} {x: T} {T} \mid \fnDstr {self: \sim Self} {x: T} {T}\\
+        % \text{Constructor}
+        %  & Ctr & \Coloneqq & \ctr {Ctrn} {\fnArgs{x}{T}} \\
         \text{Generator}
         %  & gen & \Coloneqq & \class C {C(\overline{e})} {fun}\\
-         & Gen & \Coloneqq & \class{C}{Dtn}{Fun}\\
-         \text{Consumer}
-         & Csm & \Coloneqq & \textcolor{red}{\csmcase {d: \&Dtn} {xs: T_{x}} T {e}} \\
-         &     &           & \textcolor{red}{\mid \csmcase{d: Dtn}{xs: T_{x}}{T}{e}}\\
-        %  \text{Body}
-        %  & body & \Coloneqq & \overline{P \Rightarrow e} \mid e\\
+         & Gen & \Coloneqq & \class{\genn}{x}{T}{Itn}{Fun}\\
+         
+        %   \text{Consumer}
+        %   & Csm & \Coloneqq & \csmcase {d: \&Dtn} {xs: T_{x}} T {e} \\
+        %   &     &           & \mid \csmcase{d: Dtn}{xs: T_{x}}{T}{e}\\
+        %   &     &           & \mid \csmcase{d: \sim Dtn}{xs: T_{x}}{T}{e} \\
+        
          \text{Declaration}
          & Dec & \Coloneqq & \dec {x: T} T\\
          \text{Function}
          & \text{Fun} & \text{$\Coloneqq$} & \text{Dec = e}\\
         \text{Expression}
          & e & \Coloneqq & x %\mid \overline{(x: T)} \Rightarrow t 
-          \mid e_1.f(\overline{e_2})  \mid f(e_1)(\overline{e_2}) \mid C(\overline{e}) \mid \newSeq{C}{e} \mid \textcolor{red}{\sim e\mid \&e \mid *e}\\
+          \mid e_1.f(\overline{e_2})  \mid f(\overline{e}) \mid Genn(\overline{e}) \mid \ctrCall{Dtn}{Ctrn}{e} \mid \sim e\mid \&e \mid *e\\
+         &   &           & \ifexpr{e_1}{e_2} \mid \matchexpr{e}{P}{e} \mid \blockexpr{e} \mid \eqexpr{e_1}{e_2} \mid \macroexpr{m}{e} \\
          \text{Pattern}
-         & P & \Coloneqq & C(\overline{x}) \mid \_ \\
+         & P & \Coloneqq & Genn(\overline{x}) \mid \ctrCall{Dtn}{Ctrn}{x} \mid \_ \\
         %  \text{Modifier}
         %  & m & \Coloneqq & \kwsealed \mid \kwabstract \mid \kwcase\\
         \text{Types}
-        & T & \Coloneqq & Dtn \mid \overline{T} \rightarrow T \mid \textcolor{red}{\sim  T \mid \& T \mid \sim_{dyn} Itn}\\
-        & \textcolor{red}{Dtn} & \Coloneqq & \textcolor{red}{\text{Datatype name}} \\
-        & \textcolor{red}{Itn} & \Coloneqq & \textcolor{red}{\text{Interface name}} \\
-        & D & \Coloneqq & Dtn \mid Itn \\
-        & C & \Coloneqq & \text{constructor or generator names} \\
-        & f & \Coloneqq & \text{consumer or destructor names} \\
-        & Self & \Coloneqq & \text{Alias for type of trait within trait or impl} \\
+        & T & \Coloneqq & Dtn \mid \overline{T} \rightarrow T \mid \sim  T \mid \& T \mid \sim_{dyn} Itn \mid \bot \\
+        & Dtn & \Coloneqq & \text{Datatype name} \\
+        & Itn & \Coloneqq & \text{Interface name} \\
+        & Ctrn & \Coloneqq & \text{Constructor name} \\
+        & Genn & \Coloneqq & \text{Generator name} \\
+        & f & \Coloneqq & \text{function or destructor name} \\
+        & Self & \Coloneqq & \text{Alias for type of trait within trait or impl block} \\
+        
+        % & D & \Coloneqq & Dtn \mid Itn \\
+        % & C & \Coloneqq & \text{constructor or generator names} \\
         % \text{Names}
         % & D & datatype or interface name \\
       \end{array}
@@ -758,40 +762,41 @@ One approach to resolving these issues is to use the built in type inference in 
 \begin{figure}[t]
 
 \begin{mathpar}
+\inferrule[It2Dt]
+{  \overline{Gen} = \generator{\itn} \\ \overline{\transtwoNT{\itn}{Gen}{Ctr}} \\ \overline{\transtwoNT{\itn}{Dtr}{Csm}} \\ \overline{} \\ \oldtrans L T {L'} \\ \dtn = \itn}
+{ \transtwo {} {\interface{\itn}{Dtr}; L} T {\datatype {\dtn} {Ctr}; \overline{Csm}; L'}}
+\end{mathpar}
+
+\begin{mathpar}
+\inferrule[Gen2Ctr]
+{ \overline{\transType {\itn} T {T'}} \\  } %  
+{ \transtwoNT {\itn}{\class {C} {x} {T} {\itn} {\overline{Fun}}} {\ctr{C}{\overline{x: T'}}}}
+\end{mathpar}
+
+\begin{mathpar}
 \inferrule[Dec2Csm]
-{ \overline{C} = \generator{D} \\ \overline{\dtrToCase{T'}{\defs(C)} {\case P e}}\\
-  \transType{D}{T_{s}}{T_{s}'} \\ \overline{\transType{D}{T_{x}}{T_{x}'}} \\ \transType{D}{T}{T'}
+{ \overline{\genn} = \generator{\itn} \\ \transType{Itn}{T_{s}}{T_{s}'} \\ \overline{\transType{Itn}{T_{x}}{T_{x}'}} \\ \transType{Itn}{T}{T'} 
 }
-{\Delta;\Gamma \vdash_D \decD{self: T_{s}}{xs: T_{x}}{T} \leadsto \csmcase{d: T_{s}'}{xs: T_{x}'}{T'}{e}}
+{\transtwoNTB{\itn}{\decD{self: T_{s}}{xs: T_{x}}{T}}{
+    \csmcase{\fnArg{d}{T_{s}'}} {\fnArg{xs}{T_{x}'}} {\&d} {\ctrPat{\itn}{\genn}} {\gdefinition{f}{\genn}[self \mapsto d]}} 
+}
 \end{mathpar}
 
-\begin{mathpar}
-\inferrule[Fun2Csm]
-{ \dtrToCsm {\decD {self: T_{s}} {xs: T_{x}} {T}} {\csmcase {d: T_{s}'} {xs: T_{x}} {T'} {e}} \\ \transSigmaCtx {, \overline{xs:T_{x}}} {T'} e {T} {e'}}
-{ \dtrToCsm {\decD {self: T_{s}} {xs: T_{x}}{T} = e} \csmcase{d: T_{s}'} {xs: T_{x}'} {T'} {e}; \kwcase\; \_ \Rightarrow [self \mapsto d]e'}
-\end{mathpar}
+% \begin{mathpar}
+% \inferrule[Fun2Csm]
+% { \dtrToCsm {\decD {self: T_{s}} {xs: T_{x}} {T}} {\csmcase {d: T_{s}'} {xs: T_{x}} {T'} {e}} }
+% { \dtrToCsm {\decD {self: T_{s}} {xs: T_{x}}{T} = e} \csmcase{d: T_{s}'} {xs: T_{x}'} {T'} {e}; \kwcase\; \_ \Rightarrow [self \mapsto d]e}
+% \end{mathpar}
 
-\begin{mathpar}
-\inferrule[Fun2Case] % reuse
-{ \decD {self} x T = e \in \overline{Fun} \\ \transCtx {\overline{y:S}, \overline{x:T}} \sigma e T {e'}}
-{  \dtrToCase{\sigma} {\classf {C} {y} {S} {D} {\overline{Fun}}} {\case {C(\overline{y})} {[self \mapsto d]e'}}}
-\end{mathpar}
+% \begin{mathpar}
+% \inferrule[Fun2Case] % reuse
+% { \decD {self} x T = e \in \overline{Fun} }
+% {  \dtrToCase {\classf {C} {y} {S} {D} {\overline{Fun}}} {\case {C(\overline{y})} {[self \mapsto d]e}}}
+% \end{mathpar}
 
 % \inferrule[Csm]
 % {\overline{\trans {e} T {e'}} \\ \trans L T L'}
 % { \trans {\csmcase e; L} {T}  {\csmcase {e'};L'}}
-
-\begin{mathpar}
-\inferrule[App2Sel]
-{ \transSigma {D}{e_1} D {e_1'} \\ f \in \consumer{D} \\ \sig(f) = D, \overline{T} \rightarrow T \in \Gamma  \\ \transType{D}{T}{T'}\\ \overline{\transType{}{T}{T'}  \qquad \transSigma {T'} {e_2} T {e_2'}}}
-{ \trans{f(e_1, \overline{e_2})}{T}{e_1'.f(\overline{e_2'})}{T'}}
-\end{mathpar}
-
-\begin{mathpar}
-\inferrule[New2Obj]
-{ \sig(C) = \overline{T} \rightarrow D \\ \overline{\transType{}{T}{T'} \qquad  \transSigma {T'} e T {e'}} } %\\ {\trans t {\overline{T} \arrow T} {t'}} }
-{ \trans{C(\overline{e})}{D}{D::C (\overline{e'})}{D}}
-\end{mathpar}
 
 % \begin{mathpar}
 % \inferrule[DecRef2Csm]
@@ -812,40 +817,6 @@ One approach to resolving these issues is to use the built in type inference in 
 % \end{mathpar}
 
 \caption{Stage 2 - User defined types transformation rules}
-\label{fig:trans-fp}
-\end{figure}
-
-\begin{figure}[t]
-
-\begin{mathpar}
-\inferrule[CreateRef]
-{\sigma = \& T}
-{ \transTypeExpr{}{\&}}
-
-\inferrule[CreatePointer]
-{\sigma = \sim T}
-{ \transTypeExpr{}{\sim}} \\
-
-\inferrule[DerefRef]
-{\sigma = T}
-{ \transTypeExpr{\&}{*}}
-
-\inferrule[DerefPointer]
-{\sigma = T}
-{ \transTypeExpr{\sim}{*}} \\
-
-\inferrule[Pointer2Ref]
-{ \sigma = \& T}
-{ \transTypeExpr{\sim}{\&*}}
-\end{mathpar}
-
-\begin{mathpar}
-\inferrule[Pointer2Ref]
-{ \transSigma{bool}{e_1}{T_1}{e_1'} \\ \transSigma{\sigma}{e_2}{T_{2}}{e_2'}}
-{ \transTypeExprE {if (e_1) {e_2}} {T_2} {if (e_1') {e_2'}} }
-
-\end{mathpar}
-\caption{Expression type transformation rules}
 \label{fig:trans-fp}
 \end{figure}
 
@@ -897,7 +868,108 @@ One approach to resolving these issues is to use the built in type inference in 
 { \transType{}{\sim_{dyn} Dtn}{\sim Dtn}}
 
 \end{mathpar}
-\caption{Expression type assignment transformation rules}
+\caption{Stage 2 - Type signature transformation rules}
+\label{fig:trans-fp}
+\end{figure}
+
+
+\begin{figure}
+
+% \begin{mathpar}
+% \inferrule[App2Sel]
+% { \transSigma {D}{e_1} D {e_1'} \\ f \in \consumer{D} \\ \sig(f) = D, \overline{T} \rightarrow T \in \Gamma  \\ \transType{D}{T}{T'}\\ \overline{\transType{}{T}{T'}  \qquad \transSigma {T'} {e_2} T {e_2'}}}
+% { \trans{f(e_1, \overline{e_2})}{T}{e_1'.f(\overline{e_2'})}{T'}}
+% \end{mathpar}
+
+\begin{mathpar}
+\inferrule[Fn]
+{\transSigma{T}{e}{e'} } %\\ {\trans t {\overline{T} \arrow T} {t'}} }
+{\transThreeStmt{\fnDec{xs: T_{x}}{T}{e}} {\fnDec{xs: T_{x}}{T}{e'}}}
+\end{mathpar}
+
+\begin{mathpar}
+\inferrule[Block]
+{\transSigma{\sigma}{e}{e'} \\ \overline{\transThreeStmt{e}{e'}}} %\\ {\trans t {\overline{T} \arrow T} {t'}} }
+{\transSigma{\sigma}{\block{\overline{e}; e}} {\block{\overline{e'}; e'}}}
+\end{mathpar}
+
+\begin{mathpar}
+\inferrule[Class]
+{\overline{\transThreeStmt{Fun}{Fun'}}} %\\ {\trans t {\overline{T} \arrow T} {t'}} }
+{\transThreeStmt{\class{\genn}{x}{T}{\itn}{\overline{Fun}}} {\class{\genn}{x}{T}{\itn}{\overline{Fun'}}}}
+\end{mathpar}
+
+\begin{mathpar}
+\inferrule[New2Obj]
+{ C \in \generator{D} \\ \sig(C) = \overline{T} \rightarrow D \\ \overline{\transSigma {T} e {e'}} } %\\ {\trans t {\overline{T} \arrow T} {t'}} }
+{ \trans{C(\overline{e})}{D}{D::C (\overline{e'})}{D}}
+\end{mathpar}
+
+\begin{mathpar}
+\inferrule[Sel2App]
+{ f \in Csm \\ SIG(f) = \fntype{T_{1}, \overline{T_{s}}}{T} \\ \transSigma{T_1}{e_1}{e_1'} \\ \overline{\transSigma{T_s}{e_2}{e_2'}}} %\\ {\trans t {\overline{T} \arrow T} {t'}} }
+{\transSigma {\sigma} {\methodcall{e_1}{\overline{e_2}}} {\fncall{e_1', \overline{e_2'}}}}
+\end{mathpar}
+
+\begin{mathpar}
+\inferrule[Sel]
+{ f \notin Csm \\ SIG(f) = \fntype{\overline{T_{s}}}{T} \\ \transThreeStmt{e_1}{e_1'} \\ \overline{\transSigma{T_s}{e_2}{e_2'}}} %\\ {\trans t {\overline{T} \arrow T} {t'}} }
+{\transSigma {\sigma} {\methodcall{e_1}{\overline{e_2}}} {\methodcall{e_1'}{\overline{e_2'}}}}
+\end{mathpar}
+
+% \begin{mathpar}
+% \inferrule[Sel2App]
+% { d \in Dtr } %\\ {\trans t {\overline{T} \arrow T} {t'}} }
+% { \transTypeExprE {\fnDstr{d: T_d}{b}{c}} {} {}}
+% \end{mathpar}
+
+\begin{mathpar}
+\inferrule[If]
+{ \transSigma{bool}{e_1}{e_1'} \\ \transSigma{\sigma}{e_2}{e_2'} \\ \transSigma{\sigma}{e_3}{e_3'}}
+{ \transSigma {\sigma} {\ifelseexpr{e_1}{e_2}{e_3}} {\ifelseexpr{e_1'}{e_2'}{e_3'}} }
+\end{mathpar}
+
+\begin{mathpar}
+\inferrule[Eq]
+{ \transSigmaT{T_1}{e_1}{T_1}{e_1'} \\ \transSigma{T_1}{e_2}{e_2'}}
+{ \transThree {\eqexpr{e_1}{e_2}} {\eqexpr{e_1'}{e_2'}} {T} } 
+\end{mathpar}
+
+% \begin{mathpar}
+% \inferrule[Match]
+% {}
+% { \transTypeExprE {\matchexpr{e_1}{b}{c}{d}{e}} {T}  }
+% \end{mathpar}
+
+\caption{Stage 3 - Expression transformation rules}
+\label{fig:trans-fp}
+\end{figure}
+
+\begin{figure}[t]
+
+\begin{mathpar}
+\inferrule[CreateRef]
+{\sigma = \& T}
+{ \transTypeExpr{}{\&}}
+
+\inferrule[CreatePointer]
+{\sigma = \sim T}
+{ \transTypeExpr{}{\sim}} \\
+
+\inferrule[DerefRef]
+{\sigma = T}
+{ \transTypeExpr{\&}{*}}
+
+\inferrule[DerefPointer]
+{\sigma = T}
+{ \transTypeExpr{\sim}{*}} \\
+
+\inferrule[Pointer2Ref]
+{ \sigma = \& T}
+{ \transTypeExpr{\sim}{\&*}}
+\end{mathpar}
+
+\caption{Expression type transformation rules}
 \label{fig:trans-fp}
 \end{figure}
 
