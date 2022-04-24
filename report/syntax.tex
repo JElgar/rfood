@@ -1,6 +1,70 @@
+%% Real stuff
+\newcommand{\kw}[1]{\texttt{#1} \;}
+\newcommand{\kwinterface}{\kw{interface}}
+\newcommand{\kwextends}{\kw{extends}}
+\newcommand{\kwdata}{\kw{data}}
+\newcommand{\kwmatch}{\kw{match}}
+\newcommand{\kwclass}{\kw{class}}
+\newcommand{\kwimplements}{\kw{impl}}
+\newcommand{\kwif}{\kw{if}}
+\newcommand{\kwelse}{\;\kw{else}}
+
+\newcommand{\generator}[1]{\textsc{Gen}(#1)}
+\newcommand{\gdefinition}[2]{\textsc{Def}_{#1}(#2)}
+
+\newcommand{\genn}{G}
+\newcommand{\ctrn}{C}
+\newcommand{\dtn}{D}
+\newcommand{\itn}{I}
+
+\newcommand{\fntype}[2]{#1 \rightarrow #2}
+
+\newcommand{\fnArg}[2]{#1: #2}
+\newcommand{\fnArgs}[2]{\overline{#1: #2}}
+\newcommand{\fnDstr}[3]{\kwdef \ f(#1, \;\overline{#2}): #3}
+\newcommand{\fnDec}[3]{f(#1): #2 = #3}
+\newcommand{\block}[1]{\{ {#1} \}}
+\newcommand{\blockO}[1]{\block{\overline{{#1}}}}
+\newcommand{\ctr}[2]{#1(#2) \;}
+\newcommand{\ctrPat}[2]{#1::#2}
+\newcommand{\ctrCall}[3]{\ctrPat{#1}{#2}(\overline{#3}) \;}
+\newcommand{\methodcall}[2]{#1.f(#2)}
+\newcommand{\fncall}[1]{f(#1)}
+
+% \newcommand{\class}[5]{\kwclass \; {#1} (\overline{{#2} : {#3}}) \; \kwimplements \; {#4} \; \blockO{#5}}
+\newcommand{\class}[5]{\kwclass \; {#1} (\overline{{#2} : {#3}}) \; \kwimplements \; {#4} \; \block{{#5}}}
+
+% stage 2 trans
+\newcommand{\gdctx}{\Delta; \Gamma}
+\newcommand{\transtwo}[4]{\gdctx \vdash_{#1} #2 \Rightarrow #3 \leadsto #4}
+\newcommand{\transtwoNT}[3]{\gdctx \vdash_{#1} #2 \leadsto #3}
+\newcommand{\transtwoNTB}[3]{\gdctx \vdash_{#1} #2 \leadsto \\ #3}
+
+\newcommand{\datatype}[2]{\kwdata #1 \blockO{#2}}
+\newcommand{\interface}[2]{\kwinterface #1 \; \blockO{#2}}
+
+\newcommand{\macro}[2]{#1!(#2)}
+
+\newcommand{\ifexpr}[2]{\kwif (#1) #2}
+\newcommand{\ifelseexpr}[3]{\ifexpr{#1}{#2} \kwelse #3}
+\newcommand{\blockexpr}[1]{\blockO{#1}}
+\newcommand{\eqexpr}[2]{#1 == #2}
+\newcommand{\macroexpr}[2]{\macro{#1}{\overline{#2}}}
+
+\newcommand{\matchcase}[2]{\kwcase {#1} \Rightarrow #2}
+\newcommand{\matchexpr}[3]{\kwmatch #1 =  \overline{\matchcase{#2}{#3}}}
+
+\newcommand{\csmcase}[5]{\fnDstr{#1}{#2}{T'} = \matchexpr{#3} {#4} {#5}}
+
+\newcommand{\transSigmaCtx}[5]{\Delta; \Gamma {#1} \vdash^{#2} {#3} {#4} \leadsto {#5} \Rightarrow {#2}}
+\newcommand{\transSigma}[3]{\transSigmaCtx{} {#1} {#2} {} {#3}}
+\newcommand{\transSigmaT}[4]{\transSigmaCtx{} {#1} {#2} {\Rightarrow #3} {#4}}
+
+\newcommand{\transThree}[3]{\Delta; \Gamma \vdash #1 \leadsto #2 \Rightarrow #3}
+\newcommand{\transThreeStmt}[2]{\Delta; \Gamma \vdash #1 \leadsto #2}
+
 % \newcommand{\binderspacing}{\,}
 % \newcommand\keyword[1]{\mbox{\lstinline@#1@}}
-\newcommand{\kw}[1]{\texttt{#1}}
 \newcommand{\hast}{\!:\!}
 \newcommand{\app}[2]{#1 \; #2}
 \newcommand{\tapp}[2]{#1 \; @ #2}
@@ -27,23 +91,16 @@
 \newcommand{\fun}[2]{\dec{#1} = #2}
 % \newcommand{\data}{\kw{data}\; C \{ \overline{P}\}}
 % \newcommand{\case}{\kwcase\; C(\overline{x: T})}
-\newcommand{\sealed}[1]{\kwdata \; #1}
 \newcommand{\inter}[2]{\kwabstract \; \kwclass \; #1 \{ \overline{#2} \}}
-\newcommand{\interface}[2]{\kwinterface \; #1 \; \{ \overline{#2}\}}
 \newcommand{\new}[2]{\kwnew \; #1(#2)}
 \newcommand{\newSeq}[2]{\new #1{\overline{#2}}}
-\newcommand{\ctr}[2]{\kwcase \; #1(\overline{x : T}) \; \kwextends \; #2}
-\newcommand{\classf}[5]{\kwclass \; #1(\overline{#2 : #3}) \; \kwimplements \; #4 \; \{ #5 \}}
-\newcommand{\class}[3]{\classf{#1}{x}{T}{#2}{\overline{#3}}}
 
 \newcommand{\kwinterface}{\kw{interface}}
 \newcommand{\kwextends}{\kw{extends}}
 \newcommand{\kwimplements}{\kw{implements}}
 \newcommand{\kwtrait}{\kw{trait}}
-\newcommand{\kwdata}{\kw{data}}
 \newcommand{\kwabstract}{\kw{abstract}}
 \newcommand{\kwclass}{\kw{class}}
-\newcommand{\kwsealed}{\kw{sealed}}
 \newcommand{\kwcase}{\kw{case}}
 \newcommand{\kwdef}{\kw{def}}
 \newcommand{\kwsuper}{\kw{super}}
@@ -74,20 +131,20 @@
 \newcommand{\ctrs}[1]{\textsc{Ctr}(#1)}
 \newcommand{\dtrToCsm}[2]{\Delta;\Gamma \vdash_D #1 \leadsto #2}
 \newcommand{\dtrToCsmCtx}[4]{\Delta;\Gamma, #1 : #2 \vdash_D #3 \leadsto #4}
-\newcommand{\dtrToCase}[3]{\Delta;\Gamma \vdash_{f}^{#1} {#2} \leadsto {#3}}
+\newcommand{\dtrToCase}[2]{\Delta;\Gamma \vdash_{f} {#1} \leadsto {#2}}
 \newcommand{\csmToDtr}[2]{\Delta;\Gamma \vdash_C #1 \leadsto #2}
 \newcommand{\csmSig}{\textsf{csm2dtrsig}}
 \newcommand{\map}[3]{\langle #1 \; | \; #2 \leftarrow #3 \rangle}
 
 \newcommand{\transCtx}[5]{\Delta;\Gamma, #1 \vdash^{#2} #3 \Rightarrow #4 \leadsto #5 \Rightarrow #2}
 \newcommand{\transType}[3]{#2 \overset{#1}{\leadsto} #3}
-\newcommand{\transTypeExpr}[2]{\Delta;\Gamma \vdash^{\sigma} e \Rightarrow #1T \leadsto #2 e \Rightarrow \sigma}
-\newcommand{\transTypeExprE}[3]{\Delta;\Gamma \vdash^{\sigma} #1 \Rightarrow #2 \leadsto #3 \Rightarrow \sigma}
+% \newcommand{\transTypeExpr}[2]{\Delta;\Gamma \vdash^{\sigma} e \Rightarrow #1T \leadsto #2 e \Rightarrow \sigma}
+% \newcommand{\transTypeExprE}[2]{\Delta;\Gamma \vdash^{\sigma} #1 \leadsto #2 \Rightarrow \sigma}
 \newcommand{\transTypeVal}[2]{\vdash_{#1} #2 \quad \text{\textbf{val}}}
 \newcommand{\oldtrans}[3]{\Delta; \Gamma \vdash #1 \Rightarrow #2 \leadsto #3}
 \newcommand{\trans}[4]{\Delta; \Gamma \vdash #1 \Rightarrow #2 \leadsto #3 \Rightarrow #4}
-\newcommand{\transSigma}[4]{\transSigmaCtx{} {#1} {#2} {#3} {#4}}
-\newcommand{\transSigmaCtx}[5]{\Delta; \Gamma #1 \vdash^{#2} #3 \Rightarrow #4 \leadsto #5 \Rightarrow #2}
+% \newcommand{\transSigma}[4]{\transSigmaCtx{} {#1} {#2} {#3} {#4}}
+% \newcommand{\transSigmaCtx}[5]{\Delta; \Gamma #1 \vdash^{#2} #3 \Rightarrow #4 \leadsto #5 \Rightarrow #2}
 \newcommand{\transGeneric}[4]{#1 \vdash #2 \Rightarrow #3 \leadsto #4}
 \newcommand{\aliasCtx}{\Delta}
 \newcommand{\toplike}[1]{\rceil #1 \lceil}

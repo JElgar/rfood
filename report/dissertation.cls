@@ -67,6 +67,7 @@
 \RequirePackage{lipsum}
 % http://www.ctan.org/tex-archive/usergrps/dante/dtk
 \RequirePackage{dtklogos}
+\RequirePackage{float}
 
 % =============================================================================
 
