@@ -555,16 +555,24 @@ Notice also how the \rust{dyn} prefix is used in the \rust{Box}. The \rust{dyn} 
 \chapter{Project Execution}
 \label{chap:execution}
 
-\section{Setup}
+% \section{Setup}
 
-Before any transformations take place, the provided code is transformed into an abstract syntax tree (AST). This provides a concrete format to represent the code syntax, keeping the transformer separate from the code parsing stage. Rust provides access to the \verb|rustc| package, which is its compiler. This contains the \verb|rustc_ast| and \verb|rustc_parse| package which are responsible for this parsing.
+% Before any transformations take place, the provided code is transformed into an abstract syntax tree (AST). This provides a concrete format to represent the code syntax, keeping the transformer separate from the code parsing stage. Rust provides access to the \verb|rustc| package, which is its compiler. This contains the \verb|rustc_ast| and \verb|rustc_parse| package which are responsible for this parsing.
 
-However as Rust is a relatively new language many of these features have unstable APIs. This means they are only available with the nightly compiler and the interface is likely to change. To avoid this, the syn package is used for parsing the rust code into a syntax tree \cite{syn}which provides a stable interface.
-The main issue with Syn, is it geared toward helping parse code in Rust procedural macros. This means it has a stronger focus on understanding an AST rather than manually manipulating it and creating items. For this reason a fork of the Syn project was created to allow access to an additional library, which made creating more AST objects possible. The fork can be found at \url{https://github.com/jelgar/syn}.
+% However as Rust is a relatively new language many of these features have unstable APIs. This means they are only available with the nightly compiler and the interface is likely to change. To avoid this, the syn package is used for parsing the rust code into a syntax tree \cite{syn}which provides a stable interface.
+% The main issue with Syn, is it geared toward helping parse code in Rust procedural macros. This means it has a stronger focus on understanding an AST rather than manually manipulating it and creating items. For this reason a fork of the Syn project was created to allow access to an additional library, which made creating more AST objects possible. The fork can be found at \url{https://github.com/jelgar/syn}.
 
-Another requirement, is once the AST has be transformed, it must be converted back into Rust code. To achieve this the \verb|quote| and \verb|rustfmt|. The \verb|quote|  package converts the AST back into tokens of source code, whilst the \verb|rustfmt| package formats the outputted code in a consistent way.
+% Another requirement, is once the AST has be transformed, it must be converted back into Rust code. To achieve this the \verb|quote| and \verb|rustfmt|. The \verb|quote|  package converts the AST back into tokens of source code, whilst the \verb|rustfmt| package formats the outputted code in a consistent way.
 
-Finally a CLI was created to allow developers to parse in files they want to transform and to specity the direction (OOP to FP or FP to OOP).
+% Finally a CLI was created to allow developers to parse in files they want to transform and to specity the direction (OOP to FP or FP to OOP).
+
+A high level overview of the transformer is represented for both directions in \autoref{alg:high-level}. In each case the transformer operates by performing three distinct passes of the input code, in three stages.
+
+The first stage, matches that of the transformer from \cite{food}. In this stage the "global context" is collect which stores items that regularly used throughout the transformation. This present repeated looks ups for the same items, both improving efficiency and reducing the complexity of the transformer.
+
+The second stage is responsible for the transformations of the user defined types and their associated functions. This primarily matches the transformations outline by \weixin in \cite{food} however with one key difference, types in the attribute of the fields and signatures of the functions can change. This change of types can have knock on effect in other stages of the program. 
+
+The third stage is responsible for updating any references to the user defined types and their functions. This stage also passes over any newly transformed functions in order to update the body. For every transformation throughout this stage an expected return type is provided. This outlines the type which the expression should return after the transformation is complete. This approach allows the decoupling of the transformation of the types, as outlined in \cite{food} from the type corrections.
 
 \section{High level overview}
 
@@ -803,7 +811,7 @@ One approach to resolving these issues is to use the built in type inference in 
 % { \dtrToCsm {\destr \sim x} {\csmcase{d}{}{e}}}
 % \end{mathpar}
 
-\caption{Expression type transformation rules}
+\caption{Stage 2 - User defined types transformation rules}
 \label{fig:trans-fp}
 \end{figure}
 
