@@ -584,14 +584,6 @@ fn transform_destructor_expr(
         enum_name: enum_name.clone(),
     };
     rs.visit_expr_mut(&mut expr_clone);
-
-    expr_clone = transform_expr(
-        &mut expr_clone,
-        &TransformType::OOPToFP,
-        gamma,
-        &new_delta,
-        output_type,
-    );
     return expr_clone;
 }
 
@@ -882,16 +874,16 @@ fn transform_expr_inner(
             } = expr_method_call;
             
             // TODO use clean_type
-            let receiver_expr = if matches!(
-                delta.get_type_of_expr(&receiver, gamma).unwrap().ref_type,
-                RefType::Box(_)
-            ) {
-                create_dereference_of_expr(&receiver)
-            } else {
-                *receiver.clone()
-            };
+            // let receiver_expr = if matches!(
+            //     delta.get_type_of_expr(&receiver, gamma).unwrap().ref_type,
+            //     RefType::Box(_)
+            // ) {
+            //     create_dereference_of_expr(&receiver)
+            // } else {
+            //     *receiver.clone()
+            // };
 
-            let mut new_args = vec![receiver_expr];
+            let mut new_args = vec![*receiver.clone()];
             let old_args: Vec<Expr> = args.iter().cloned().collect();
             new_args.extend(old_args);
             let mut fn_expr = create_function_call(&method, Punctuated::from_iter(new_args));

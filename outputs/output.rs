@@ -3,7 +3,7 @@ pub enum Exp {
     Sub { l: Box<Exp>, r: Box<Exp> },
 }
 pub fn eval(exp: &Exp) -> i32 {
-    match exp {
+    match &exp {
         Exp::Lit { n } => {
             return *n;
         }
