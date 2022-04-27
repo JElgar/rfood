@@ -43,39 +43,9 @@ impl VisitMut for ReplaceFieldCalls {
             }
             
             *expr = create_expr_from_ident(&ident);
-            if !self.self_mut_fields.contains(&ident) {
-                *expr = create_dereference_of_expr(expr);
-            }
-        }
-    }
-}
-
-pub struct ReplaceMethodCalls {
-    pub gamma: Gamma,
-    pub self_type: Ident,
-}
-impl VisitMut for ReplaceMethodCalls {
-    fn visit_expr_mut(&mut self, expr: &mut Expr) {
-        visit_expr_mut(self, expr);
-        if let syn::Expr::MethodCall(expr_method_call) = expr.clone() {
-            // TODO check the method call is of a transformed type 
-            // Extract the type of the expression that the method is being called on
-
-            // Check if the type being transformed is a trait 
-            // let expr_type = self.delta.get_type_of_expr(&expr_method_call.receiver, &self.gamma);
-            // if !(expr_type.is_ok() && self.gamma.is_trait(&expr_type.unwrap().name)) {
-            //     // If not no transformation is needed
-            //     
-            //     return;
+            // if !self.self_mut_fields.contains(&ident) {
+            //     *expr = create_dereference_of_expr(expr);
             // }
-
-            // Create function call for method if the method is a destructor
-            if self.gamma.is_destructor_of_trait(&self.self_type, &expr_method_call.method) {
-                let expr_ref = create_reference_of_expr(&*expr_method_call.receiver.clone());
-                let mut args = Punctuated::from_iter(vec![expr_ref]);
-                args.extend(expr_method_call.args.clone());
-                *expr = create_function_call(&expr_method_call.method, args)
-            }
         }
     }
 }

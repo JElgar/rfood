@@ -141,6 +141,7 @@ pub fn is_mutable_self(sig: &Signature) -> bool {
 #[derive(Debug, Clone)]
 pub struct Gamma {
     /// Enums are the datatypes
+    // TODO change to hashmap
     pub enums: Vec<ItemEnum>, // DT - Datatypes
     /// Traits are the interfaces
     pub traits: Vec<ItemTrait>, // IT - Interfaces

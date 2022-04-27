@@ -51,5 +51,6 @@ fn test_output_shape_oop() {
     
     let triangle = Shape::Triangle;
     assert!(side_count(&triangle) == 3);
+    println!("The internal angle of the shape is {}", internal_angle(&triangle));
     assert!(internal_angle(&triangle) == 180);
 }

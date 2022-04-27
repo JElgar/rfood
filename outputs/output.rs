@@ -1,22 +1,16 @@
-pub enum Exp {
-    Lit { n: i32 },
-    Sub { l: Box<Exp>, r: Box<Exp> },
+pub enum Shape {
+    Circle,
+    Triangle,
 }
-pub fn eval(exp: &Exp) -> i32 {
-    match &exp {
-        Exp::Lit { n } => {
-            return *n;
-        }
-        Exp::Sub { l, r } => {
-            return eval(&*l) - eval(&*r);
-        }
+pub fn side_count(shape: &Shape) -> i32 {
+    match &shape {
+        Shape::Circle {} => 1,
+        Shape::Triangle {} => 3,
     }
 }
-pub fn demo() {
-    let e = Box::new(Exp::Sub {
-        l: Box::new(Exp::Lit { n: 2 }),
-        r: Box::new(Exp::Lit { n: 1 }),
-    });
-    let _result = eval(&*e);
-    println!("{}", eval(&*e));
+pub fn internal_angle(shape: &Shape) -> i32 {
+    match &shape {
+        Shape::Circle {} => 0,
+        _ => 180 * side_count(&shape) - 2,
+    }
 }

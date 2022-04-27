@@ -255,10 +255,6 @@ pub fn transform_enum(enum_: &ItemEnum, gamma: &mut Gamma) -> Vec<Item> {
                         return None;
                     }
 
-                    // TODO Cannot collect dleta for this sig here as the generators has not been added yet
-                    let mut delta = Delta::new();
-                    delta.collect_for_sig(&consumer.sig, None);
-
                     let expr = transform_consumer_expr(
                         &consumer_expr.unwrap(),
                         get_fn_arg_name(&consumer.sig.inputs.first().unwrap()),
@@ -268,7 +264,6 @@ pub fn transform_enum(enum_: &ItemEnum, gamma: &mut Gamma) -> Vec<Item> {
                                 .iter()
                                 .map(|field| field.ident.clone().unwrap()),
                         ),
-                        &delta,
                         gamma,
                     );
 
@@ -352,9 +347,6 @@ fn transform_destructor(
     // wildcard argument
     let mut wild_card_arm_required = false;
     for (generator, generator_impl) in gamma.get_generators(&trait_.ident).iter() {
-        let mut new_delta = Delta::new();
-        new_delta.collect_new_for_destructor_impl(&signature, &generator);
-
         let result = transform_destructor_impl(
             generator,
             destructor,
@@ -362,8 +354,6 @@ fn transform_destructor(
             &enum_instance_name,
             generator_impl,
             gamma,
-            &new_delta,
-            &signature,
         );
 
         match result {
@@ -376,9 +366,6 @@ fn transform_destructor(
 
     // If required, add the wild card arm
     if wild_card_arm_required {
-        let mut new_delta = Delta::new();
-        new_delta.collect_for_sig(&signature, None);
-
         // Get impl in the trait
         let mut body = Expr::Block(ExprBlock {
             block: Gamma::get_destructor_impl_for_trait(trait_, &destructor.sig.ident)
@@ -393,12 +380,8 @@ fn transform_destructor(
         // NOTE trait_ident here is wrong/irrelevant
         body = transform_destructor_expr(
             &body,
-            &new_delta,
             Vec::new(),
-            gamma,
             &enum_instance_name,
-            &trait_.ident,
-            EType::DeltaType(signature.output.get_delta_type(None).unwrap()),
         );
 
         // Create wild card arm with this body
@@ -448,8 +431,6 @@ fn transform_destructor_impl(
     enum_instance_name: &Ident,
     impl_: &ItemImpl,
     gamma: &Gamma,
-    new_delta: &Delta,
-    consumer_signature: &Signature,
 ) -> std::result::Result<Arm, NotFound> {
     // Find the implementation of the method
     let method_result = Gamma::get_destructor_impl_for_generator(&impl_, &destructor.sig.ident);
@@ -529,12 +510,8 @@ fn transform_destructor_impl(
     // Transform the body of the method
     expr = transform_destructor_expr(
         &expr,
-        &new_delta,
         self_mutable_fields,
-        gamma,
         enum_instance_name,
-        &enum_name,
-        get_return_type_from_signature(consumer_signature),
     );
 
     // Create the arm of the match statement
@@ -559,12 +536,8 @@ fn transform_destructor_impl(
 /// * `gamma` - The gamma that the method call is in
 fn transform_destructor_expr(
     expr: &Expr,
-    new_delta: &Delta,
     self_mutable_fields: Vec<Ident>,
-    gamma: &Gamma,
     enum_name: &Ident,
-    enum_type_name: &Ident,
-    output_type: EType,
 ) -> Expr {
     // TODO replace this logic with standard transform_expr
     let mut expr_clone = expr.clone();
@@ -573,12 +546,6 @@ fn transform_destructor_expr(
         self_mut_fields: self_mutable_fields,
     };
     rfc.visit_expr_mut(&mut expr_clone);
-
-    let mut rmc = ReplaceMethodCalls {
-        gamma: gamma.clone(),
-        self_type: enum_type_name.clone(),
-    };
-    rmc.visit_expr_mut(&mut expr_clone);
 
     let mut rs = ReplaceSelf {
         enum_name: enum_name.clone(),
@@ -591,7 +558,6 @@ fn transform_consumer_expr(
     expr: &Expr,
     self_arg_name: Ident,
     trait_attributes: Vec<Ident>,
-    delta: &Delta,
     gamma: &Gamma,
 ) -> Expr {
     let mut expr_clone = expr.clone();
@@ -1249,6 +1215,32 @@ fn transform_expr_inner(
                 ..expr_binary.clone()
             })
         },
+        (_, Expr::Reference(expr_ref)) => {
+            if let EType::RefType(ref_type) | EType::DeltaType(DeltaType{ref_type, ..}) = &return_type {
+                if let RefType::Ref(inner_ref_type) = ref_type {
+                    Expr::Reference(ExprReference{
+                        expr: Box::new(transform_expr(
+                            &expr_ref.expr,
+                            transform_type,
+                            gamma,
+                            &delta,
+                            EType::RefType(*inner_ref_type.clone())
+                        )),
+                        ..expr_ref.clone()
+                    })
+                } else {
+                    transform_expr(
+                        &expr_ref.expr,
+                        transform_type,
+                        gamma,
+                        &delta,
+                        return_type,
+                    )
+                }
+            } else {
+                *expr_ref.expr.clone()
+            }
+        }
         (_, Expr::If(expr_if)) => {
             Expr::If(ExprIf{
                 cond: Box::new(
@@ -1277,9 +1269,21 @@ fn transform_expr_inner(
                 },
                 ..expr_if.clone()
             })
-        }
+        },
+        (_, Expr::Paren(expr_paren)) => {
+            Expr::Paren(ExprParen{
+                expr: Box::new(transform_expr(
+                    &expr_paren.expr,
+                    transform_type,
+                    gamma,
+                    &delta,
+                    return_type.clone(),
+                )),
+                ..expr_paren.clone()
+            })
+        },
         _ => {
-            // println!("Skipping unsupported {:?} with delta {:?}", expr, delta);
+            println!("Skipping unsupported {:?} with delta {:?}", expr, delta);
             expr.clone()
         }
     }
@@ -1306,6 +1310,7 @@ fn transform_expr(
         },
         _ => expr
     }
+    // expr.clone()
 }
 
 fn transform_statement(
