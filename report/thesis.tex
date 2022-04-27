@@ -1107,15 +1107,31 @@ Note although not included in the formalization the visibility of the transforme
 \begin{subfigure}{.5\textwidth}
     \rustsnippet{type_def_transfom_oop}
     \caption{OOP decomposition style}
-    \label{fig:dec-ex-oop}
+    % \label{fig:dec-ex-oop}
 \end{subfigure}%
 \begin{subfigure}{.5\textwidth}
     \rustsnippet{type_def_transfom_fp}
     \caption{FP decomposition style}
-    \label{fig:dec-ex-fp}
+    % \label{fig:dec-ex-fp}
 \end{subfigure}
-\caption{Example transformation of type definitions. Note for FP to OOP, the creation of impl block is not included in this transformation stage.}
-\label{fig:trans-type-stage}
+\caption{Outputs of the first stage of the transfomration from exmaples in \autoref{fig:ex-exp}}
+\label{fig:ex-exp-stage1}
+\end{figure}
+
+\begin{figure}
+\centering
+\begin{subfigure}{.5\textwidth}
+    \rustsnippet{type_fn_transfom_oop}
+    \caption{OOP decomposition style}
+    % \label{fig:dec-ex-oop}
+\end{subfigure}%
+\begin{subfigure}{.5\textwidth}
+    \rustsnippet{type_fn_transfom_fp}
+    \caption{FP decomposition style}
+    % \label{fig:dec-ex-fp}
+\end{subfigure}
+\caption{Outputs of the second stage of the transformation from examples in \autoref{fig:ex-exp}}
+\label{fig:ex-exp-stage1}
 \end{figure}
 
 For OOP to FP the following steps are followed for each trait as outline in \verb|IT2DT| and \verb|GEN2CTR|:
