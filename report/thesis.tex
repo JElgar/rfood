@@ -31,7 +31,7 @@
                   
 % Commands
 \usepackage{hyperref}
-\newcommand{\weixin}{Anonymous }
+\newcommand{\weixin}{Zhang et al }
 
 \usepackage{listings}
 \usepackage{xcolor}
@@ -43,10 +43,14 @@
 \newcommand{\rust}[1]{\mintinline{rust}{#1}}
 
 \newcommand{\codefile}[2]{\inputminted[xleftmargin=20pt,linenos, breaklines]{#1}{#2}}
+\newcommand{\codefileLN}[4]{\inputminted[xleftmargin=20pt,linenos, breaklines, firstline=#3, lastline=#4]{#1}{#2}}
 \newcommand{\rustsnippet}[1]{\codefile{rust}{snippets/#1.rs}}
 \newcommand{\rustfile}[1]{\codefile{rust}{../#1.rs}}
 \newcommand{\rustexample}[1]{\rustfile{examples/src/#1}}
 \newcommand{\rustoutput}[1]{\rustfile{outputs/src/#1}}
+
+\newcommand{\rustfileLN}[3]{\codefileLN{rust}{../#1.rs}{#2}{#3}}
+\newcommand{\rustexampleLN}[3]{\rustfileLN{examples/src/#1}{#2}{#3}}
 
 \usepackage{xcolor} % to access the named colour LightGray
 \definecolor{LightGray}{gray}{0.9}
@@ -555,28 +559,59 @@ Notice also how the \rust{dyn} prefix is used in the \rust{Box}. The \rust{dyn} 
 \chapter{Project Execution}
 \label{chap:execution}
 
-% \section{Setup}
+\section{Setup}
+
+The transformation rules are applied to an abstract syntax tree, AST. 
+Although rust exposes the native compiler parser through the \verb|rustc| create, the APIs are unstable and there is limited documentation. Instead the \verb|syn| package is used to parse the provided source code file into an AST. 
+The \verb|syn| package is designed for parsing macro inputs and is therefor limited in its support for creating AST objects. A minor fork (\url{https://github.com/jelgar/syn}) of the package was created to expose an additional module which enabled the creation of a required set of types.
+
+Once the transformations are completed, the \verb|quote| package is used to covert the AST back into Rust source code tokens. The \verb|rustfmt| package is then used to format the output in a consistent style.
+
+The transformer packaged is exposes as a command line interface, CLI, which takes the path to a file and the desired transformation type (OOP to FP / FP to OOP). 
+
+The project is split into three modules, the core, examples and outputs. The examples and outputs have been separated from the core project to enable them to be tested independently. The core and examples have a limited set of unit tests. An end to end test has then been setup which runs the transformer on a set of examples, and runs a set of unit tests on the output files to validate the functionality of the output matches that of the input.
 
 % Before any transformations take place, the provided code is transformed into an abstract syntax tree (AST). This provides a concrete format to represent the code syntax, keeping the transformer separate from the code parsing stage. Rust provides access to the \verb|rustc| package, which is its compiler. This contains the \verb|rustc_ast| and \verb|rustc_parse| package which are responsible for this parsing.
 
 % However as Rust is a relatively new language many of these features have unstable APIs. This means they are only available with the nightly compiler and the interface is likely to change. To avoid this, the syn package is used for parsing the rust code into a syntax tree \cite{syn}which provides a stable interface.
-% The main issue with Syn, is it geared toward helping parse code in Rust procedural macros. This means it has a stronger focus on understanding an AST rather than manually manipulating it and creating items. For this reason a fork of the Syn project was created to allow access to an additional library, which made creating more AST objects possible. The fork can be found at \url{https://github.com/jelgar/syn}.
+% The main issue with Syn, is it geared toward helping parse code in Rust procedural macros. This means it has a stronger focus on understanding an AST rather than manually manipulating it and creating items. For this reason a fork of the Syn project was created to allow access to an additional library, which made creating more AST objects possible. The fork can be found at .
 
 % Another requirement, is once the AST has be transformed, it must be converted back into Rust code. To achieve this the \verb|quote| and \verb|rustfmt|. The \verb|quote|  package converts the AST back into tokens of source code, whilst the \verb|rustfmt| package formats the outputted code in a consistent way.
 
 % Finally a CLI was created to allow developers to parse in files they want to transform and to specity the direction (OOP to FP or FP to OOP).
 
-A high level overview of the transformer is represented for both directions in \autoref{alg:high-level}. In each case the transformer operates by performing three distinct passes of the input code, in three stages.
-
-The first stage, matches that of the transformer from \cite{food}. In this stage the "global context" is collect which stores items that regularly used throughout the transformation. This present repeated looks ups for the same items, both improving efficiency and reducing the complexity of the transformer.
-
-The second stage is responsible for the transformations of the user defined types and their associated functions. This primarily matches the transformations outline by \weixin in \cite{food} however with one key difference, types in the attribute of the fields and signatures of the functions can change. This change of types can have knock on effect in other stages of the program. 
-
-The third stage is responsible for updating any references to the user defined types and their functions. This stage also passes over any newly transformed functions in order to update the body. For every transformation throughout this stage an expected return type is provided. This outlines the type which the expression should return after the transformation is complete. This approach allows the decoupling of the transformation of the types, as outlined in \cite{food} from the type corrections.
-
 \section{High level overview}
 
-The high level algorithms for transforming in both directions are show in \autoref{alg:high-level}
+In Rust, much like in Scala, a user defined datatype can be used directly as a type. However unlike in Scala, a trait (interface) cannot. In Rust, as discussed in \autoref{sec:dyn}, either the type of the struct must be used (which violates Pure OOP principals, as interfaces are types), or a dynamic reference to the trait. For this reason when converting a type, which is a datatype in FP, to OOP, a dynamic reference of the transformed trait is used. This fundamentally changes the type. These changes can be applied every time a variable, attribute or parameter is explicitly typed, including in function signatures, attributes of types and let assignments.
+In order to accommodate these additional transformations of types the transformer has been split into 3 stages. 
+
+The first stage, matches the pre-processing stage of the transformer outlined in \cite{food}. In this stage the "global context" is collected which stores items that are regularly used throughout the transformation. This prevents repeated look ups of the same items, both improving efficiency and reducing the complexity of the transformer.
+
+% A high level algorithm for each of the transform types is given in \autoref{alg:high-level}. In each case the transformer operates by performing three distinct passes of the AST.
+
+The second stage is responsible for the transformations of the user defined types and their associated functions. This primarily matches the transformations outline by \weixin in \cite{food} however also includes the transformations of the types. For this reason the only transformation applied to the bodies of functions at this stage is a rename operation, whilst other transformations are handled in stage 3. This means at the end of this stage the program may be invalid as types may not match what is required. For example, if a function return type is updated to a dynamic pointer from a datatype, the body will still only return the datatype. This is addressed in the third stage.
+
+The third stage is responsible for updating any references to the user defined types and their functions. Again this closely aligns with the work from \cite{food}. However this stage also updates the types of each expression. It does this by recursively parsing the expected return type to each expression which is transformed. This outlines the type which the expression should return after the transformation is completed. Expressions which do not match the expected return types are updated using the reference ($\&$), pointer ($\sim$) and dereference ($*$) operators. 
+
+This approach allows the decoupling of the transformation of the user defined types which results in the translation of types, from the third stage which fixes any changed type and updates the uses of any transformed typed. 
+
+Throughout the following sections, the output of the discussed stage will be shown for the example input programs in \autoref{fig:ex-set}.
+
+\begin{figure}
+\centering
+\begin{subfigure}{.5\textwidth}
+    \rustexampleLN{exp/oop}{1}{22}
+    \caption{OOP decomposition style}
+    \label{fig:dec-ex-oop}
+\end{subfigure}%
+\begin{subfigure}{.5\textwidth}
+    \rustexampleLN{exp/fp}{1}{11}
+    \caption{FP decomposition style}
+    \label{fig:dec-ex-fp}
+\end{subfigure}
+\caption{Example input to transformer}
+\label{fig:ex-exp}
+\end{figure}
 
 % for enujm in gamma.enums...
 \begin{figure}
@@ -617,18 +652,18 @@ The high level algorithms for transforming in both directions are show in \autor
 \label{alg:high-level}
 \end{figure}
 
-In each case the transformations consist of three distinct stages. The first stage is to collect the global context, delta. This is used throughout the transformations to prevent repeated looks ups for items.
+% In each case the transformations consist of three distinct stages. The first stage is to collect the global context, delta. This is used throughout the transformations to prevent repeated looks ups for items.
 
-The seconds stage is the transformation of the user defined types (either datatypes or traits). This stage closely maps to the transformation rules outline by \weixin in \cite{food}.
-Using these the user type as well as their associated destructors/consumers transformed. At this stage the  Implementations of destructors are converted into a match arm in a consumers, whilst consumers' match arms are converted into  destructor implementations.
+% The seconds stage is the transformation of the user defined types (either datatypes or traits). This stage closely maps to the transformation rules outline by \weixin in \cite{food}.
+% Using these the user type as well as their associated destructors/consumers transformed. At this stage the  Implementations of destructors are converted into a match arm in a consumers, whilst consumers' match arms are converted into  destructor implementations.
 
-The final stage is to transform all expressions, including the output of the type transformations. This transforms any references to transformed function and methods, and updates the types of expressions which require updating as a result of the transformations.
+% The final stage is to transform all expressions, including the output of the type transformations. This transforms any references to transformed function and methods, and updates the types of expressions which require updating as a result of the transformations.
 
 \section{Formalization}
 
-In \cite{food} \weixin uses a syntax called FOOD to formalize the transformation rules. In order to formalize the transformations in Rust, the following extensions to the FOOD syntax are required. Primarily two additional types are added, $\sim T$ and $\& T$ where T is a type. These represent a pointer and a borrow respectively. Note for this report only the Box pointer is considered, however most other smart pointer types should be analogous. The $\sim e$ and $\& e$ expression are added in order to create pointers and references of expressions. The additional $*e$ expression can then be used to dereference expressions. This extended syntax has been called RFOOD and is given in full in \autoref{fig:syntax}.
+The RFOOD syntax, introduced in \autoref{fig:syntax}, is used to formalize the Rust transformations. This syntax is based on the FOOD syntax created by \weixin in \cite{food}, however with some modifications to support the Rust typing system. Primarily three additional types have been added, $\sim T$, $\sim_{dyn} T$ and $\& T$ where T is a type. These represent a pointer, a dynamic pointer and a borrow respectively. Note for this report only the Box pointer is considered, however most other smart pointer types should be analogous. Raw pointers (and all unsafe concepts) have not been included. The $\sim e$ and $\& e$ expression are added in order to create pointers ($\sim$ creates both pointers and dynamic pointers) and references of expressions. The additional $*e$ expression can then be used to dereference expressions, allowing access to a value within a pointer/reference. This extended syntax has been called RFOOD and is given in full in \autoref{fig:syntax}. 
 
-A fundamental difference between the transformer from \cite{food} and the transformer proposed in this paper, is that types are required to change in Rust. This comes about as in Rust, much like in Scala, datatypes (enums) can be used as types directly. However once transformed to a trait, as discussed in \autoref{sec:dyn} they can not longer be used as types. Instead a dynamic reference of the trait must be used. This fundamentally changes the type. This can have impacts across the whole program and therefore additional considerations are required throughout the transformations.
+% A fundamental difference between the transformer from \cite{food} and the transformer proposed in this paper, is that types are required to change in Rust. This comes about as in Rust, much like in Scala, datatypes (enums) can be used as types directly. However once transformed to a trait, as discussed in \autoref{sec:dyn} they can not longer be used as types. Instead a dynamic reference of the trait must be used. This fundamentally changes the type. This can have impacts across the whole program and therefore additional considerations are required throughout the transformations.
 
 % The places types will change during the translation are: 
 % 
@@ -637,9 +672,9 @@ A fundamental difference between the transformer from \cite{food} and the transf
     % \item Anything which has the type of a Datatype directly (this does not explicitly include constructors). % TODO why, talk about how rules pretend a DT is returned from a constructro but its actually the struct type itself. Instead of transorming this directly we have left it (to not break other code) but results in more complicated translations
 % \end{itemize}
 
-In \cite{food} \weixin denotes a type directed translation of the program $L$ of type $T$, under the context of $\Gamma$ and $\Delta$ with $\oldtrans L T L'$, however with the potential for types to change, this is no longer sufficient. Instead translations are represented as $\trans L T {L'} {T'}$ where $T'$ represents the output type after the translation. Moreover, the $\vdash^{\sigma}$ symbol is used to represent a translation which should result in an expression of type $\sigma$, so in full $\transSigma \sigma L T {L'}$.
+% In \cite{food} \weixin denotes a type directed translation of the program $L$ of type $T$, under the context of $\Gamma$ and $\Delta$ with $\oldtrans L T L'$, however with the potential for types to change, this is no longer sufficient. Instead translations are represented as $\trans L T {L'} {T'}$ where $T'$ represents the output type after the translation. Moreover, the $\vdash^{\sigma}$ symbol is used to represent a translation which should result in an expression of type $\sigma$, so in full $\transSigma \sigma L T {L'}$.
 
-Note the changing in type, never effects the base type, but only the references/pointers. For example, the transformation may convert the result type of a function from \rust{Box<dyn T>} to \rust{T} but it may not change \rust{T} itself.
+% Note the changing in type, never effects the base type, but only the references/pointers. For example, the transformation may convert the result type of a function from \rust{Box<dyn T>} to \rust{T} but it may not change \rust{T} itself.
 
 \begin{figure}[t]
   \setstcolor{red}
@@ -652,42 +687,45 @@ Note the changing in type, never effects the base type, but only the references/
         % & Def & \Coloneqq & Dt \mid It \mid Gen \mid Csm \\
         & Def & \Coloneqq & Dt \mid It \mid Gen \mid  Dec \\
         \text{Datatype}
-         & Dt & \Coloneqq & \datatype {Dtn} {Ctr}\\
+         & Dt & \Coloneqq & \datatype {\dtn} {Ctr}\\
         \text{Interface}
-         & It & \Coloneqq & \interface {Itn} {Dtr}\\
+         & It & \Coloneqq & \interface {\itn} {Dtr}\\
         \text{Destructor}
-         & Dtr & \Coloneqq & \fnDstr {self: \&Self} {x: T} {T} \mid \fnDstr {self: \sim Self} {x: T} {T}\\
-        % \text{Constructor}
-        %  & Ctr & \Coloneqq & \ctr {Ctrn} {\fnArgs{x}{T}} \\
+         & Dtr & \Coloneqq & \fnDstr {\fnArg{self}{\&\kwself}} {x: T} {T} \mid \fnDstr {\fnArg{self}{\sim \kwself}} {x: T} {T}\\
+        \text{Constructor}
+        & Ctr & \Coloneqq & \ctr {\ctrn} {\fnArgs{x}{T}} \\
         \text{Generator}
         %  & gen & \Coloneqq & \class C {C(\overline{e})} {fun}\\
          & Gen & \Coloneqq & \class{\genn}{x}{T}{Itn}{Fun}\\
          
-        %   \text{Consumer}
-        %   & Csm & \Coloneqq & \csmcase {d: \&Dtn} {xs: T_{x}} T {e} \\
-        %   &     &           & \mid \csmcase{d: Dtn}{xs: T_{x}}{T}{e}\\
-        %   &     &           & \mid \csmcase{d: \sim Dtn}{xs: T_{x}}{T}{e} \\
+        \text{Consumer}
+        & Csm & \Coloneqq & \csmcase {d: \&Dtn} {x: T} T {d} {P} {e} \\
+        &     &           & \mid \csmcase{d: Dtn}{x: T}{T}{d} {P} {e}\\
+        &     &           & \mid \csmcase{d: \sim Dtn}{x: T}{T}{d} {P} {e}\\
         
          \text{Declaration}
          & Dec & \Coloneqq & \dec {x: T} T\\
          \text{Function}
-         & \text{Fun} & \text{$\Coloneqq$} & \text{Dec = e}\\
+         & \text{Fun} & \text{$\Coloneqq$} & \text{Dec} = \overline{e} \\
         \text{Expression}
          & e & \Coloneqq & x %\mid \overline{(x: T)} \Rightarrow t 
-          \mid e_1.f(\overline{e_2})  \mid f(\overline{e}) \mid Genn(\overline{e}) \mid \ctrCall{Dtn}{Ctrn}{e} \mid \sim e\mid \&e \mid *e\\
-         &   &           & \ifexpr{e_1}{e_2} \mid \matchexpr{e}{P}{e} \mid \blockexpr{e} \mid \eqexpr{e_1}{e_2} \mid \macroexpr{m}{e} \\
+          \mid e_1.f(\overline{e_2})  \mid f(\overline{e}) \mid \genn(\overline{e}) \mid \ctrCall{\dtn}{\ctrn}{e} \mid \sim e\mid \&e \mid *e\\
+         &   &           & \ifelseexpr{e_1}{e_2}{e_3} \mid \eqexpr{e_1}{e_2} \mid \macroexpr{m}{e} \\
          \text{Pattern}
-         & P & \Coloneqq & Genn(\overline{x}) \mid \ctrCall{Dtn}{Ctrn}{x} \mid \_ \\
+         & P & \Coloneqq & \genn(\overline{x}) \mid \ctrCall{\dtn}{\ctrn}{x} \mid \_ \\
         %  \text{Modifier}
         %  & m & \Coloneqq & \kwsealed \mid \kwabstract \mid \kwcase\\
+        \text{Boolean}
+        & bool & \Coloneqq & true \mid false  \\
         \text{Types}
-        & T & \Coloneqq & Dtn \mid \overline{T} \rightarrow T \mid \sim  T \mid \& T \mid \sim_{dyn} Itn \mid \bot \\
-        & Dtn & \Coloneqq & \text{Datatype name} \\
-        & Itn & \Coloneqq & \text{Interface name} \\
-        & Ctrn & \Coloneqq & \text{Constructor name} \\
-        & Genn & \Coloneqq & \text{Generator name} \\
-        & f & \Coloneqq & \text{function or destructor name} \\
+        & T & \Coloneqq & \dtn \mid \overline{T} \rightarrow T \mid \sim  T \mid \& T \mid \sim_{dyn} \itn \mid bool \mid \bot \\
+        & \dtn & \Coloneqq & \text{Datatype name} \\
+        & \itn & \Coloneqq & \text{Interface name} \\
+        & \ctrn & \Coloneqq & \text{Constructor name} \\
+        & \genn & \Coloneqq & \text{Generator name} \\
+        & f & \Coloneqq & \text{Function or destructor name} \\
         & Self & \Coloneqq & \text{Alias for type of trait within trait or impl block} \\
+        % & \blockO{e} & \Coloneqq & \text{Block of expressions} \\
         
         % & D & \Coloneqq & Dtn \mid Itn \\
         % & C & \Coloneqq & \text{constructor or generator names} \\
@@ -696,66 +734,147 @@ Note the changing in type, never effects the base type, but only the references/
       \end{array}
     \end{array}
   \end{displaymath}
-  \caption{Syntax of RFOOD. Red denotes deviation from FOOD syntax.}
+  \caption{Syntax of RFOOD}
   \label{fig:syntax}
 \end{figure}
 
 \section{Context}
 
-Each transformation rule provided in \cite{food} takes two context variables, the global context, $\Delta$, and the environment, $\Gamma$.
-
 \subsection{Global Context}
 
-In \cite{food} \weixin uses the name "global context", represented by $\Delta$, to represent the store with  the following attributes:
+The first stage of the transformation is the collection of the "global context", $\Delta$. This collects all user defined types and the associated functions as outlined in \cite{food}. It exposes a set of methods that enables, checking if a type name is a datatype or interface, getting all constructors/generators and destructors/consumers for a user defined type, getting the signatures for both constructors/generators and destructors/consumers and finally getting the definition of any of the above. Note in the Rust implementation, top level functions are also collect in gamma and their signatures can be accessed using $\sig$. Given the Rust implementation is based on named fields in types, the $\attrs$ method has also been added, in order to access the attributes of a generator/constructor. 
+The set of attributes and methods exposed by gamma in the formalization, are shown in \autoref{fig:global-context}.
 
-\paragraph{Datatypes.} Datatypes are equivalent to Enums in Rust.
-\paragraph{Interfaces.} Interfaces are equivalent to Traits in Rust.
-\paragraph{Constructor.} Constructors create an instance of a given datatype. In Rust the equivalent is an Enum Variant.
-% TODO update this if it can handle multiple inheritance
-\paragraph{Generator.} Generators create an instance of a given interface. In Rust the equivalent is a struct which has an implementation of a trait (the interface). Note in this implementation a struct cannot be transformed if it implements multiple traits. 
-\paragraph{Consumer.} Consumers are functions that operate on a datatype. In Rust these are functions, with the first argument being a Datatype (or some reference to a datatype).
-\paragraph{Destructor.} A destructor is a function that operates on an interface. In Rust these are methods defined on the traits, which must either have a default implementation (in the trait) or an implementation in the generators impl of the trait.
+The gamma collected for the examples from \autoref{fig:ex-exp} are:
 
-\vspace{10pt}
+\begin{figure}[H]
+\centering
+\begin{subfigure}{.5\textwidth}
+    \begin{minted}[escapeinside=||,mathescape=true]{text}
+    {
+        IT: {Set}
+        DTR: {
+            Set: {eval}
+        }
+        GEN: {
+            Set: {Lit, Sub}
+        }
+        SIG: {
+            Lit: i32  -> Lit 
+            Sub: |$\sim_{dyn}$ Set|, |$\sim_{dyn}$ Set|  -> Lit 
+            eval: &Self -> i32 
+        }
+        ATTR: {
+            Sub: [n]
+            Lit: [l, r]
+        }
+    }
+    \end{minted}
+    \caption{OOP decomposition style}
+    \label{fig:dec-ex-oop}
+\end{subfigure}%
+\begin{subfigure}{.5\textwidth}
+    \begin{minted}[escapeinside=||,mathescape=true]{text}
+    {
+        DT: {Set}
+        CSM: {
+            Set: {eval}
+        }
+        CTR: {
+            Set: {Lit, Sub}
+        }
+        SIG: {
+            Lit: i32  -> Lit 
+            Sub: |$\sim$ Set|, |$\sim$ Set|  -> Lit 
+            eval: &Exp -> i32 
+        }
+        ATTR: {
+            Sub: [n]
+            Lit: [l, r]
+        }
+    }
+    \end{minted}
+    \caption{OOP decomposition style}
+    \label{fig:dec-ex-oop}
+\end{subfigure}
+\caption{Gamma collect for example from \autoref{fig:ex-exp}}
+\label{fig:ex-exp-gamma}
+\end{figure}
 
-In the current implementation of the transformer "global context" is an accurate name, as the Datatypes are collected at the beginning of the transformation. However, this does oversimplify the reality as it is possible to define Datatypes within scopes. In this case it would be more accurate to generate Gamma recursively (along side other transformations) to ensure all scoping is correct. Note, however, the top level types must be collected before any other types are transformed, as types defined after a function can still be referenced in that function.
+\begin{figure}[t]
+\begin{tabular}{ll}
+\dt & Set of Datatypes\\
+\ct & Set of Interfaces\\
+$\ctrs{\dtn}$ & Constructors of datatype $\dtn$\\ 
+$\dtr{\itn}$ & Destructors of interface $\itn$\\  
+$\generator{\itn}$ & Generators of interface $\itn$\\
+$\consumer{\dtn}$ &  Consumers of datatype $\dtn$\\
+$\sig(N)$ & Signature of constructor/generator/consumer indexed by name $N$ \\
+% $\csmBody(f,C)$ & Case clause for constructor $C$ in consumer $f$\\
+% $\dtrBody(f,C)$ & Body of destructor $f$ in generator $C$\\
+$\dtrType(f,\itn)$ & Signature of destructor $f$ for interface $\itn$\\
+$\dtrType(f,\itn)$ & Signature of destructor $f$ for interface $\itn$\\
+$\defs(N)$ & Definition of function/datatype/interface/constructor/generator/consumer by name $N$\\
+$\defs(f, N)$ & Definition of destructor $f$ for interface $\itn$\\
+$\attrs(\genn)$ & Return list of attribute names for generator $\genn$\\
+$\attrs(\ctrn, \dtn)$ & Return list of attribute names for constructor $\ctrn$ of datatype $\dtn$\\
+% Caseof & $\caseof f C$ & = & if $\kwdef \ f(x : D)(\overline{x : T}): T = \overline{\kwcase\ C(\overline{x}) \Rightarrow e}\ \land$ \\
+\end{tabular}
+\caption{Stage 1 - Global context, $\Delta$, attributes and methods. Based on \cite{food}.}
+\label{fig:global-context}
+\end{figure}
 
-% TODO did the change?
-For the Rust implementation the Visitor pattern was used. Provided by the \verb|syn| package these traits (\verb|visit| and \verb|visit_mut|) allow the developer to view/mutate selected types of values in the AST. The default implementation of the visitor trait methods, recursively visits all expression. Using this technique ignores the scope of the current expression meaning all types and methods are collected and therefore assumes the developer has not renamed any types/function in a nested scope. This technique could be improved by a recursive approach to collecting this context along side other transformations, to ensure the correct versions of all the attributes are collected.
+
+% In \cite{food} \weixin uses the name "global context", represented by $\Delta$, to represent the store with  the following attributes:
+
+% \paragraph{Datatypes.} Datatypes are equivalent to Enums in Rust.
+% \paragraph{Interfaces.} Interfaces are equivalent to Traits in Rust.
+% \paragraph{Constructor.} Constructors create an instance of a given datatype. In Rust the equivalent is an Enum Variant.
+% % TODO update this if it can handle multiple inheritance
+% \paragraph{Generator.} Generators create an instance of a given interface. In Rust the equivalent is a struct which has an implementation of a trait (the interface). Note in this implementation a struct cannot be transformed if it implements multiple traits. 
+% \paragraph{Consumer.} Consumers are functions that operate on a datatype. In Rust these are functions, with the first argument being a Datatype (or some reference to a datatype).
+% \paragraph{Destructor.} A destructor is a function that operates on an interface. In Rust these are methods defined on the traits, which must either have a default implementation (in the trait) or an implementation in the generators impl of the trait.
+
+% \vspace{10pt}
+
+% In the current implementation of the transformer "global context" is an accurate name, as the Datatypes are collected at the beginning of the transformation. However, this does oversimplify the reality as it is possible to define Datatypes within scopes. In this case it would be more accurate to generate Gamma recursively (along side other transformations) to ensure all scoping is correct. Note, however, the top level types must be collected before any other types are transformed, as types defined after a function can still be referenced in that function.
+
+% % TODO did the change?
+% For the Rust implementation the Visitor pattern was used. Provided by the \verb|syn| package these traits (\verb|visit| and \verb|visit_mut|) allow the developer to view/mutate selected types of values in the AST. The default implementation of the visitor trait methods, recursively visits all expression. Using this technique ignores the scope of the current expression meaning all types and methods are collected and therefore assumes the developer has not renamed any types/function in a nested scope. This technique could be improved by a recursive approach to collecting this context along side other transformations, to ensure the correct versions of all the attributes are collected.
 
 \subsection{Environment}
 
-The environment stores the types of variables currently on the stack. 
-In the Scala implementation a type is encoded as string, however this is insufficient for Rust as reference types must also be kept track of. For this reason in the Rust implementation types are encoded as \verb|DeltaType| struct. 
+The other context variable is called the "Environment", $\Gamma$, and is used throughout the third stage of the transformation. The environment stores the types of variables currently on the stack. 
+In the Scala implementation types are encoded as strings, however this is insufficient for Rust as reference types must also be kept track of. For this reason in the Rust implementation types are encoded as \verb|DeltaType| struct. 
 This stores both the type name stored as an Ident (a simple wrapper around String provided by \verb|syn|) and the reference type.
 
-The reference type is currently implemented as an Enum, with a variant for \verb|Box|, \verb|Reference| and \verb|None|. These reference types are later used to transform the types of expressions as required.
+The reference type is implemented as a recursive Enum called the \verb|ReferenceType|, with a variant for \verb|Box| (pointer) and \verb|Reference| which both contain a nested \verb|ReferenceType| and a variant for \verb|None|. This allows the encoding of arbitrarily nested references. For example the following type signature in Rust \rust{&Box<&i32>}, is represented as a \verb|DeltaType| with the name "i32" and the reference type \verb|Ref(Box(Ref(None)))|.
 
 % TODO sort this out
-The key limitation of the current implementation is these are not stored as recursive types. This means nested references such as reference of boxes cannot be encoded. 
+% The key limitation of the current implementation is these are not stored as recursive types. This means nested references such as reference of boxes cannot be encoded. 
 
-\subsection{Type of Expression}
+% \subsection{Type of Expression}
 
-With these two contexts it is possible to perform basic type inference on expressions. The following rules are used to perform this inference:
+% With these two contexts it is possible to perform basic type inference on expressions. The following rules are used to perform this inference:
 
-\begin{itemize}
-    \item For literals, for example \rust{1} or \rust{true}, a basic type of the literal is returned. In the current implementation only a subset of literals are supported (\rust{i32}, \rust{f32}, \rust{bool}) and they are assumed to be a specific type (i.e. \rust{i32} rather than a generic \verb|Int|).
-    \item For paths, which are expressions referring to some variable in the environment, the type of the variable from the environment is returned 
-    \item For struct/enum instatioation, the struct or enum type is returned.
-    \item For method or function calls, the return type of the function is returned
-    \item For field expressions, for example \rust{self.a} or \rust{item.field}, the type of receiver (the thing the field is being accessed from) is determined using gamma. The type of the field which is being accessed is then returned.
-\end{itemize}
+% \begin{itemize}
+%     \item For literals, for example \rust{1} or \rust{true}, a basic type of the literal is returned. In the current implementation only a subset of literals are supported (\rust{i32}, \rust{f32}, \rust{bool}) and they are assumed to be a specific type (i.e. \rust{i32} rather than a generic \verb|Int|).
+%     \item For paths, which are expressions referring to some variable in the environment, the type of the variable from the environment is returned 
+%     \item For struct/enum instatioation, the struct or enum type is returned.
+%     \item For method or function calls, the return type of the function is returned
+%     \item For field expressions, for example \rust{self.a} or \rust{item.field}, the type of receiver (the thing the field is being accessed from) is determined using gamma. The type of the field which is being accessed is then returned.
+% \end{itemize}
 
-% TODO talk about casting
-There are a few key limitations to the current type inference:
+% % TODO talk about casting
+% There are a few key limitations to the current type inference:
 
-\begin{itemize}
-    \item  Currently the transformer only support single file transformations. This means it cannot perform type inference on imported or built in functions. Supported has been added for a small subset of built in functions such as clone but this is currently a manual process rather than the importing definitions.
-    \item  Currently a limited subset of expressions are supported. With time the types of expressions that are supported could be extended.
-    \item Currently type names are encoded as strings and as such no casting is supported. For example when if a literal is marked as an \rust{i8} the transformer is unable to cast that to an \rust{i32} if required.
-\end{itemize}
+% \begin{itemize}
+%     \item  Currently the transformer only support single file transformations. This means it cannot perform type inference on imported or built in functions. Supported has been added for a small subset of built in functions such as clone but this is currently a manual process rather than the importing definitions.
+%     \item  Currently a limited subset of expressions are supported. With time the types of expressions that are supported could be extended.
+%     \item Currently type names are encoded as strings and as such no casting is supported. For example when if a literal is marked as an \rust{i8} the transformer is unable to cast that to an \rust{i32} if required.
+% \end{itemize}
 
-One approach to resolving these issues is to use the built in type inference in the rust compiler. The rust compiler parses the source code (including all dependencies) and converts it to an AST, then to a HIR (High-Level Intermediate Representation) and then finally a THIR (Typed High-Level Intermediate Representation), where the typing information is added. It collects (and checks) these types using the \verb|rustc_typecheck| package which can be exposed using the nightly compiler. Currently the documentation for this package is very limited and the API for all of rustc remains unstable. For this reason this approach was not developed for this version of the compiler, but could create some tangible improvements to the type checking in the future. Another improvement of using this crate is the type checking could automatically track with the version of rust the developer is using. This means as rust add or changes features in the langauge the type inference of the transformer would not have to be updated directly.
+% One approach to resolving these issues is to use the built in type inference in the rust compiler. The rust compiler parses the source code (including all dependencies) and converts it to an AST, then to a HIR (High-Level Intermediate Representation) and then finally a THIR (Typed High-Level Intermediate Representation), where the typing information is added. It collects (and checks) these types using the \verb|rustc_typecheck| package which can be exposed using the nightly compiler. Currently the documentation for this package is very limited and the API for all of rustc remains unstable. For this reason this approach was not developed for this version of the compiler, but could create some tangible improvements to the type checking in the future. Another improvement of using this crate is the type checking could automatically track with the version of rust the developer is using. This means as rust add or changes features in the langauge the type inference of the transformer would not have to be updated directly.
 
 \section{Type Transformations}
 
@@ -763,22 +882,22 @@ One approach to resolving these issues is to use the built in type inference in 
 
 \begin{mathpar}
 \inferrule[It2Dt]
-{  \overline{Gen} = \generator{\itn} \\ \overline{\transtwoNT{\itn}{Gen}{Ctr}} \\ \overline{\transtwoNT{\itn}{Dtr}{Csm}} \\ \overline{} \\ \oldtrans L T {L'} \\ \dtn = \itn}
-{ \transtwo {} {\interface{\itn}{Dtr}; L} T {\datatype {\dtn} {Ctr}; \overline{Csm}; L'}}
+{  \overline{Gen} = \generator{\itn} \\ \overline{\transtwoNT{\itn}{Gen}{Ctr}} \\ \overline{\transtwoNT{}{Dtr}{Csm}} \\ \overline{} \\ \transtwoNT {} L {L'} \\ \dtn = \itn}
+{ \transtwoNT {} {\interface{\itn}{Dtr}; L} {\datatype {\dtn} {Ctr}; \overline{Csm}; L'}}
 \end{mathpar}
 
 \begin{mathpar}
 \inferrule[Gen2Ctr]
 { \overline{\transType {\itn} T {T'}} \\  } %  
-{ \transtwoNT {\itn}{\class {C} {x} {T} {\itn} {\overline{Fun}}} {\ctr{C}{\overline{x: T'}}}}
+{ \transtwoNT {}{\class {C} {x} {T} {\itn} {\overline{Fun}}} {\ctr{C}{\overline{x: T'}}}}
 \end{mathpar}
 
 \begin{mathpar}
 \inferrule[Dec2Csm]
-{ \overline{\genn} = \generator{\itn} \\ \transType{Itn}{T_{s}}{T_{s}'} \\ \overline{\transType{Itn}{T_{x}}{T_{x}'}} \\ \transType{Itn}{T}{T'} 
+{\fresh{d} \\ \overline{\genn} = \generator{\itn} \\ \transType{\itn}{T_{s}}{T_{s}'} \\ \overline{\transType{\itn}{T_{x}}{T_{x}'}} \\ \transType{\itn}{T}{T'} \\ \sig(G) = T_{g}
 }
-{\transtwoNTB{\itn}{\decD{self: T_{s}}{xs: T_{x}}{T}}{
-    \csmcase{\fnArg{d}{T_{s}'}} {\fnArg{xs}{T_{x}'}} {\&d} {\ctrPat{\itn}{\genn}} {\gdefinition{f}{\genn}[self \mapsto d]}} 
+{\transtwoNTB{\itn}{\decD{self: T_{s}}{x: T_{x}}{T}}{
+    \csmcase{\fnArg{d}{T_{s}'}} {\fnArg{x}{T_{x}'}} {T} {d}  {\ctrPat{\itn}{\genn}(\attrs(G))} {[self \mapsto d]\gdefinition{f}{\genn}}}
 }
 \end{mathpar}
 
@@ -817,7 +936,7 @@ One approach to resolving these issues is to use the built in type inference in 
 % \end{mathpar}
 
 \caption{Stage 2 - User defined types transformation rules}
-\label{fig:trans-fp}
+\label{fig:stage2-trans-oop}
 \end{figure}
 
 \begin{figure}[t]
@@ -868,7 +987,7 @@ One approach to resolving these issues is to use the built in type inference in 
 { \transType{}{\sim_{dyn} Dtn}{\sim Dtn}}
 
 \end{mathpar}
-\caption{Stage 2 - Type signature transformation rules}
+\caption{Stage 2 - Type transformation rules}
 \label{fig:trans-fp}
 \end{figure}
 
@@ -974,10 +1093,14 @@ One approach to resolving these issues is to use the built in type inference in 
 \end{figure}
 
 
-Having collected the global context, the next stage of the transformation is to transform the user defined types, and their associated functions. 
+Having collected the global context, the next stage of the transformation is to transform the user defined types, and their associated functions. These follow the stage 2 rules outlined in \autoref{fig:stage2-trans-oop} and \autoref{fig:stage2-trans-fp}. The implementation of this stage is split into two sections, the transformations of the types themselves, and then the transformation of the functions.
 
 \subsection{Transformation of Type Definitions}
-The first stage of this process is to transform the types themselves. These transformations follow the \verb|IT2DT|, \verb|GEN2CTR|, \verb|DT2IT| and \verb|CTR2GEN| rules which remain largely unchanged from \cite{food}. However there are some additional considerations in the Rust implementation, including visibility and dyn traits. A demo of this transformation stage is shown in \autoref{fig:trans-type-stage}
+The first stage of this process is to transform the types themselves.  These transformations follow the \verb|IT2DT|, \verb|DT2IT|, \verb|GEN2CTR| and \verb|CTR2GEN| rules which are heavily based on the matching rules from \cite{food}. However these rules have been adapted to support the Rust type translations. With this step the types are converted to the new decomposition styles and the types of the attributes are updated.
+
+% During this stage, for OOP the only type transformation rule applied is \verb|Pointer2Dyn|. This is because once traits have been converted to datatypes, they will no longer require the dynamic reference. For FP there are two cases which are transformed, datatype is used in one of the types, either directly or as a reference it is converted to a dynamic reference.
+
+Note although not included in the formalization the visibility of the transformed types and functions are also translated in this stage. 
 
 \begin{figure}
 \centering
@@ -995,27 +1118,57 @@ The first stage of this process is to transform the types themselves. These tran
 \label{fig:trans-type-stage}
 \end{figure}
 
-For OOP to FP the following steps are followed for each trait:
+For OOP to FP the following steps are followed for each trait as outline in \verb|IT2DT| and \verb|GEN2CTR|:
 \begin{enumerate}
     \item Create an enum with the same identifier and visibility as the trait
-    \item For each generator of the trait (a struct which only implements that trait), add an enum variant to the enum. The enum variant should have the same identifier and fields as the struct. However if the struct is a recursive type (it has fields which reference the trait) then remove the dyn token from any references to the trait. This is because, once the trait is converted to an enum, it will no longer have methods associated with it. Therefore the pointer for dynamic dispatch (as outlined in \autoref{sec:dyn}) is no longer required. Note if this token is left in a compile-time error will occur. 
-    Similarly in Rust, enum variants and thier fields do not have visibility separate from the Enum it self and therefore all visibility tokens (\rust{pub}) must be removed from the structs and their fields. This transformation will therefore result in a loss of information as if the program is transformed back the original, the visibility of the structs and fields will be unknown.
+    \item For each generator of the trait (a struct which only implements that trait), add an enum variant to the enum. The enum variant should have the same identifier and fields as the struct. However if the struct references any other traits (including it self) then the types must be updated. Each reference to a trait will be a dynamic pointer and should be converted to a pointer as shown in \autoref{fig:thing}. This is because, once the trait is converted to an enum, it will no longer have methods associated with it. Therefore the pointer for dynamic dispatch (as outlined in \autoref{sec:dyn}) is no longer required. Note if this token is left in a compile-time error will occur. 
+    Additionaly in Rust, enum variants and their fields do not have visibility separate from the Enum it self and therefore all visibility tokens (\rust{pub}) must be removed from the structs and their fields. This transformation will therefore result in a loss of information as if the program is transformed back to the original, the original visibility of the structs and fields will be unknown.
 \end{enumerate}
 
 For FP to OOP the following steps are followed for each enum:
 \begin{enumerate}
     \item Create a (for now empty) trait with the same identifier and publicity as the enum  
     \item For each variant of the enum create a struct. The structs should have the same identifier and contain the same fields as the enum variant.
-    However, as above, when an enum is transformed any recursive reference to the enum, inside the enum variant fields, will require a dyn token with in the pointer (\rust{Box<T>} to \rust{Box<dyn T>}). Given the visibility of enums is only set on the enum itself (rather than on any variant or fields), the visibility of the structs and their fields are copied from the enum.
+    However, as above, when an enum is transformed any datatypes which are used as types within attributes of the enum, will require a dyn pointer. For FP it is possible the type is either the datatype directly or a pointer to the trait. In both cases the type should be updated to become a dynamic pointer as reflected in the type transformation rules in \autoref{fig:trans-type-fp}.
+    Given the visibility of enums is only set on the enum itself (rather than on any variant or fields), the visibility of the structs and their fields are copied from the enum.
 \end{enumerate}
 
 \subsection{Transformation of Associated Functions}
 
-Having transformed the definitions of each type, the next stage of the transformation is to convert the associated functions. For OOP this involves transforming the implementations of the trait methods into consumers, whilst for FP, it involves transforming the consumers into the trait methods and associated implementations for the structs. The rules for these transformations require some minor alteration in order to accommodate the Rust typing system.
+Having transformed the definitions of each type, the next stage of the transformation is to convert the associated functions. For OOP this involves transforming the implementations of the trait methods into consumers, whilst for FP, it involves transforming the consumers into the trait methods and associated implementations for the structs. The rules for these transformations also require alteration in order to accommodate the Rust typing system.
 
-At this stage the fundamental difference between the transformations from \cite{food} and those in Rust are the change in signatures. In FP, it is possible for a consumer to have function arguments, or return types which match the type of an enum (such as \rust{fn insert(set: Set, value: i32) -> Set} in \autoref{}). Once an enum is transformed however, this is no longer possible. Instead a \rust{dyn} reference to the trait is required. As a result if the signature of a consumer, which is being transformed, contains any types that match the type of an enum which is being transformed (this will include the \rust{Self} type) the type must be updated to a dynamic pointer. For symmetry, for a destructor of trait \rust{T}, all dynamic pointers of that trait, defined within the signature are converted to just \rust{T}. References of types are kept as references both in function arguments and return types. If a pointer to an enum is used in a FP constructor, this is also converted to a dyn Box in OOP style. Note with this, the transfomration is not injective, as both pointer and pure enum type signatures in FP are converted to dyn pointer in OOP. These changes are reflected in the updated transformations rules.
+Similarly to the previous stage, the fundamental difference between these transformations and those from \cite{food} are the types in the signatures are required to change. In this case however a different set of type transformation rules are used. 
 
-\autoref{fig:oop-rules} rep
+When transforming a datatype type or pointer to a datatype from FP, it must be transformed to a dynamic reference of the trait. As discussed in \autoref{sec:dyn} this is because a trait both does not have a fixed sized and must container a pointer to a vtable. However when transforming a dynamic trait from OOP, it is possible to convert it to either to a datatype type directly or to a pointer of the datatype. Both approaches are valid and have advantages. Converting to a pointer keeps an analogous type as dynamic pointers are treated much the same as pointers when writing in Pure OOP style. Where as converting to the datatype without the pointer, has the potential to reduce the complexity as a pointer may not be required. For datatypes the first style was selected as it prevents issues arising as a result of recursive types. In other cases this first style was also selected as it reduces the impact of the transformer on other aspects of the code. However for destructor implementations, the latter style was selected. This creates relational symmetry between the simpler FP style, where datatypes are used as types directly and the required dynamic pointer style in OOP.
+
+In both directions references of interfaces/datatypes are unchanged. This is possible as references in OOP require an instance of a trait, this is inherently fixed size and of a concrete (struct) type.
+
+In order to distinguish these type transformations, the $\transType{D}{}{}$ symbol is used to indicate a type transformation of type within the signature of a destructor/consumer of a given datatype, $D$, whilst all other type transformation are indicated by $\transType{}{}{}$.
+
+Another consideration of destructor methods is the \verb|Self| type. In trait definitions this is a reference to the (unsized) trait, whilst in implementation block it is analogous to the struct type. In both cases this does not require a dynamic reference. For the purposes of the transformer, when a reference to Self is used this is analogous to a reference to the trait, where as when the Self type is used directly, this is analogous to a dynamic reference to the trait. For clarity rules for the transformation of Self have been included explicitly in \autoref{fig:}.
+
+Using these typing rules the steps to transform the associated functions in OOP are as follows.
+
+\begin{enumerate}
+    \item For every destructor defined in the trait, a consumer is created. The consumer is a top level function with the same signature as the destructor, however with the type translations, discussed above, applied to the parameters and return type. The \verb|self| parameter is also renamed to avoid the use of the Rust keyword. The consumer function has the same name as the destructor and the publicity is copied from the trait.
+    \item The body of the consumer is set as a match statement, which matches on the transformed \verb|self| parameter. A match arm is then created for each of the variants of the datatype, with all of the fields of the datatype included in the pattern match.
+    \item For each generator, the implementation of the consumer method is taken and placed as the body of the match arm. Note at this stage it is possible the return types of these expressions do not match the consumers return type from the signature. These discrepancies are addressed in the third stage.
+    \item For the body of each of the match arms, any reference to "self" fields are replaced with simply accessing the field directly from the pattern match attributes. All other references to self are replaced with a reference to the translated "self" type. This is encapsulated in the rules with the rename symbol $[self \mapsto d]$. 
+\end{enumerate}
+
+For FP  the following steps are followed
+
+\begin{enumerate}
+    \item A destructor is added to the trait for every consumer of the datatype. The types in the signature of the consumer are translated with the rules from \autoref{sig:} and the first attributes is coverted to a self parameter. % TODO try harder
+    \item For each struct an implementation block for the trait is added. Each method added to the trait is implemented, copying the signature from the trait declaration. The body of the implementation is copied from the match arm in the equivalent consumer with the pattern of the equivalent constructor. Any reference to the old "self" parameter is renamed to the literal self values and any reference to values which were exposed through the match pattern are updated to use \verb|self|.
+\end{enumerate}
+
+
+
+\subsection{Other Type Transformations}
+
+There are a many other places where type transformations are required. Firstly all function signatures (excluding the consumers which have already been translated). If let expression have explicit types then these may also need updating. Note there are many other expression types, where explicit types can be assigned in Rust (for example in closures) however these have not be addressed for now.
+For these cases the standard typing translation rules, from \autoref{fig} and \autoref{fig} are used.
 
 % Add in transformation rules for type signature arguments and return types
 
@@ -1039,6 +1192,10 @@ At this stage the fundamental difference between the transformations from \cite{
 \section{Item Transformations}
 %TODO Talk about this
 \label{sec:item-trans}
+
+Figure \autoref{fig:} shows the transformation of the example from \autoref{fig:}. There are two notable issues with this output.
+
+The final stage of the transformation, updates any uses of the  
 
 After the type transformations are completed the next stage of the transformation is to updates uses of the transformed types. This includes instantiations of the type as well as any destructor/consumer calls.
 
