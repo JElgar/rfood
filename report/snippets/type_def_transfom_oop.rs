@@ -1,11 +1,4 @@
-pub trait Exp {
-}
-
-pub struct Lit{
-    pub n: i32,
-}
-
-pub struct Sub {
-    pub l: Box<dyn Exp>,
-    pub r: Box<dyn Exp>,
+pub enum Exp {
+    Lit{n: i32},
+    Sub{l: Box<Exp>, r: Box<Exp>},
 }
