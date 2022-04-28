@@ -764,20 +764,45 @@ fn transform_expr_type(
         EType::Any | EType::None => expr.clone(),
         EType::RefType(rt) | &EType::DeltaType(DeltaType{ref_type: rt, ..}) => match (&current_type.ref_type, rt){
             (left, right) if left == right => expr.clone(),
-            (RefType::Box(_) | RefType::Ref(_), RefType::None) => create_dereference_of_expr(expr),
-            // (RefType::Box(box inner) | RefType::Ref(box inner), RefType::None) => create_dereference_of_expr(&transform_expr_type(
-            //         expr,
-            //         &DeltaType{name: required_type.name.clone(), ref_type: inner.clone()},
-            //         &DeltaType{name: required_type.name.clone(), ref_type: RefType::None},
-            //         &gamma
-            // )),
-            (RefType::None, RefType::Box(_)) => create_box_of_expr(expr),
-            (RefType::None, RefType::Ref(_)) => create_reference_of_expr(expr),
-            (RefType::Box(_), RefType::Ref(_)) => {
-                create_reference_of_expr(&create_dereference_of_expr(expr))
+            // Box -> None / Ref -> None
+            (RefType::Box(box inner) | RefType::Ref(box inner), RefType::None) => create_dereference_of_expr(
+                &transform_expr_type(
+                    expr,
+                    &DeltaType{name: current_type.name.clone(), ref_type: inner.clone()},
+                    &EType::RefType(RefType::None),
+                    &gamma
+                )
+            ),
+            // None -> Box
+            (RefType::None, RefType::Box(box inner)) => create_box_of_expr(
+                &transform_expr_type(
+                    expr,
+                    &DeltaType{name: current_type.name.clone(), ref_type: RefType::None},
+                    &EType::RefType(inner.clone()),
+                    &gamma
+                )
+            ),
+            // None -> Ref
+            (RefType::None, RefType::Ref(box inner)) => create_reference_of_expr(
+                &transform_expr_type(
+                    expr,
+                    &DeltaType{name: current_type.name.clone(), ref_type: RefType::None},
+                    &EType::RefType(inner.clone()),
+                    &gamma
+                )
+            ),
+            // Box -> Ref / Ref -> Box
+            (RefType::Box(box current_inner), RefType::Ref(box required_inner)) | (RefType::Ref(box current_inner), RefType::Box(box required_inner)) => {
+                create_reference_of_expr(&create_dereference_of_expr(
+                    &transform_expr_type(
+                        expr,
+                        &DeltaType{name: current_type.name.clone(), ref_type: current_inner.clone()},
+                        &EType::RefType(required_inner.clone()),
+                        &gamma
+                    )
+                ))
             }
             _ => panic!("Cannot transform {:?} to {:?}", current_type, required_type),
-            // _ => expr.clone(),
         }
     }
 }
