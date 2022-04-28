@@ -1089,7 +1089,7 @@ The reference type is implemented as a recursive Enum called the \verb|Reference
 \end{mathpar}
 
 \caption{Expression type transformation rules}
-\label{fig:trans-fp}
+\label{fig:trans-type}
 \end{figure}
 
 
@@ -1114,7 +1114,7 @@ Note although not included in the formalization the visibility of the transforme
     \caption{FP decomposition style}
     % \label{fig:dec-ex-fp}
 \end{subfigure}
-\caption{Outputs of the first stage of the transfomration from exmaples in \autoref{fig:ex-exp}}
+\caption{Outputs of the type definition transformation during the second stage of the transformer, on the examples from \autoref{fig:ex-exp-stage2p1}}
 \label{fig:ex-exp-stage1}
 \end{figure}
 
@@ -1130,8 +1130,8 @@ Note although not included in the formalization the visibility of the transforme
     \caption{FP decomposition style}
     % \label{fig:dec-ex-fp}
 \end{subfigure}
-\caption{Outputs of the second stage of the transformation from examples in \autoref{fig:ex-exp}}
-\label{fig:ex-exp-stage1}
+\caption{Outputs of the second stage of the transformer from examples in \autoref{fig:ex-exp}}
+\label{fig:ex-exp-stage2}
 \end{figure}
 
 For OOP to FP the following steps are followed for each trait as outline in \verb|IT2DT| and \verb|GEN2CTR|:
@@ -1186,6 +1186,12 @@ For FP  the following steps are followed
 There are a many other places where type transformations are required. Firstly all function signatures (excluding the consumers which have already been translated). If let expression have explicit types then these may also need updating. Note there are many other expression types, where explicit types can be assigned in Rust (for example in closures) however these have not be addressed for now.
 For these cases the standard typing translation rules, from \autoref{fig} and \autoref{fig} are used.
 
+\subsection{Output}
+
+Throughout the second stage, as the definitions are transformed, gamma is also updated. For example after a datatype is transformed into an interface, the interface name is added to the interface set and removed from the datatype set. Similarly the signatures are updated as required. By the end of this stage, the gamma context is switched. This means the gamma from OOP matches the FP gamma from \autoref{fig:ex-exp-gamma}.
+
+\autoref{fig:ex-exp-stage2} shows the outputs of the second stage of the transformer on the examples from \autoref{fig:ex-exp}. There are two notable issues with this output. Note at the end of this stage the code is invalid. This is because the eval functions do not return the correct type and the function calls to the destructors/consumers have not been updated. This is handled in the third stage of the transformer.
+
 % Add in transformation rules for type signature arguments and return types
 
 % \subsection{OOP to FP}
@@ -1209,81 +1215,77 @@ For these cases the standard typing translation rules, from \autoref{fig} and \a
 %TODO Talk about this
 \label{sec:item-trans}
 
-Figure \autoref{fig:} shows the transformation of the example from \autoref{fig:}. There are two notable issues with this output.
+The final stage of the transformation, performs two functions. It updates each use of the the transformed user types, including their associated functions. Given the types can become inconsistent as a result of the second stage type transformations, it also updates the type of each expression, ensuring the output program is valid. The transformations are outlined by the rules in \autoref{}.
 
-The final stage of the transformation, updates any uses of the  
+% TODO EXTEND GAMMA IN THE RULES
 
-After the type transformations are completed the next stage of the transformation is to updates uses of the transformed types. This includes instantiations of the type as well as any destructor/consumer calls.
+During this stage, the whole AST is parsed. For each definition, the sub definitions and expressions are transformed. Equally for each expression the sub expressions are transformed. In each case when transforming a nested expression the expected return type is determined. For example, when transforming the body of a function, the final expression has an expected return type, equal to the return type of the function signature. Note in some case expressions are expected to return nothing, represented as $\bot$ in the syntax, such as a call to the print macro. Equally in cases any type can be returned from an expression. An example is a let expression without a type signature. In the implementation this is handled with an enum with three variants, Any, None and DeltaType. In the formalization this is instead represented by the $EXPLAIN THE TRANS SYMBOL$.
 
-This transformation is achieved using a recursive function called \verb|transform_expr|. This function takes an expressions and the current contexts and transforms both itself and any nested expressions. For example when transforming an \verb|if| expression both the conditional (the expression inside the if) and block expression (the expression run if the conditional expression is true) are transformed.
+Each time an expression is transformed, after the transformation is complete the type of the output of the expression is checked using the context. If this type does not match the required type, the rules from \autoref{fig:trans-type} are applied. These use the $\sim$, $*$ and $\&$ expressions to update the type of the expression. Applying these type transformations as the final stage of transforming the expression, allow nested expression to also fix the type of the expression. For example if a return expression contains an if statement each arm of the if statement will update its return type, rather than the top level return type doing the transformation. This, in conjunction with type simplifying, reduce the total number of type translation throughout the code, and keeps the calls to the type transformer is a single place in the implementation.
 
-The key transformations that this function performs depends on the direction of the transformation. For OOP to FP, the function transforms any calls to destructor or generators. Whilst in FP to OOP it transforms any calls to consumers or constructors.
+% TODO talk about reference and box expressions and add rules
 
-\subsection{OOP to FP}
+\subsubsection{Constructors and Generators}
 
-\paragraph{Generators. } Generator calls are instations of structs. Gamma is used to determine if the struct is infact a generator. If so the expression is transformed into the instantiation of an enum using a constructor. In Rust this is also represented as a struct expression, however the path to the struct will change. This is because by default, enum variant are not in scope and can be reference by the enum it self. For example \rust{Light::Dimmer}. The alternative to this is to add the enum variant to the scope using \rust{use Ligth::*} however this increases the possibility of name collision and is generally considered bad practice. The other required transformation is ensuring the type of each field in the constructor is correct for the transformed signature. This is dicussed in more detail in \autoref{sec:type-transforms}.
+\verb|Thing| and \verb|Thing2| outline the transformations for generators and constructors respectively. In each case fields of the types are assigned to expressions. Each of these are transformed, with the required types obtained from the $\sig$ map in the $\Delta$ context. The call is also updated to used the correct syntax. In Rust structs (generators) are in the global scope, where as by default enum variants (constructors) are nested within enums. For this reason when transforming generators into constructors, the path is extended with the datatype, for example \rust{Dimmer} to \rust{Light::Dimmer}. For FP this transformation is done in reverse, removing the datatype from the path.
 
-\paragraph{Destructors. } Destructor calls in rust are method calls. Firstly delta is used to determine the type of the receiver, which is the expression the method is being called on. Gamma is then used to check if this type is a datatype (or a generator of that datatype) and that the method is a destructor of that type. If so the method call is replaced with a call to the new consumer. The receiver of the method call is transformed to the first argument of this function call. Similarly to above the nested expressions (the new function arguments and the ) are also recursively transformed.
+Note an alternative approach to this is including enums in the global context, \rust{use Ligth::*}. This brings each enum variant into scope. However this increases the possibility of name collision and is generally considered bad practice. For this reason this syntax was not supported. With some restrictions this syntax could also trivially be supported by the transformer.
 
-\subsubsection{FP to OOP}
+\subsubsection{Destructors and Consumers}
 
-FP to OOP reflects the logic of OOP to FP.
+For both destructor and consumer transformations, the first step is to move the self parameter. For transforming from OOP to FP, the expression which the method is called on (the reciever) is moved to the first argument of a call to the consumer. Whilst for FP, the first argument is removed and the destructor method is called on that expression. All argument expressions are also transformed, with the return types from the signature in $\Delta$, which will have been updated after the stage 2 transformations.
 
-\paragraph{Constructors. }  Gamma is also used to check it is a constructor, if so the enum prefix is removed (as the enum variant is transformed to a top level struct) and the nexted expressions are transformed.
+% \subsection{Rust Type Transformations}
 
-\paragraph{Consumer. } For calls to consumers, gamma is used to check if a function call is a consumer. If so it is replaced by a method call with the first argument of the function call as the receiver of the method call. Equally the sub expressions are transformed.
+% % TODO how is the required return type determined for an expression?
+% % TODO how are types of an expression determined - this should probably go in delta but it should also talk about blocks....
+% % TODO how are these types encoded (EType and DeltaType) this should also probably be in Delta context
+% % TODO how is the transformation applied
+% % TODO type simplification
 
-\subsection{Rust Type Transformations}
+% Unlike in the Scala implementation of the transformer the signatures of types' associated functions can change during the transformation. In general this is not the type itself that changes, but rather the reference type (such as converting a type to a box of the type). This therefore requires additional steps in the transformation to ensure the types of expressions are correct. To achieve this the \verb|transform_expr| function is also passed an expected return type.
 
-% TODO how is the required return type determined for an expression?
-% TODO how are types of an expression determined - this should probably go in delta but it should also talk about blocks....
-% TODO how are these types encoded (EType and DeltaType) this should also probably be in Delta context
-% TODO how is the transformation applied
-% TODO type simplification
+% When recursively transforming nested expression is it the required type of each sub expression must be determined. For each type this is determined as follows:
 
-Unlike in the Scala implementation of the transformer the signatures of types' associated functions can change during the transformation. In general this is not the type itself that changes, but rather the reference type (such as converting a type to a box of the type). This therefore requires additional steps in the transformation to ensure the types of expressions are correct. To achieve this the \verb|transform_expr| function is also passed an expected return type.
+% \begin{itemize}
+%     \item Method/Function call - The signature of the function states the expected type of each of the argument expressions. For a method call receiver, in the current implementation any type can be returned. %TODO evaluate this
+%     \item Block - For block expressions, all expression should return None, except the last expression which should have the same return type requested for the whole block.
+%     \item Generator/Constructor calls - The required types of each field can be determined by the field types (signature) from gamma.
+%     \item Match - For match expression each arm is expected to return the same type as the required type for the whole match statement
+%     \item Return - The inner expression should match the required type of the return expression
+%     % TODO add support for if else
+%     \item TODO add support for if else  
+% \end{itemize}
 
-When recursively transforming nested expression is it the required type of each sub expression must be determined. For each type this is determined as follows:
+% Given these expected return types, it is then the responsibility of the \verb|transform_expr| function to also transform the types. This is achieved using \verb|transform_expr_type|.  
 
-\begin{itemize}
-    \item Method/Function call - The signature of the function states the expected type of each of the argument expressions. For a method call receiver, in the current implementation any type can be returned. %TODO evaluate this
-    \item Block - For block expressions, all expression should return None, except the last expression which should have the same return type requested for the whole block.
-    \item Generator/Constructor calls - The required types of each field can be determined by the field types (signature) from gamma.
-    \item Match - For match expression each arm is expected to return the same type as the required type for the whole match statement
-    \item Return - The inner expression should match the required type of the return expression
-    % TODO add support for if else
-    \item TODO add support for if else  
-\end{itemize}
+% In the current implementation, reference types are encoded as a basic enum (either ref, box or none). Given, in general, only the reference type of types change, the \verb|trasnsform_expr_type| can only perform basic transformation on the reference type. The current supported transformations are:
 
-Given these expected return types, it is then the responsibility of the \verb|transform_expr| function to also transform the types. This is achieved using \verb|transform_expr_type|.  
+% \begin{itemize}
+%     \item Box/Reference $\xrightarrow{}$ None - Achieved by dereference
+%     \item None $\xrightarrow{}$ Box - Uses \rust{Box::new} method to create box of provided expression
+% \end{itemize}
 
-In the current implementation, reference types are encoded as a basic enum (either ref, box or none). Given, in general, only the reference type of types change, the \verb|trasnsform_expr_type| can only perform basic transformation on the reference type. The current supported transformations are:
+% The return types express what the given expression should return after it has been transformed. These return types are expressed as one of the following:
 
-\begin{itemize}
-    \item Box/Reference $\xrightarrow{}$ None - Achieved by dereference
-    \item None $\xrightarrow{}$ Box - Uses \rust{Box::new} method to create box of provided expression
-\end{itemize}
-
-The return types express what the given expression should return after it has been transformed. These return types are expressed as one of the following:
-
-\begin{itemize}
-    \item None - No return value
-    \item DeltaType - Contains a DeltaType struct to encode the expected return type
-    \item Any - Any type can be returned (no transformation of the return type will be made)
-\end{itemize}
+% \begin{itemize}
+%     \item None - No return value
+%     \item DeltaType - Contains a DeltaType struct to encode the expected return type
+%     \item Any - Any type can be returned (no transformation of the return type will be made)
+% \end{itemize}
 
 
 
-\verb|transform_expr| is the core of this recusrsive transformation process. For each type of expression this transforms the expression it self, as well as any nested experssions.
+% \verb|transform_expr| is the core of this recusrsive transformation process. For each type of expression this transforms the expression it self, as well as any nested experssions.
 
-The main transformations performed by this function is updating the use of transformed types. For OOP to FP transformations this involves replacing method calls with function calls to the consumers, whilst for FP to OOP it does the reverse. 
+% The main transformations performed by this function is updating the use of transformed types. For OOP to FP transformations this involves replacing method calls with function calls to the consumers, whilst for FP to OOP it does the reverse. 
 
-\begin{itemize}
-    \item A consumer/destructor is transformed and the return types changes. E.g. \verb|T| to \verb|Box<T>|. This can have knock on effect where this result is used later.
-    \item A consumer/destructor is transformed and the argument type changes
-\end{itemize}
+% \begin{itemize}
+%     \item A consumer/destructor is transformed and the return types changes. E.g. \verb|T| to \verb|Box<T>|. This can have knock on effect where this result is used later.
+%     \item A consumer/destructor is transformed and the argument type changes
+% \end{itemize}
 
-The transforming of types is handled in the \verb|transform_expr_type| function. This takes the current type of the expression and the 
+% The transforming of types is handled in the \verb|transform_expr_type| function. With the PID controller, the robot is not traveling at a constant velocity, but rather accelerating and decelerating constantly to correct the measured velocity. This repeated acceleration and declaration makes this prediction unlikely
 
 
 \section{Inheritance}
@@ -1303,19 +1305,6 @@ The FP equivalent to these default trait implementations are wildcard matches in
 \paragraph{FP to OOP.} If a consumer contains a wildcard match, then the return type of the arm must be checked. If it returns a simple (Sized) type, then a default implementation of the trait can be created and an implementation in the impl block is not required. However if the return type is not sized then a default implementation cannot be used. In this case a copy of the wildcard expression is created for each of the impl blocks. 
 % TODO talk about shared function
 % Although it may seem preferable to create a shared function to handle this logic, this is also not possible (withas the type of the 
-
-\section{Macros}
-
-In Rust macros are a form of "metaprogramming", meaning they allow developers to write code that writes other code. 
-
-Although not unique to Rust, macros play a far greater role in Rust that most other programming languages, and for this reason it is an important topic to cover. 
-
-In Rust there are 2 kinds of macros, declarative and procedural. Macros operate over token trees which contain the tokens parsed by the compiler. SAY SOMETHING BETTER HERE  https://reberhardt.com/cs110l/spring-2020/slides/lecture-17.pdf
-
-Macros are an incredibly powerful tool and are very effective at reducing code duplication. However this flexibility creates many difficulties for the transformer. Given the macros inputs are parsed as tokens, it is not possible to predict what the macro will do to the input. For example, if a macro was created to strip method calls, it would not be possible for the transformer to predict this behaviour. In this case it could there transform a method call to a function and change the resultant meaning of the expression. 
-Therefor it is not possible to reliably transform the inputs of macros. As a compromise the current implementation attempts to parse the inputs to any macros as comma separated set of expressions. If this is successful it will transform each expression as before using \verb|transform_expr|. After the transformations it will covert the transformed expressions back to the tokens format.
-
-In many cases this limited approach is sufficient to maintain the correctness of the code and transform the required expressions. Critically this approach allows the use of basic macros included in rust such as \rust{println!} and \rust{vec!}. However as mentioned there is no guarantee of correctness when using these transformations with arbitrary macros.
 
 \chapter{Extensions to the Transformer}
 
@@ -1353,6 +1342,20 @@ This has 2 key limitations. Firstly the method cannot return any other values. A
 \caption{Mutable class example}
 \label{fig:mutable-example}
 \end{figure}
+
+\section{Macros}
+
+In Rust macros are a form of "metaprogramming", meaning they allow developers to write code that writes other code. 
+
+Although not unique to Rust, macros play a far greater role in Rust that most other programming languages, and for this reason it is an important topic to cover. 
+
+In Rust there are 2 kinds of macros, declarative and procedural. Macros operate over token trees which contain the tokens parsed by the compiler. SAY SOMETHING BETTER HERE  https://reberhardt.com/cs110l/spring-2020/slides/lecture-17.pdf
+
+Macros are an incredibly powerful tool and are very effective at reducing code duplication. However this flexibility creates many difficulties for the transformer. Given the macros inputs are parsed as tokens, it is not possible to predict what the macro will do to the input. For example, if a macro was created to strip method calls, it would not be possible for the transformer to predict this behaviour. In this case it could there transform a method call to a function and change the resultant meaning of the expression. 
+Therefor it is not possible to reliably transform the inputs of macros. As a compromise the current implementation attempts to parse the inputs to any macros as comma separated set of expressions. If this is successful it will transform each expression as before using \verb|transform_expr|. After the transformations it will covert the transformed expressions back to the tokens format.
+
+In many cases this limited approach is sufficient to maintain the correctness of the code and transform the required expressions. Critically this approach allows the use of basic macros included in rust such as \rust{println!} and \rust{vec!}. However as mentioned there is no guarantee of correctness when using these transformations with arbitrary macros.
+
 
 \section{Generics}
 
