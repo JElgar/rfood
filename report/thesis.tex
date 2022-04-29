@@ -709,8 +709,8 @@ The RFOOD syntax, introduced in \autoref{fig:syntax}, is used to formalize the R
          & \text{Fun} & \text{$\Coloneqq$} & \text{Dec} = \overline{e} \\
         \text{Expression}
          & e & \Coloneqq & x %\mid \overline{(x: T)} \Rightarrow t 
-          \mid e_1.f(\overline{e_2})  \mid f(\overline{e}) \mid \genn(\overline{e}) \mid \ctrCall{\dtn}{\ctrn}{e} \mid \sim e\mid \&e \mid *e\\
-         &   &           & \ifelseexpr{e_1}{e_2}{e_3} \mid \eqexpr{e_1}{e_2} \mid \macroexpr{m}{e} \\
+          \mid e_1.f(\overline{e_2})  \mid f(\overline{e}) \mid \genn(\overline{e}) \mid \ctrCall{\dtn}{\ctrn}{e} \mid \sim e\mid \&e \mid *e \mid\\
+         &   &           & \ifelseexpr{e_1}{e_2}{e_3} \\
          \text{Pattern}
          & P & \Coloneqq & \genn(\overline{x}) \mid \ctrCall{\dtn}{\ctrn}{x} \mid \_ \\
         %  \text{Modifier}
@@ -718,7 +718,7 @@ The RFOOD syntax, introduced in \autoref{fig:syntax}, is used to formalize the R
         \text{Boolean}
         & bool & \Coloneqq & true \mid false  \\
         \text{Types}
-        & T & \Coloneqq & \dtn \mid \overline{T} \rightarrow T \mid \sim  T \mid \& T \mid \sim_{dyn} \itn \mid bool \mid \bot \\
+        & T & \Coloneqq & \dtn \mid \overline{T} \rightarrow T \mid \sim  T \mid \& T \mid \sim_{dyn} \itn \mid bool \\ %\mid \bot \\
         & \dtn & \Coloneqq & \text{Datatype name} \\
         & \itn & \Coloneqq & \text{Interface name} \\
         & \ctrn & \Coloneqq & \text{Constructor name} \\
@@ -805,6 +805,7 @@ The gamma collected for the examples from \autoref{fig:ex-exp} are:
 \begin{tabular}{ll}
 \dt & Set of Datatypes\\
 \ct & Set of Interfaces\\
+\fn & Set of Functions \\
 $\ctrs{\dtn}$ & Constructors of datatype $\dtn$\\ 
 $\dtr{\itn}$ & Destructors of interface $\itn$\\  
 $\generator{\itn}$ & Generators of interface $\itn$\\
@@ -878,6 +879,7 @@ The reference type is implemented as a recursive Enum called the \verb|Reference
 
 \section{Type Transformations}
 
+% Stage 2 OOP Trans Rules
 \begin{figure}[t]
 
 \begin{mathpar}
@@ -897,70 +899,28 @@ The reference type is implemented as a recursive Enum called the \verb|Reference
 {\fresh{d} \\ \overline{\genn} = \generator{\itn} \\ \transType{\itn}{T_{s}}{T_{s}'} \\ \overline{\transType{\itn}{T_{x}}{T_{x}'}} \\ \transType{\itn}{T}{T'} \\ \sig(G) = T_{g}
 }
 {\transtwoNTB{\itn}{\decD{self: T_{s}}{x: T_{x}}{T}}{
-    \csmcase{\fnArg{d}{T_{s}'}} {\fnArg{x}{T_{x}'}} {T} {d}  {\ctrPat{\itn}{\genn}(\attrs(G))} {[self \mapsto d]\gdefinition{f}{\genn}}}
+    \csmcase{\fnArg{d}{T_{s}'}} {\fnArg{x}{T_{x}'}} {T'} {d}  {\ctrPat{\itn}{\genn}(\attrs(G))} {[self \mapsto d]\gdefinition{f}{\genn}}}
 }
 \end{mathpar}
 
-% \begin{mathpar}
-% \inferrule[Fun2Csm]
-% { \dtrToCsm {\decD {self: T_{s}} {xs: T_{x}} {T}} {\csmcase {d: T_{s}'} {xs: T_{x}} {T'} {e}} }
-% { \dtrToCsm {\decD {self: T_{s}} {xs: T_{x}}{T} = e} \csmcase{d: T_{s}'} {xs: T_{x}'} {T'} {e}; \kwcase\; \_ \Rightarrow [self \mapsto d]e}
-% \end{mathpar}
+\begin{mathpar}
+\inferrule[Fn2Csm]
+{\fresh{d} \\ \transtwoNT{}{\decD{self: T_{s}}{x: T_{x}}{T}}{
+    \csmcase{\fnArg{d}{T_{s}'}} {\fnArg{x}{T_{x}'}} {T'} {d}  {P} {e}}
+}
+{\transtwoNTB{\itn}{\fnDec{self: T_{s}, \overline{x: T_{x}}}{T}{\overline{e}}}{
+    \csmcase{\fnArg{d}{T_{s}'}} {\fnArg{x}{T_{x}'}} {T'} {d}  {P} {e}}; \matchcaseNO{\_}{[self \mapsto d]\overline{e}}
+}
+\end{mathpar}
 
-% \begin{mathpar}
-% \inferrule[Fun2Case] % reuse
-% { \decD {self} x T = e \in \overline{Fun} }
-% {  \dtrToCase {\classf {C} {y} {S} {D} {\overline{Fun}}} {\case {C(\overline{y})} {[self \mapsto d]e}}}
-% \end{mathpar}
-
-% \inferrule[Csm]
-% {\overline{\trans {e} T {e'}} \\ \trans L T L'}
-% { \trans {\csmcase e; L} {T}  {\csmcase {e'};L'}}
-
-% \begin{mathpar}
-% \inferrule[DecRef2Csm]
-% { \overline{C} = \generator{D} \\ \overline{\dtrToCase{\defs(C)} {\case P e}}}
-% { \dtrToCsm {\destr \& x} {\csmcase d \& e}}
-% \end{mathpar}
-
-% \begin{mathpar}
-% \inferrule[DecRef2Csm]
-% { \overline{C} = \generator{D} \\ \overline{\dtrToCase{\defs(C)} {\case P e}}}
-% { \dtrToCsm {\destr \& x} {\csmcase d \& e}}
-% \end{mathpar}
-
-% \begin{mathpar}
-% \inferrule[DecPointer2Csm]
-% { \overline{C} = \generator{D} \\ \overline{\dtrToCase{\defs(C)} {\case P e}}}
-% { \dtrToCsm {\destr \sim x} {\csmcase{d}{}{e}}}
-% \end{mathpar}
-
-\caption{Stage 2 - User defined types transformation rules}
+\caption{Stage 2 OOP - User defined types OOP transformation rules}
 \label{fig:stage2-trans-oop}
 \end{figure}
 
+% Stage 2 OOP Type Trans Rules
 \begin{figure}[t]
 
-% \begin{mathpar}
-
-% \inferrule[CreateRef]
-% {}
-% {\transTypeVal{Dtn}{\& T}}
-
-% \inferrule[CreateRef]
-% {}
-% {\transTypeVal{Dtn}{T}}
-
-% \inferrule[CreateRef]
-% {}
-% {:Dtn val}
-
-% \end{mathpar}
-
 \begin{mathpar}
-% \inferrule[CreateRef]
-% {\transType{Dtn}{\&Dtn}{T}}
-% { \transType{Dtn}{\& Self}{T}}
 
 \inferrule[CreateRef]
 {}
@@ -987,29 +947,106 @@ The reference type is implemented as a recursive Enum called the \verb|Reference
 { \transType{}{\sim_{dyn} Dtn}{\sim Dtn}}
 
 \end{mathpar}
-\caption{Stage 2 - Type transformation rules}
-\label{fig:trans-fp}
+\caption{Stage 2 - Type transformation rules OOP}
+\label{fig:trans-type-oop}
 \end{figure}
+
+% Stage 2 FP Trans Rules
+\begin{figure}[t]
+
+\begin{mathpar}
+\inferrule[Dt2It]
+{  \overline{Csm} = \consumer{\dtn} \\ \overline{\transtwoNT{D}{Ctr}{Gen}} \\ \overline{\transtwoNT{D}{\defs(Csm)}{Dtr}} \\ \overline{} \\ \transtwoNT {} L {L'} \\ \itn = \dtn}
+{ \transtwoNT {} {\datatype {\dtn} {Ctr}; L} {\interface{\itn}{Dtr};\overline{Gen}; L}}
+\end{mathpar}
+
+\begin{mathpar}
+\inferrule[Ctr2Gen]
+{  \overline{Csm} = \consumer{\dtn} \\ \overline{\transtwoNT{D, C}{\defs({Csm})}{Fun} } \\ \overline{\transType {\itn} T {T'}} \\  } %  
+{ \transtwoNT {D} {\ctr{C}{\overline{x: T}}} {\class {C} {x} {T'} {\itn} {\overline{Fun}}}}
+\end{mathpar}
+
+% \begin{mathpar}
+% \inferrule[Dec2Csm]
+% {\fresh{d} \\ \overline{\genn} = \generator{\itn} \\ \transType{\itn}{T_{s}}{T_{s}'} \\ \overline{\transType{\itn}{T_{x}}{T_{x}'}} \\ \transType{\itn}{T}{T'} \\ \sig(G) = T_{g}
+% }
+% {\transtwoNTB{\itn}{\decD{self: T_{s}}{x: T_{x}}{T}}{
+%     \csmcase{\fnArg{d}{T_{s}'}} {\fnArg{x}{T_{x}'}} {T} {d}  {\ctrPat{\itn}{\genn}(\attrs(G))} {[self \mapsto d]\gdefinition{f}{\genn}}}
+% }
+% \end{mathpar}
+
+\begin{mathpar}
+\inferrule[Case2Fun]
+{\matchcase{\dtn::C(\overline{y})}{e} \in \overline{\matchcase{P}{e}} \\ \transtwoNT{D}{\fnDstr{d: T_{s}}{x: T}{T}} {\fnDstr{self: T_{s}'}{x: T'}{T'}}}
+{\transtwoNT{D,C}{\csmcase{d: T_{s}}{x: T_{x}}{T}{d}{P}{e}} {\fnDec{\overline{self: T_{s}', x: T_{x}'}}{T'}{[d \mapsto self]\overline{e}}}}
+\end{mathpar}
+
+\begin{mathpar}
+\inferrule[Csm2Dec]
+{\matchcase{\_}{e} \notin \overline{\matchcase{P}{e}} \\ \transType{\dtn}{T_{s}}{T_{s}'} \\ \overline{\transType{\dtn}{T_{x}}{T_{x}'}} \\ \transType{\dtn}{T}{T'}}
+{\transtwoNT{D}{\csmcase{d: T_{s}}{x: T}{T}{d}{P}{e}} {\fnDstr{self: T_{s}'}{x: T'}{T'}} }
+\end{mathpar}
+
+\begin{mathpar}
+\inferrule[Csm2Fun]
+{\matchcase{\_}{e} \in \overline{\matchcase{P}{e}} \\ \transType{\dtn}{T_{s}}{T_{s}'} \\ \overline{\transType{\dtn}{T_{x}}{T_{x}'}} \\ \transType{\dtn}{T}{T'}}
+{\transtwoNT{D}{\csmcase{d: T_{s}}{x: T}{T}{d}{P}{e}} {\fnDec{self: T_{s}', \overline{x: T'}}{T'}{[d \mapsto self]\overline{e}}} }
+\end{mathpar}
+
+\caption{Stage 2 FP - User defined types FP transformation rules}
+\label{fig:stage2-trans-oop}
+\end{figure}
+
+% Stage 2 FP Type Trans Rules
+\begin{figure}[t]
+
+\begin{mathpar}
+
+\inferrule[CreateRef]
+{}
+{ \transType{\dtn}{\&\dtn}{\&Self}}
+
+\inferrule[CreateRef]
+{}
+{ \transType{\dtn}{\dtn}{\sim_{dyn} Self}}
+
+\inferrule[CreateRef]
+{}
+{ \transType{\dtn}{\dtn}{\sim_{dyn}\dtn}}
+
+\inferrule[CreateRef]
+{}
+{ \transType{\dtn'}{\dtn}{\sim_{dyn}\dtn}}
+
+\inferrule[CreateRef]
+{}
+{ \transType{\dtn'}{\sim \dtn}{\sim_{dyn}\dtn}}
+
+\end{mathpar}
+
+\begin{mathpar}
+
+\inferrule[CreateRef]
+{}
+{ \transType{}{\sim \dtn}{\sim_{dyn} \dtn}}
+
+\inferrule[CreateRef]
+{}
+{ \transType{}{\dtn}{\sim_{dyn} \dtn}}
+
+\end{mathpar}
+\caption{Stage 2 - Type transformation rules FP}
+\label{fig:trans-type-fp}
+\end{figure}
+
 
 
 \begin{figure}
 
-% \begin{mathpar}
-% \inferrule[App2Sel]
-% { \transSigma {D}{e_1} D {e_1'} \\ f \in \consumer{D} \\ \sig(f) = D, \overline{T} \rightarrow T \in \Gamma  \\ \transType{D}{T}{T'}\\ \overline{\transType{}{T}{T'}  \qquad \transSigma {T'} {e_2} T {e_2'}}}
-% { \trans{f(e_1, \overline{e_2})}{T}{e_1'.f(\overline{e_2'})}{T'}}
-% \end{mathpar}
-
 \begin{mathpar}
-\inferrule[Fn]
-{\transSigma{T}{e}{e'} } %\\ {\trans t {\overline{T} \arrow T} {t'}} }
-{\transThreeStmt{\fnDec{xs: T_{x}}{T}{e}} {\fnDec{xs: T_{x}}{T}{e'}}}
-\end{mathpar}
-
-\begin{mathpar}
-\inferrule[Block]
-{\transSigma{\sigma}{e}{e'} \\ \overline{\transThreeStmt{e}{e'}}} %\\ {\trans t {\overline{T} \arrow T} {t'}} }
-{\transSigma{\sigma}{\block{\overline{e}; e}} {\block{\overline{e'}; e'}}}
+\inferrule[Def]
+{\transThreeStmt{Def}{Def'} \\ \transThreeStmt{L}{L'}} %\\ {\trans t {\overline{T} \arrow T} {t'}} }
+{\transThreeStmt{Def; L} {Def'; L'}}
 \end{mathpar}
 
 \begin{mathpar}
@@ -1019,21 +1056,87 @@ The reference type is implemented as a recursive Enum called the \verb|Reference
 \end{mathpar}
 
 \begin{mathpar}
-\inferrule[New2Obj]
-{ C \in \generator{D} \\ \sig(C) = \overline{T} \rightarrow D \\ \overline{\transSigma {T} e {e'}} } %\\ {\trans t {\overline{T} \arrow T} {t'}} }
-{ \trans{C(\overline{e})}{D}{D::C (\overline{e'})}{D}}
+\inferrule[Fn]
+{\transSigma{T}{\overline{e}}{\overline{e'}}} %\\ {\trans t {\overline{T} \arrow T} {t'}} }
+{\transThreeStmt{\fnDec{\overline{x: T}}{T}{\overline{e}}} {\fnDec{\overline{x: T}}{T}{\overline{e'}}}}
+\end{mathpar}
+
+% \begin{mathpar}
+% \inferrule[Eq]
+% { \transSigmaT{T_1}{e_1}{T_1}{e_1'} \\ \transSigma{T_1}{e_2}{e_2'}}
+% { \transThree {\eqexpr{e_1}{e_2}} {\eqexpr{e_1'}{e_2'}} {T} } 
+% \end{mathpar}
+
+% \begin{mathpar}
+% \inferrule[Match]
+% {}
+% { \transTypeExprE {\matchexpr{e_1}{b}{c}{d}{e}} {T}  }
+% \end{mathpar}
+
+\caption{Stage 3 - Program and definition transformation rules}
+\label{fig:trans-stage3-prog}
+\end{figure}
+
+\begin{figure}
+
+\begin{mathpar}
+\inferrule[Exp]
+{\transSigmaInner{\sigma}{e}{e'} \\ \transSigmaType{\sigma}{e'}{e''}}
+{ \transSigma{\sigma}{e}{e''}}
 \end{mathpar}
 
 \begin{mathpar}
+\inferrule[Gen2Ctr]
+{ C \in \constructor{D} \\ e = D::C (\overline{e'}) \\ \transSigma{\sigma}{e}{e'}{} }%\\ {\trans t {\overline{T} \arrow T} {t'}} } 
+{ \transSigmaTInner{\sigma}{C(\overline{e})}{D}{e'}}
+\end{mathpar}
+
+\begin{mathpar}
+\inferrule[Ctr2Gen]
+{ C \in \generator{D} \\ e = C (\overline{e'}) \\ \transSigma{\sigma}{e}{e'}{} }%\\ {\trans t {\overline{T} \arrow T} {t'}} } 
+{ \transSigmaTInner{\sigma}{D::C(\overline{e})}{D}{e'}}
+\end{mathpar}
+
+\begin{mathpar}
+\inferrule[Gen]
+{ C \in \generator{D} \\ \sig(C) = \overline{T} \rightarrow D  \\  \overline{\transSigma {T} e {e'}} }%\\ {\trans t {\overline{T} \arrow T} {t'}} } 
+{ \transSigmaTInner{\sigma}{C(\overline{e})}{D}{C(\overline{e'})}}
+\end{mathpar}
+
+\begin{mathpar}
+\inferrule[Ctr]
+{ C \in \constructor{D} \\ \sig(C) = \overline{T} \rightarrow D  \\  \overline{\transSigma {T} e {e'}} }%\\ {\trans t {\overline{T} \arrow T} {t'}} } 
+{ \transSigmaTInner{\sigma}{D::C (\overline{e})}{D}{D::C(\overline{e'})}}
+\end{mathpar}
+
+
+\begin{mathpar}
 \inferrule[Sel2App]
-{ f \in Csm \\ SIG(f) = \fntype{T_{1}, \overline{T_{s}}}{T} \\ \transSigma{T_1}{e_1}{e_1'} \\ \overline{\transSigma{T_s}{e_2}{e_2'}}} %\\ {\trans t {\overline{T} \arrow T} {t'}} }
-{\transSigma {\sigma} {\methodcall{e_1}{\overline{e_2}}} {\fncall{e_1', \overline{e_2'}}}}
+{ \transSigma{\dtn}{e_1}{e_1'} \\ f \in \consumer{D} \\ e = \fncall{e_1, \overline{e_2}} \\ \transSigma{\sigma}{e}{e'} } %\\ {\trans t {\overline{T} \arrow T} {t'}} }
+{\transSigmaInner {\sigma} {\methodcall{e_1}{\overline{e_2}}} {e'}}
 \end{mathpar}
 
 \begin{mathpar}
 \inferrule[Sel]
-{ f \notin Csm \\ SIG(f) = \fntype{\overline{T_{s}}}{T} \\ \transThreeStmt{e_1}{e_1'} \\ \overline{\transSigma{T_s}{e_2}{e_2'}}} %\\ {\trans t {\overline{T} \arrow T} {t'}} }
-{\transSigma {\sigma} {\methodcall{e_1}{\overline{e_2}}} {\methodcall{e_1'}{\overline{e_2'}}}}
+{ \transSigma{\itn}{e_1}{e_1'} \\ f \in \destructor{\itn} \\ \sig(f) = \fntype{\overline{T_{s}}}{T} \\ \transThreeStmt{e_1}{e_1'} \\ \overline{\transSigma{T_s}{e_2}{e_2'}}} %\\ {\trans t {\overline{T} \arrow T} {t'}} }
+{\transSigmaInner {\sigma} {\methodcall{e_1}{\overline{e_2}}} {\methodcall{e_1'}{\overline{e_2'}}}}
+\end{mathpar}
+
+\begin{mathpar}
+\inferrule[App2Sel]
+{ \transSigma{\itn}{e_1}{e_1'} \\ f \in \destructor{I} \\ e = \methodcall{e_1}{\overline{e_2}} \\ \transSigma{\sigma}{e}{e'} } %\\ {\trans t {\overline{T} \arrow T} {t'}} }
+{\transSigmaInner {\sigma} {\fncall{e_1, ...\overline{e_2}}} {e'}}
+\end{mathpar}
+
+% \begin{mathpar}
+% \inferrule[App]
+% { \transSigma{\itn}{e_1}{e_1'} \\ f \in \destructor{I} \\ e = \methodcall{e_1}{\overline{e_2}} \\ \transSigma{\sigma}{e}{e'} } %\\ {\trans t {\overline{T} \arrow T} {t'}} }
+% {\transSigma {\sigma} {\fncall{\overline{e}}} {e'}}
+% \end{mathpar}
+\begin{mathpar}
+\inferrule[App]
+{ \transSigma{T}{e_1}{e_1'} \\ T \in \fn \cup \consumer{T} \\ \sig(f) = \overline{T} \rightarrow T \\ \overline{\transSigma{T}{e}{e'}} } %\\ {\trans t {\overline{T} \arrow T} {t'}} }
+{\transSigmaInner {\sigma} {\fncall{\overline{e}}} {e'}}
 \end{mathpar}
 
 % \begin{mathpar}
@@ -1043,22 +1146,16 @@ The reference type is implemented as a recursive Enum called the \verb|Reference
 % \end{mathpar}
 
 \begin{mathpar}
-\inferrule[If]
-{ \transSigma{bool}{e_1}{e_1'} \\ \transSigma{\sigma}{e_2}{e_2'} \\ \transSigma{\sigma}{e_3}{e_3'}}
-{ \transSigma {\sigma} {\ifelseexpr{e_1}{e_2}{e_3}} {\ifelseexpr{e_1'}{e_2'}{e_3'}} }
+\inferrule[Block]
+{\transSigma{\sigma}{e}{e'} \\ \overline{\transThreeStmt{e}{e'}}} %\\ {\trans t {\overline{T} \arrow T} {t'}} }
+{\transSigmaInner {\sigma}{\overline{e}; e} {\overline{e'}; e'}}
 \end{mathpar}
 
 \begin{mathpar}
-\inferrule[Eq]
-{ \transSigmaT{T_1}{e_1}{T_1}{e_1'} \\ \transSigma{T_1}{e_2}{e_2'}}
-{ \transThree {\eqexpr{e_1}{e_2}} {\eqexpr{e_1'}{e_2'}} {T} } 
+\inferrule[If]
+{ \transSigma{bool}{e_1}{e_1'} \\ \transSigma{\sigma}{e_2}{e_2'} \\ \transSigma{\sigma}{e_3}{e_3'}}
+{ \transSigmaInner {\sigma} {\ifelseexpr{e_1}{e_2}{e_3}} {\ifelseexpr{e_1'}{e_2'}{e_3'}} }
 \end{mathpar}
-
-% \begin{mathpar}
-% \inferrule[Match]
-% {}
-% { \transTypeExprE {\matchexpr{e_1}{b}{c}{d}{e}} {T}  }
-% \end{mathpar}
 
 \caption{Stage 3 - Expression transformation rules}
 \label{fig:trans-fp}
@@ -1068,24 +1165,28 @@ The reference type is implemented as a recursive Enum called the \verb|Reference
 
 \begin{mathpar}
 \inferrule[CreateRef]
-{\sigma = \& T}
-{ \transTypeExpr{}{\&}}
+{}
+{ \transTypeExpr{T}{\&}{\&T} }
 
 \inferrule[CreatePointer]
-{\sigma = \sim T}
-{ \transTypeExpr{}{\sim}} \\
+{}
+{\transTypeExpr{T}{\sim}{\sim T}}
+
+\inferrule[CreateDynPointer]
+{}
+{\transTypeExpr{T}{\sim}{\sim_{dyn} T}} \\
 
 \inferrule[DerefRef]
-{\sigma = T}
-{ \transTypeExpr{\&}{*}}
+{}
+{\transTypeExpr{\& T}{*} {T}}
 
 \inferrule[DerefPointer]
-{\sigma = T}
-{ \transTypeExpr{\sim}{*}} \\
+{}
+{\transTypeExpr{\sim T}{*} {T}} \\
 
 \inferrule[Pointer2Ref]
-{ \sigma = \& T}
-{ \transTypeExpr{\sim}{\&*}}
+{}
+{ \transTypeExpr{\sim T}{\&*} {\&T}}
 \end{mathpar}
 
 \caption{Expression type transformation rules}
