@@ -12,12 +12,19 @@
 \newcommand{\kwfresh}{\kw{fresh}}
 
 \newcommand{\generator}[1]{\textsc{Gen}(#1)}
+\newcommand{\constructor}[1]{\textsc{Ctr}(#1)}
+\newcommand{\destructor}[1]{\textsc{Dst}(#1)}
+\newcommand{\consumer}[1]{\textsc{Csm}(#1)}
 \newcommand{\gdefinition}[2]{\textsc{Def}(#1, #2)}
 
 \newcommand{\genn}{G}
 \newcommand{\ctrn}{C}
 \newcommand{\dtn}{D}
 \newcommand{\itn}{I}
+
+\newcommand{\dt}{\textsc{Dt}}
+\newcommand{\ct}{\textsc{It}}
+\newcommand{\fn}{\textsc{Fn}}
 
 \newcommand{\fresh}[1]{#1 \; \kwfresh}
 
@@ -44,6 +51,9 @@
 \newcommand{\transtwoNT}[3]{\Delta \vdash_{#1} #2 \leadsto #3}
 \newcommand{\transtwoNTB}[3]{\Delta \vdash_{#1} #2 \leadsto \\ #3}
 
+\newcommand{\transTypeExpr}[3]{\gdctx \vdash_{t} e \Rightarrow #1 \leadsto #2e \leftarrow #3}
+\newcommand{\transType}[3]{#2 \overset{#1}{\leadsto} #3}
+
 \newcommand{\datatype}[2]{\kwdata #1 \blockO{#2}}
 \newcommand{\interface}[2]{\kwinterface #1 \; \blockO{#2}}
 
@@ -56,14 +66,19 @@
 \newcommand{\macroexpr}[2]{\macro{#1}{\overline{#2}}}
 
 \newcommand{\matchcase}[2]{\kwcase {#1} \Rightarrow \overline{#2}}
+\newcommand{\matchcaseNO}[2]{\kwcase {#1} \Rightarrow {#2}}
 \newcommand{\matchexpr}[3]{\kwmatch #1 =  \overline{\matchcase{#2}{#3}}}
 \newcommand{\csmcase}[6]{\fnDstr{#1}{#2}{#3} = \matchexpr{\&#4} {#5} {#6}}
 
 % \newcommand{\csmcase}[5]{\fnDstr{#1}{#2}{T'} = \matchexpr{#3} {#4} {#5}}
 
-\newcommand{\transSigmaCtx}[5]{\Delta; \Gamma {#1} \vdash^{#2} {#3} {#4} \leadsto {#5} \Rightarrow {#2}}
-\newcommand{\transSigma}[3]{\transSigmaCtx{} {#1} {#2} {} {#3}}
-\newcommand{\transSigmaT}[4]{\transSigmaCtx{} {#1} {#2} {\Rightarrow #3} {#4}}
+% \newcommand{\transSigmaCtx}[5]{\Delta; \Gamma {#1} \vdash^{#2} {#3} {#4} \leadsto {#5} \Rightarrow {#2}}
+\newcommand{\transSigmaCtx}[6]{\Delta; \Gamma {#1} \vdash_{#6} {#3} {#4} \leadsto {#5} \leftarrow {#2}}
+\newcommand{\transSigma}[3]{\transSigmaCtx{} {#1} {#2} {} {#3} {}}
+\newcommand{\transSigmaType}[3]{\transSigmaCtx{} {#1} {#2} {} {#3} {t}}
+\newcommand{\transSigmaInner}[3]{\transSigmaCtx{} {#1} {#2} {} {#3} {i}}
+\newcommand{\transSigmaT}[4]{\transSigmaCtx{} {#1} {#2} {\Rightarrow #3} {#4} {}}
+\newcommand{\transSigmaTInner}[4]{\transSigmaCtx{} {#1} {#2} {\Rightarrow #3} {#4} {i}}
 
 \newcommand{\transThree}[3]{\Delta; \Gamma \vdash #1 \leadsto #2 \Rightarrow #3}
 \newcommand{\transThreeStmt}[2]{\Delta; \Gamma \vdash #1 \leadsto #2}
@@ -121,8 +136,6 @@
 \newcommand{\kwint}{\kw{Int}}
 
 \newcommand{\inbracket}[1]{\llbracket#1\rrbracket}
-\newcommand{\dt}{\textsc{Dt}}
-\newcommand{\ct}{\textsc{It}}
 \newcommand{\dtr}[1]{\textsc{Dtr}(#1)}
 \newcommand{\destr}[2]{\kwdef \ f(\kwself:#1)(\overline{#2 : Ts}): T}
 \newcommand{\consumer}[1]{\textsc{Csm}(#1)}
@@ -142,7 +155,6 @@
 \newcommand{\map}[3]{\langle #1 \; | \; #2 \leftarrow #3 \rangle}
 
 \newcommand{\transCtx}[5]{\Delta;\Gamma, #1 \vdash^{#2} #3 \Rightarrow #4 \leadsto #5 \Rightarrow #2}
-\newcommand{\transType}[3]{#2 \overset{#1}{\leadsto} #3}
 % \newcommand{\transTypeExpr}[2]{\Delta;\Gamma \vdash^{\sigma} e \Rightarrow #1T \leadsto #2 e \Rightarrow \sigma}
 % \newcommand{\transTypeExprE}[2]{\Delta;\Gamma \vdash^{\sigma} #1 \leadsto #2 \Rightarrow \sigma}
 \newcommand{\transTypeVal}[2]{\vdash_{#1} #2 \quad \text{\textbf{val}}}
