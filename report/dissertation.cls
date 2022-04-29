@@ -18,7 +18,7 @@
 %     degree = [BSc|MEng|MSci|MSc|PhD]
       degree/.store in = \dissertation@degree,
       degree           = {MEng},
-%      title = string
+%      title = string681
        title/.store in = \dissertation@title@major,
        title           = {},
 %   subtitle = string

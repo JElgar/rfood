@@ -562,7 +562,7 @@ Notice also how the \rust{dyn} prefix is used in the \rust{Box}. The \rust{dyn} 
 \section{Setup}
 
 The transformation rules are applied to an abstract syntax tree, AST. 
-Although rust exposes the native compiler parser through the \verb|rustc| create, the APIs are unstable and there is limited documentation. Instead the \verb|syn| package is used to parse the provided source code file into an AST. 
+Although rust exposes the native compiler parser through the \verb|rustc| create, the APIs are unstable and there is limited documentation. Instead the \verb|syn| package was used to parse the provided source code file into an AST. 
 The \verb|syn| package is designed for parsing macro inputs and is therefor limited in its support for creating AST objects. A minor fork (\url{https://github.com/jelgar/syn}) of the package was created to expose an additional module which enabled the creation of a required set of types.
 
 Once the transformations are completed, the \verb|quote| package is used to covert the AST back into Rust source code tokens. The \verb|rustfmt| package is then used to format the output in a consistent style.
@@ -591,11 +591,11 @@ The first stage, matches the pre-processing stage of the transformer outlined in
 
 The second stage is responsible for the transformations of the user defined types and their associated functions. This primarily matches the transformations outline by \weixin in \cite{food} however also includes the transformations of the types. For this reason the only transformation applied to the bodies of functions at this stage is a rename operation, whilst other transformations are handled in stage 3. This means at the end of this stage the program may be invalid as types may not match what is required. For example, if a function return type is updated to a dynamic pointer from a datatype, the body will still only return the datatype. This is addressed in the third stage.
 
-The third stage is responsible for updating any references to the user defined types and their functions. Again this closely aligns with the work from \cite{food}. However this stage also updates the types of each expression. It does this by recursively parsing the expected return type to each expression which is transformed. This outlines the type which the expression should return after the transformation is completed. Expressions which do not match the expected return types are updated using the reference ($\&$), pointer ($\sim$) and dereference ($*$) operators. 
+The third stage is responsible for updating any references to the user defined types and their functions. Again this closely aligns with the work from \cite{food}, however this stage also updates the types of each expression. It does this by recursively parsing the expected return type to each expression which is transformed. This outlines the type which the expression should return after the transformation is completed. Expressions which do not match the expected return types are updated using the reference ($\&$), pointer ($\sim$) and dereference ($*$) operators. 
 
 This approach allows the decoupling of the transformation of the user defined types which results in the translation of types, from the third stage which fixes any changed type and updates the uses of any transformed typed. 
 
-Throughout the following sections, the output of the discussed stage will be shown for the example input programs in \autoref{fig:ex-set}.
+Throughout the following sections, the output of the discussed stage will be shown for the example input programs in \autoref{fig:ex-exp}.
 
 \begin{figure}
 \centering
@@ -661,7 +661,7 @@ Throughout the following sections, the output of the discussed stage will be sho
 
 \section{Formalization}
 
-The RFOOD syntax, introduced in \autoref{fig:syntax}, is used to formalize the Rust transformations. This syntax is based on the FOOD syntax created by \weixin in \cite{food}, however with some modifications to support the Rust typing system. Primarily three additional types have been added, $\sim T$, $\sim_{dyn} T$ and $\& T$ where T is a type. These represent a pointer, a dynamic pointer and a borrow respectively. Note for this report only the Box pointer is considered, however most other smart pointer types should be analogous. Raw pointers (and all unsafe concepts) have not been included. The $\sim e$ and $\& e$ expression are added in order to create pointers ($\sim$ creates both pointers and dynamic pointers) and references of expressions. The additional $*e$ expression can then be used to dereference expressions, allowing access to a value within a pointer/reference. This extended syntax has been called RFOOD and is given in full in \autoref{fig:syntax}. 
+The RFOOD syntax, introduced in \autoref{fig:syntax}, is used to formalize the Rust transformations. This syntax is based on the FOOD syntax created by \weixin in \cite{food} however, with some modifications to support the Rust typing system. Primarily three additional types have been added, $\sim T$, $\sim_{dyn} T$ and $\& T$ where T is a type. These represent a pointer, a dynamic pointer and a borrow respectively. Note for this report only the Box pointer is considered, however most other smart pointer types should be analogous. Raw pointers (and all unsafe concepts) have not been included. The $\sim e$ and $\& e$ expression are added in order to create pointers ($\sim$ creates both pointers and dynamic pointers) and references of expressions. The additional $*e$ expression can then be used to dereference expressions, allowing access to a value within a pointer/reference. This extended syntax has been called RFOOD and is given in full in \autoref{fig:syntax}. 
 
 % A fundamental difference between the transformer from \cite{food} and the transformer proposed in this paper, is that types are required to change in Rust. This comes about as in Rust, much like in Scala, datatypes (enums) can be used as types directly. However once transformed to a trait, as discussed in \autoref{sec:dyn} they can not longer be used as types. Instead a dynamic reference of the trait must be used. This fundamentally changes the type. This can have impacts across the whole program and therefore additional considerations are required throughout the transformations.
 
@@ -692,6 +692,7 @@ The RFOOD syntax, introduced in \autoref{fig:syntax}, is used to formalize the R
          & It & \Coloneqq & \interface {\itn} {Dtr}\\
         \text{Destructor}
          & Dtr & \Coloneqq & \fnDstr {\fnArg{self}{\&\kwself}} {x: T} {T} \mid \fnDstr {\fnArg{self}{\sim \kwself}} {x: T} {T}\\
+         &     &           &  \fnDstr {\fnArg{self}{\&\kwself}} {x: T} {T} = \overline{e} \mid \fnDstr {\fnArg{self}{\sim \kwself}} {x: T} {T} = \overline{e} \\
         \text{Constructor}
         & Ctr & \Coloneqq & \ctr {\ctrn} {\fnArgs{x}{T}} \\
         \text{Generator}
@@ -745,7 +746,7 @@ The RFOOD syntax, introduced in \autoref{fig:syntax}, is used to formalize the R
 The first stage of the transformation is the collection of the "global context", $\Delta$. This collects all user defined types and the associated functions as outlined in \cite{food}. It exposes a set of methods that enables, checking if a type name is a datatype or interface, getting all constructors/generators and destructors/consumers for a user defined type, getting the signatures for both constructors/generators and destructors/consumers and finally getting the definition of any of the above. Note in the Rust implementation, top level functions are also collect in gamma and their signatures can be accessed using $\sig$. Given the Rust implementation is based on named fields in types, the $\attrs$ method has also been added, in order to access the attributes of a generator/constructor. 
 The set of attributes and methods exposed by gamma in the formalization, are shown in \autoref{fig:global-context}.
 
-The gamma collected for the examples from \autoref{fig:ex-exp} are:
+The gamma collected for the examples from \autoref{fig:ex-exp} are shown in \autoref{fig:ex-exp-gamma}. For the sake of space any empty attributes and $\defs$ have been excluded.
 
 \begin{figure}[H]
 \centering
@@ -771,7 +772,7 @@ The gamma collected for the examples from \autoref{fig:ex-exp} are:
     }
     \end{minted}
     \caption{OOP decomposition style}
-    \label{fig:dec-ex-oop}
+    %\label{fig:dec-ex-oop}
 \end{subfigure}%
 \begin{subfigure}{.5\textwidth}
     \begin{minted}[escapeinside=||,mathescape=true]{text}
@@ -795,9 +796,9 @@ The gamma collected for the examples from \autoref{fig:ex-exp} are:
     }
     \end{minted}
     \caption{OOP decomposition style}
-    \label{fig:dec-ex-oop}
+    %\label{fig:dec-ex-oop}
 \end{subfigure}
-\caption{Gamma collect for example from \autoref{fig:ex-exp}}
+\caption{Gamma collect for example from \autoref{fig:ex-exp}. Empty attributes and $\defs$ excluded.}
 \label{fig:ex-exp-gamma}
 \end{figure}
 
@@ -877,7 +878,7 @@ The reference type is implemented as a recursive Enum called the \verb|Reference
 
 % One approach to resolving these issues is to use the built in type inference in the rust compiler. The rust compiler parses the source code (including all dependencies) and converts it to an AST, then to a HIR (High-Level Intermediate Representation) and then finally a THIR (Typed High-Level Intermediate Representation), where the typing information is added. It collects (and checks) these types using the \verb|rustc_typecheck| package which can be exposed using the nightly compiler. Currently the documentation for this package is very limited and the API for all of rustc remains unstable. For this reason this approach was not developed for this version of the compiler, but could create some tangible improvements to the type checking in the future. Another improvement of using this crate is the type checking could automatically track with the version of rust the developer is using. This means as rust add or changes features in the langauge the type inference of the transformer would not have to be updated directly.
 
-\section{Type Transformations}
+\section{User Defined Type Transformations}
 
 % Stage 2 OOP Trans Rules
 \begin{figure}[t]
@@ -994,7 +995,7 @@ The reference type is implemented as a recursive Enum called the \verb|Reference
 \end{mathpar}
 
 \caption{Stage 2 FP - User defined types FP transformation rules}
-\label{fig:stage2-trans-oop}
+\label{fig:stage2-trans-fp}
 \end{figure}
 
 % Stage 2 FP Type Trans Rules
@@ -1050,15 +1051,21 @@ The reference type is implemented as a recursive Enum called the \verb|Reference
 \end{mathpar}
 
 \begin{mathpar}
-\inferrule[Class]
+\inferrule[DecClass]
 {\overline{\transThreeStmt{Fun}{Fun'}}} %\\ {\trans t {\overline{T} \arrow T} {t'}} }
 {\transThreeStmt{\class{\genn}{x}{T}{\itn}{\overline{Fun}}} {\class{\genn}{x}{T}{\itn}{\overline{Fun'}}}}
 \end{mathpar}
 
 \begin{mathpar}
-\inferrule[Fn]
-{\transSigma{T}{\overline{e}}{\overline{e'}}} %\\ {\trans t {\overline{T} \arrow T} {t'}} }
+\inferrule[DecFn]
+{\transSigmaCtx{, \overline{x: T}}{T}{\overline{e}}{}{\overline{e'}}{}} %\\ {\trans t {\overline{T} \arrow T} {t'}} }
 {\transThreeStmt{\fnDec{\overline{x: T}}{T}{\overline{e}}} {\fnDec{\overline{x: T}}{T}{\overline{e'}}}}
+\end{mathpar}
+
+\begin{mathpar}
+\inferrule[DecCsm]
+{\overline{\transSigmaCtx{, \overline{x: T}}{T}{\overline{e}}{}{\overline{e'}}{}}} %\\ {\trans t {\overline{T} \arrow T} {t'}} }
+{\transThreeStmtB{\csmcase{d: T_{s}}{\overline{x: T}}{T}{d}{P}{e}} {\csmcase{d: T_{s}}{\overline{x: T}}{T}{d}{P}{e'}}}
 \end{mathpar}
 
 % \begin{mathpar}
@@ -1194,10 +1201,32 @@ The reference type is implemented as a recursive Enum called the \verb|Reference
 \end{figure}
 
 
-Having collected the global context, the next stage of the transformation is to transform the user defined types, and their associated functions. These follow the stage 2 rules outlined in \autoref{fig:stage2-trans-oop} and \autoref{fig:stage2-trans-fp}. The implementation of this stage is split into two sections, the transformations of the types themselves, and then the transformation of the functions.
+Having collected the global context, the next stage of the transformation is to transform the user defined types, and their associated functions. These follow the stage 2 rules outlined in \autoref{fig:stage2-trans-oop} and \autoref{fig:stage2-trans-fp}. The explanation of this stage is split into two sections, the transformations of the types themselves, and then the transformation of the functions.
+
+\subsection{Type Transformations}
+
+As outlined in \autoref{sec:trans-overview} throughout this stage, type signature are required to change. Specifically, types are required to change in function signature and attributes of user types. 
+These type transformation are required because, as discussed in \autoref{sec:dyn}, a traits cannot be used as types directly.  This is because traits do not have fixed size and must contain a pointer to a vtable for dynamic dispatch.
+
+In Rust, references to traits are sized and do not require the dynamic token. Hence references, have transnational symmetry, meaning a pointer of a type, is always unchanged as a result of the transformations. This is not the case for pointers of types or direct types (type with no indirection). If a datatype is converted to a trait, every use of the datatype as a type must also be converted. 
+
+In the FP form the datatype can be used a direct type, a pointer to the datatype, or a reference to the datatype. Pointers remain unchanged, however the other two styles must be converted to a dynamic pointer to the trait. Note a reference cannot be used for these other styles, as this would no longer take ownership of the value.
+
+For OOP a trait can only be used as a type when nested in a dynamic pointer, or as a reference. Again references remain unchanged, and converting a pointer to a reference has the potential to break ownership rules. So when converted a pointer of a trait to FP, the type can be translated to either a pointer of the datatype, or the datatype directly. Both of these styles are a valid translation and have unique advantages. Converting to a pointer keeps an analogous type as dynamic pointers are treated much the same as pointers when writing in Pure OOP style. Where as converting to the datatype without the pointer, has the potential to reduce the complexity, but reducing the total use of indirection in the resultant source.
+Note as a result of having two FP styles which map to a single OOP style, it is not possible to create a injective translation. Ultimately this means when transforming from FP to OOP, information is lost.
+
+In this implementation of the transformer for destructors implementations, indirection was removed where possible. This is reflected in the type transformation rules for OOP shown in \autoref{fig:trans-type-oop}. This means if a trait is used as a type in a destructor signature, when transformed it will be converted to a direct datatype (rather than a pointer to that datatype).
+
+In every other case the other style was selected, where dynamic pointers are converted to pointers. This reduces the overall impact of the transformer, reducing the changes it makes outside of the functions it is required to transform. Moreover this approach avoid issues with recursive type definitions, as types inherently keep pointers where they may be required.
+
+In order to distinguish these type transformations, the $\transType{D}{}{}$ symbol is used to indicate a type transformation of type within the signature of a destructor/consumer of a given datatype, $D$, whilst all other type transformation are indicated by $\transType{}{}{}$.
+
+Another consideration of destructor methods is the \verb|Self| type. In trait definitions this is a reference to the (unsized) trait, whilst in implementation block it is analogous to the struct type. In both cases this does not require a dynamic reference. For the purposes of the transformer, when a reference to Self is used this is analogous to a reference to the trait, where as when the Self type is used directly, this is analogous to a dynamic reference to the trait. For clarity rules for the transformation of Self have been included explicitly in \autoref{fig:trans-type-oop} and \autoref{fig:trans-type-fp}.
+
 
 \subsection{Transformation of Type Definitions}
-The first stage of this process is to transform the types themselves.  These transformations follow the \verb|IT2DT|, \verb|DT2IT|, \verb|GEN2CTR| and \verb|CTR2GEN| rules which are heavily based on the matching rules from \cite{food}. However these rules have been adapted to support the Rust type translations. With this step the types are converted to the new decomposition styles and the types of the attributes are updated.
+
+The first stage of this process is to transform the user defined types themselves. These transformations follow the \verb|IT2DT|, \verb|DT2IT|, \verb|GEN2CTR| and \verb|CTR2GEN| rules which are heavily based on the matching rules from \cite{food}. However, these rules have been adapted to support the Rust type translations. With this step the types are converted to the new decomposition styles and the types of the attributes are updated.
 
 % During this stage, for OOP the only type transformation rule applied is \verb|Pointer2Dyn|. This is because once traits have been converted to datatypes, they will no longer require the dynamic reference. For FP there are two cases which are transformed, datatype is used in one of the types, either directly or as a reference it is converted to a dynamic reference.
 
@@ -1235,14 +1264,14 @@ Note although not included in the formalization the visibility of the transforme
 \label{fig:ex-exp-stage2}
 \end{figure}
 
-For OOP to FP the following steps are followed for each trait as outline in \verb|IT2DT| and \verb|GEN2CTR|:
+For OOP to FP the following steps are followed for each trait as outlined in \verb|IT2DT| and \verb|GEN2CTR| from \autoref{fig:stage2-trans-oop}:
 \begin{enumerate}
     \item Create an enum with the same identifier and visibility as the trait
-    \item For each generator of the trait (a struct which only implements that trait), add an enum variant to the enum. The enum variant should have the same identifier and fields as the struct. However if the struct references any other traits (including it self) then the types must be updated. Each reference to a trait will be a dynamic pointer and should be converted to a pointer as shown in \autoref{fig:thing}. This is because, once the trait is converted to an enum, it will no longer have methods associated with it. Therefore the pointer for dynamic dispatch (as outlined in \autoref{sec:dyn}) is no longer required. Note if this token is left in a compile-time error will occur. 
-    Additionaly in Rust, enum variants and their fields do not have visibility separate from the Enum it self and therefore all visibility tokens (\rust{pub}) must be removed from the structs and their fields. This transformation will therefore result in a loss of information as if the program is transformed back to the original, the original visibility of the structs and fields will be unknown.
+    \item For each generator of the trait (a struct which only implements that trait), add an enum variant to the enum. The enum variant should have the same identifier and fields as the struct, however the type of each field should be updated as outlined in the typing rules from \autoref{fig:trans-type-oop}. 
+    Additionally in Rust, enum variants and their fields do not have visibility separate from the Enum it self and therefore all visibility tokens (\rust{pub}) must be removed from the structs and their fields. This transformation will therefore result in a loss of information as if the program is transformed back to the original, the original visibility of the structs and fields will be unknown.
 \end{enumerate}
 
-For FP to OOP the following steps are followed for each enum:
+For FP to OOP the following steps are followed for each enum, as outlined in \verb|DT2IT| and \verb|CTR2GEN| from \autoref{fig:stage2-trans-fp}:
 \begin{enumerate}
     \item Create a (for now empty) trait with the same identifier and publicity as the enum  
     \item For each variant of the enum create a struct. The structs should have the same identifier and contain the same fields as the enum variant.
@@ -1254,44 +1283,48 @@ For FP to OOP the following steps are followed for each enum:
 
 Having transformed the definitions of each type, the next stage of the transformation is to convert the associated functions. For OOP this involves transforming the implementations of the trait methods into consumers, whilst for FP, it involves transforming the consumers into the trait methods and associated implementations for the structs. The rules for these transformations also require alteration in order to accommodate the Rust typing system.
 
-Similarly to the previous stage, the fundamental difference between these transformations and those from \cite{food} are the types in the signatures are required to change. In this case however a different set of type transformation rules are used. 
+Similarly to the previous stage, the fundamental difference between these transformations and those from \cite{food} are the types in the signatures are required to change. Note, however, during this stage the datatype and interface specific rules are used. 
 
-When transforming a datatype type or pointer to a datatype from FP, it must be transformed to a dynamic reference of the trait. As discussed in \autoref{sec:dyn} this is because a trait both does not have a fixed sized and must container a pointer to a vtable. However when transforming a dynamic trait from OOP, it is possible to convert it to either to a datatype type directly or to a pointer of the datatype. Both approaches are valid and have advantages. Converting to a pointer keeps an analogous type as dynamic pointers are treated much the same as pointers when writing in Pure OOP style. Where as converting to the datatype without the pointer, has the potential to reduce the complexity as a pointer may not be required. For datatypes the first style was selected as it prevents issues arising as a result of recursive types. In other cases this first style was also selected as it reduces the impact of the transformer on other aspects of the code. However for destructor implementations, the latter style was selected. This creates relational symmetry between the simpler FP style, where datatypes are used as types directly and the required dynamic pointer style in OOP.
+% When transforming a datatype type or pointer to a datatype from FP, it must be transformed to a dynamic reference of the trait. As discussed in \autoref{sec:dyn} this is because a trait both does not have a fixed sized and must contain a pointer to a vtable. However when transforming a dynamic trait from OOP, it is possible to convert it to either to a datatype type directly or to a pointer of the datatype. Both approaches are valid and have advantages. Converting to a pointer keeps an analogous type as dynamic pointers are treated much the same as pointers when writing in Pure OOP style. Where as converting to the datatype without the pointer, has the potential to reduce the complexity as a pointer may not be required. For datatypes the first style was selected as it prevents issues arising as a result of recursive types. In other cases this first style was also selected as it reduces the impact of the transformer on other aspects of the code. However for destructor implementations, the latter style was selected. This creates relational symmetry between the simpler FP style, where datatypes are used as types directly and the required dynamic pointer style in OOP.
 
-In both directions references of interfaces/datatypes are unchanged. This is possible as references in OOP require an instance of a trait, this is inherently fixed size and of a concrete (struct) type.
+% In both directions references of interfaces/datatypes are unchanged. This is possible as references in OOP require an instance of a trait, this is inherently fixed size and of a concrete (struct) type.
 
-In order to distinguish these type transformations, the $\transType{D}{}{}$ symbol is used to indicate a type transformation of type within the signature of a destructor/consumer of a given datatype, $D$, whilst all other type transformation are indicated by $\transType{}{}{}$.
+% In order to distinguish these type transformations, the $\transType{D}{}{}$ symbol is used to indicate a type transformation of type within the signature of a destructor/consumer of a given datatype, $D$, whilst all other type transformation are indicated by $\transType{}{}{}$.
 
-Another consideration of destructor methods is the \verb|Self| type. In trait definitions this is a reference to the (unsized) trait, whilst in implementation block it is analogous to the struct type. In both cases this does not require a dynamic reference. For the purposes of the transformer, when a reference to Self is used this is analogous to a reference to the trait, where as when the Self type is used directly, this is analogous to a dynamic reference to the trait. For clarity rules for the transformation of Self have been included explicitly in \autoref{fig:}.
+% Another consideration of destructor methods is the \verb|Self| type. In trait definitions this is a reference to the (unsized) trait, whilst in implementation block it is analogous to the struct type. In both cases this does not require a dynamic reference. For the purposes of the transformer, when a reference to Self is used this is analogous to a reference to the trait, where as when the Self type is used directly, this is analogous to a dynamic reference to the trait. For clarity rules for the transformation of Self have been included explicitly in \autoref{fig:}.
 
-Using these typing rules the steps to transform the associated functions in OOP are as follows.
+Using these typing rules the steps to transform the associated functions in OOP, as outlined in \verb|DEC2CSM| and \verb|FN2CSM| from \autoref{fig:stage2-trans-oop}, are as follows.
 
 \begin{enumerate}
-    \item For every destructor defined in the trait, a consumer is created. The consumer is a top level function with the same signature as the destructor, however with the type translations, discussed above, applied to the parameters and return type. The \verb|self| parameter is also renamed to avoid the use of the Rust keyword. The consumer function has the same name as the destructor and the publicity is copied from the trait.
-    \item The body of the consumer is set as a match statement, which matches on the transformed \verb|self| parameter. A match arm is then created for each of the variants of the datatype, with all of the fields of the datatype included in the pattern match.
-    \item For each generator, the implementation of the consumer method is taken and placed as the body of the match arm. Note at this stage it is possible the return types of these expressions do not match the consumers return type from the signature. These discrepancies are addressed in the third stage.
+    \item For every destructor defined in the trait, a consumer is created. The consumer is a top level function with the same signature as the destructor, however with the type translations, discussed above, applied to the parameters and return type. The \verb|self| parameter is also renamed to a fresh variable name, in order to avoid the use of the Rust keyword. The consumer function has the same name as the destructor and the visibility is copied from the trait.
+    \item The body of the consumer is set as a match statement, which matches on a borrow of the transformed \verb|self| parameter. A borrow must be used as otherwise the pattern cannot expose all the attributes, without breaking ownership principles. A match arm is then created for each of the variants of the datatype, with all of the fields of the datatype included in the pattern match.
+    \item For each generator, the implementation of the consumer method is taken and placed as the body of the match arm. Note at this stage it is possible that the return types of these expressions do not match the return type of the consumer signature. These discrepancies are addressed in the third stage of the transformer.
     \item For the body of each of the match arms, any reference to "self" fields are replaced with simply accessing the field directly from the pattern match attributes. All other references to self are replaced with a reference to the translated "self" type. This is encapsulated in the rules with the rename symbol $[self \mapsto d]$. 
+    \item For each trait method, if a default implementation is provided, then a wildcard arm is added to the consumer, with the body of the default implementation. The body undergoes the same renaming encapsulated by $[self \mapsto d]$.
 \end{enumerate}
 
-For FP  the following steps are followed
+For FP  the following steps are followed, as outline by \verb|DECFN| and \verb|DECCSM| from \autoref{fig:stage2-trans-fp}.
 
 \begin{enumerate}
-    \item A destructor is added to the trait for every consumer of the datatype. The types in the signature of the consumer are translated with the rules from \autoref{sig:} and the first attributes is coverted to a self parameter. % TODO try harder
-    \item For each struct an implementation block for the trait is added. Each method added to the trait is implemented, copying the signature from the trait declaration. The body of the implementation is copied from the match arm in the equivalent consumer with the pattern of the equivalent constructor. Any reference to the old "self" parameter is renamed to the literal self values and any reference to values which were exposed through the match pattern are updated to use \verb|self|.
+    \item A destructor is added to the trait for every consumer of the datatype. The types in the signature of the consumer are translated with the rules from \autoref{fig:trans-type-fp} and the first attributes name is converted to a self parameter.
+    \item For each struct an implementation block for the trait is added. Each method added to the trait is implemented, copying the signature from the trait declaration. The body of the implementation is copied from the match arm in the equivalent consumer with the pattern of the equivalent constructor. Any reference to the old "self" parameter is renamed to the literal self values and any reference to values which were exposed through the match pattern are updated to use \verb|self|. In this rules this renaming is indicated with $[d \mapsto self]$, where d is the name of the first argument to the consumer.
+    \item If a consumers contains a wildcard match then the implementation is added as the trait's default implementation of the method. The body undergoes the same renaming encapsulated by $[d \mapsto self]$. Note, as discussed in \autoref{sec:backgrond-inheritance}, Rust has limited support for inheritance and thus this translation is only supported for methods which return basic types. Although not outlined in the formalization, a top level function is also supported as a consumer if no match is provided. This body is simply treated analogously to a match statement with a single wildcard arm.
 \end{enumerate}
-
-
 
 \subsection{Other Type Transformations}
 
-There are a many other places where type transformations are required. Firstly all function signatures (excluding the consumers which have already been translated). If let expression have explicit types then these may also need updating. Note there are many other expression types, where explicit types can be assigned in Rust (for example in closures) however these have not be addressed for now.
-For these cases the standard typing translation rules, from \autoref{fig} and \autoref{fig} are used.
+The formalization also demonstrates the required transformations for function signatures (along side the consumers which have already been translated). These are outlined by TODO
+
+Although not included in the formalization, there are some additional expression in the implementation that are supported such as let expression which have explicit types. 
+Similarly there are many other expression types, where explicit types can be assigned in Rust (for example in closures) which have not yet been addressed.
+
+In each case additional translations use the standard typing translation rules, from \autoref{fig} and \autoref{fig} are used.
 
 \subsection{Output}
 
-Throughout the second stage, as the definitions are transformed, gamma is also updated. For example after a datatype is transformed into an interface, the interface name is added to the interface set and removed from the datatype set. Similarly the signatures are updated as required. By the end of this stage, the gamma context is switched. This means the gamma from OOP matches the FP gamma from \autoref{fig:ex-exp-gamma}.
+Throughout the second stage, as the definitions are transformed, gamma is also updated. For example after a datatype is transformed into an interface, the interface name is added to the interface set and removed from the datatype set. Similarly the signatures are updated as required. By the end of this stage, the gamma context is switched. This means the output gamma from the OOP translation matches the FP gamma from \autoref{fig:ex-exp-gamma} and equally for FP, the output gamma matches that of the OOP gamma from the same figure.
 
-\autoref{fig:ex-exp-stage2} shows the outputs of the second stage of the transformer on the examples from \autoref{fig:ex-exp}. There are two notable issues with this output. Note at the end of this stage the code is invalid. This is because the eval functions do not return the correct type and the function calls to the destructors/consumers have not been updated. This is handled in the third stage of the transformer.
+\autoref{fig:ex-exp-stage2} shows the outputs of the second stage of the transformer on the examples from \autoref{fig:ex-exp}. There are two notable issues with this output which make the output code from this stage invalid. This is because the eval functions do not return the correct type and the function calls to the destructors/consumers have not been updated. These issue are addressed in the third stage of the transformer.
 
 % Add in transformation rules for type signature arguments and return types
 
@@ -1316,7 +1349,7 @@ Throughout the second stage, as the definitions are transformed, gamma is also u
 %TODO Talk about this
 \label{sec:item-trans}
 
-The final stage of the transformation, performs two functions. It updates each use of the the transformed user types, including their associated functions. Given the types can become inconsistent as a result of the second stage type transformations, it also updates the type of each expression, ensuring the output program is valid. The transformations are outlined by the rules in \autoref{}.
+The final stage of the transformation, performs two functions. Firstly, it updates each use of the the transformed user types, including their associated functions. Secondly, given the types can become inconsistent as a result of the second stage type transformations, it updates the type of each expression, ensuring the output program is valid.
 
 % TODO EXTEND GAMMA IN THE RULES
 
