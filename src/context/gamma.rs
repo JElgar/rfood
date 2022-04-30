@@ -166,7 +166,7 @@ pub struct Gamma {
 }
 
 impl Gamma {
-    fn empty() -> Self {
+    pub fn empty() -> Self {
         return Gamma {
             enums: Vec::new(),
             traits: Vec::new(),
@@ -313,6 +313,12 @@ impl Gamma {
             .iter()
             .any(|(_, v)| v.values().any(|item_fn| item_fn.sig.ident == *fn_ident))
     }
+    
+    pub fn is_destructor(&self, fn_ident: &Ident) -> bool {
+        self.destructors
+            .iter()
+            .any(|(_, v)| v.iter().any(|item_fn| item_fn.sig.ident == *fn_ident))
+    }
 
     pub fn is_destructor_of_trait(&self, trait_ident: &Ident, fn_ident: &Ident) -> bool {
         let trait_ident = self.get_base_type_name_from_type_name(&trait_ident);
@@ -343,10 +349,10 @@ impl Gamma {
     }
 
     pub fn get_destructors(&self, trait_ident: &Ident) -> Vec<TraitItemMethod> {
-        self.destructors
-            .get(&trait_ident)
-            .unwrap_or_else(|| panic!("Trait {:?} not found in gamma destructors the traits are: {:?}", trait_ident, self.traits))
-            .clone()
+        match self.destructors.get(&trait_ident) {
+            Some(v) => v.to_vec(),
+            None => Vec::new()
+        }
     }
 
     pub fn get_generator(&self, generator_ident: &Ident) -> ItemTrait {

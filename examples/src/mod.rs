@@ -10,3 +10,4 @@ pub mod report;
 pub mod shape;
 pub mod shape2;
 pub mod list;
+pub mod sql;

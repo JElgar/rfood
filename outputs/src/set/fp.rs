@@ -1,16 +1,16 @@
 pub trait Set {
-    fn is_empty(&self) -> bool;
     fn union(self: Box<Self>, right: Box<dyn Set>) -> Box<dyn Set>;
+    fn is_empty(&self) -> bool;
     fn insert(self: Box<Self>, value: i32) -> Box<dyn Set>;
     fn contains(&self, target: i32) -> bool;
 }
 pub struct Empty {}
 impl Set for Empty {
-    fn is_empty(&self) -> bool {
-        true
-    }
     fn union(self: Box<Self>, right: Box<dyn Set>) -> Box<dyn Set> {
         right
+    }
+    fn is_empty(&self) -> bool {
+        true
     }
     fn insert(self: Box<Self>, value: i32) -> Box<dyn Set> {
         if self.contains(value) {
@@ -27,14 +27,14 @@ pub struct Insert {
     pub value: i32,
 }
 impl Set for Insert {
-    fn is_empty(&self) -> bool {
-        false
-    }
     fn union(self: Box<Self>, right: Box<dyn Set>) -> Box<dyn Set> {
         Box::new(Union {
             s1: self,
             s2: right,
         })
+    }
+    fn is_empty(&self) -> bool {
+        false
     }
     fn insert(self: Box<Self>, value: i32) -> Box<dyn Set> {
         if self.contains(self.value) {
@@ -51,14 +51,14 @@ pub struct Union {
     pub s2: Box<dyn Set>,
 }
 impl Set for Union {
-    fn is_empty(&self) -> bool {
-        self.s1.is_empty() && self.s2.is_empty()
-    }
     fn union(self: Box<Self>, right: Box<dyn Set>) -> Box<dyn Set> {
         Box::new(Union {
             s1: self,
             s2: right,
         })
+    }
+    fn is_empty(&self) -> bool {
+        self.s1.is_empty() && self.s2.is_empty()
     }
     fn insert(self: Box<Self>, value: i32) -> Box<dyn Set> {
         if self.contains(value) {

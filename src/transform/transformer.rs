@@ -4,7 +4,7 @@ use std::io::Read;
 use std::path::PathBuf;
 use syn::parse::Parser;
 use syn::punctuated::Punctuated;
-use syn::token::Comma;
+use syn::visit::*;
 use syn::visit_mut::*;
 use syn::*;
 
@@ -52,30 +52,39 @@ pub fn transform_file(path: &PathBuf, output_path: &PathBuf, transform_type: &Tr
     let gamma_mut_borrow = &mut gamma;
 
     match transform_type {
+        // Stage 1
         TransformType::OOPToFP => {
             // Transform all the interfaces
-            for trait_ in gamma_mut_borrow.traits.clone() {
-                // Add the transformed items to the transformed syntax
-                transformed_syntax
-                    .items
-                    .append(&mut transform_trait(&trait_, gamma_mut_borrow));
-                transformed_syntax.items = Vec::from_iter(
-                    transformed_syntax
-                        .items
-                        .iter()
-                        .map(|item| transform_item(&item, &transform_type, &gamma_mut_borrow)),
-                );
+            println!("Transorming all traits");
 
-                // Remove the original trait from the syntax
-                for (item_struct, item_impl) in gamma_mut_borrow.get_generators(&trait_.ident) {
-                    remove_item_from_syntax(&mut syntax, syn::Item::Struct(item_struct));
-                    remove_item_from_syntax(&mut syntax, syn::Item::Impl(item_impl));
+            for item in syntax.items.clone() {
+                match &item {
+                    Item::Trait(trait_) => {
+                        // Add the transformed items to the transformed syntax
+                        transformed_syntax
+                            .items
+                            .append(&mut transform_trait(&trait_, gamma_mut_borrow));
+                    
+                        // Remove the original trait from the syntax
+                        for (item_struct, item_impl) in gamma_mut_borrow.get_generators(&trait_.ident) {
+                            remove_item_from_syntax(&mut syntax, syn::Item::Struct(item_struct));
+                            remove_item_from_syntax(&mut syntax, syn::Item::Impl(item_impl));
+                        }
+                        remove_item_from_syntax(&mut syntax, syn::Item::Trait(trait_.clone()));
+                    },
+                    // TODO 
+                    // Item::Struct(struct_) => {}
+                    // TODO 
+                    // Item::Fn(struct_) => {}
+                    _ => () 
                 }
-                remove_item_from_syntax(&mut syntax, syn::Item::Trait(trait_.clone()));
             }
+            println!("Transormed all traits");
         }
         TransformType::FPToOOP => {
             // Transform all the enums
+            println!("Transorming all the enums");
+            
             for enum_ in gamma_mut_borrow.enums.clone() {
                 // Get the consumers for the enum
                 let consumers = gamma_mut_borrow.get_enum_consumers(&enum_);
@@ -84,13 +93,6 @@ pub fn transform_file(path: &PathBuf, output_path: &PathBuf, transform_type: &Tr
                 transformed_syntax
                     .items
                     .extend(transform_enum(&enum_, gamma_mut_borrow));
-                // 2nd parse, transform items
-                transformed_syntax.items = Vec::from_iter(
-                    transformed_syntax
-                        .items
-                        .iter()
-                        .map(|item| transform_item(&item, &transform_type, &gamma_mut_borrow)),
-                );
 
                 // For all the consumers, for each arm create a method in each impl
                 for consumer in consumers {
@@ -99,10 +101,35 @@ pub fn transform_file(path: &PathBuf, output_path: &PathBuf, transform_type: &Tr
                 remove_item_from_syntax(&mut syntax, syn::Item::Enum(enum_.clone()));
             }
 
-            // Transform all the consumers
+            // Update other types
+            for item in syntax.items.iter_mut() {
+                match item {
+                    // If a struct is defined and the transform is FP to OOP, then fix the attrs 
+                    Item::Struct(struct_) => {
+                        *item = Item::Struct(ItemStruct{
+                            ..struct_.clone()
+                        })
+                    },
+                    // Top level functions should also have types transformed
+                    Item::Fn(fn_) if !gamma.is_consumer(&fn_.sig.ident) => {
+                    }
+                    _ => ()
+                }
+            }
+
+            println!("Transormed all the enums");
         }
     }
 
+    // Collect gamma for the transformed and untouched code
+    let mut gamma = Gamma::empty();
+    gamma.visit_file(&syntax);
+    gamma.visit_file(&transformed_syntax);
+   
+    // Stage 2 - Transform all the new items and any untransformed items
+    for item in transformed_syntax.items.iter_mut() {
+        *item = transform_item(&item, &transform_type, &gamma)
+    }
     for item in &syntax.items {
         transformed_syntax
             .items
@@ -113,6 +140,44 @@ pub fn transform_file(path: &PathBuf, output_path: &PathBuf, transform_type: &Tr
     if write_and_fmt(output_path, quote!(#transformed_syntax)).is_err() {
         panic!("Unable to write output file");
     }
+}
+
+/// Transform a type
+pub fn transform_type_fp_consumer(type_: Type, consumer: Ident) -> Type {
+    todo!()
+    // Borrow -> Borrow
+    
+    // If DT 
+}
+
+pub fn transform_type_fp(type_: Type, gamma: &Gamma) -> Type {
+    let dt = type_.get_delta_type();
+
+    if gamma.is_enum(&dt.name) {
+        match dt.ref_type {
+            RefType::None => create_dyn_box_of_type(&type_),
+            RefType::Box(_) => create_dyn_box_of_type(
+                &create_type_from_ident(&dt.name)
+            ),
+            _ => type_
+        }
+        // Create dynamic box of type
+    } else {
+        type_
+    }
+}
+
+pub fn transform_type_struct_fields<F>(fields: Fields, type_transformer: F) -> Fields where F: Fn(Type) -> Type {
+    let mut fields = fields.clone();
+    match &mut fields {
+        Fields::Named(FieldsNamed{named: fields, ..}) | Fields::Unnamed(FieldsUnnamed{unnamed: fields, ..}) => {
+            for field in fields.iter_mut() {
+                field.ty =  type_transformer(field.ty.clone())
+            }
+        },
+        _ => ()
+    }
+    fields
 }
 
 /// Transform a interface (trait) into a datatype (enum)
@@ -203,9 +268,10 @@ pub fn transform_enum(enum_: &ItemEnum, gamma: &mut Gamma) -> Vec<Item> {
         let struct_ = create_struct(
             &variant.ident,
             &enum_.ident,
-            variant.fields.clone(),
+            transform_type_struct_fields(variant.fields.clone(), |type_: Type| transform_type_fp(type_, gamma)),
             enum_.vis.clone(),
         );
+        println!("Adding {} struct to gamma", struct_.ident);
         gamma.add_struct(&struct_);
         items.push(Item::Struct(struct_.clone()));
 
@@ -405,6 +471,7 @@ fn transform_destructor(
     // TODO for now all functions are public -> check if the trait is public
     let func =
         ast::create::create_function(signature, vec![Stmt::Expr(match_expr)], trait_.vis.clone());
+
     gamma.add_enum_consumer(&enum_, &func);
     Item::Fn(func)
 }
@@ -666,8 +733,8 @@ pub fn transform_consumer_signature(signature: &Signature, gamma: &mut Gamma) ->
     // Ignoring the first element transfrom each argument
     let mut new_inputs = Vec::from_iter(inputs.iter().skip(1).map(|arg| {
         // TODO make all args with type of enum, Box<dyn T>
-        if arg.get_delta_type(None).name == self_type.name
-            && !matches!(self_type.ref_type, RefType::Box(_))
+        let type_ = arg.get_delta_type(None);
+        if gamma.is_enum(&type_.name) && matches!(type_.ref_type, RefType::Box(_) | RefType::None)
         {
             // Create box dyn of fn arg
             return create_dyn_box_arg(&arg);
@@ -686,7 +753,7 @@ pub fn transform_consumer_signature(signature: &Signature, gamma: &mut Gamma) ->
     let mut output = signature.output.clone();
 
     if let ReturnType::Type(ra, ty) = &output {
-        if ty.get_delta_type().name == self_type.name {
+        if gamma.is_enum(&ty.get_delta_type().name) {
             // Create box dyn of fn arg
             output = ReturnType::Type(*ra, Box::new(create_dyn_box_of_type(&ty)))
         }
@@ -726,12 +793,12 @@ fn transform_struct_instantiation_path_for_enum(
     delta: &Delta,
 ) -> Path {
     // Get the name of the enum
-    let trait_name = gamma
-        .get_generator_trait(&expr_struct.path.get_delta_type().name)
+    let datatype_name = gamma
+        .get_enum_variant_enum(&expr_struct.path.get_delta_type().name)
         .unwrap();
     // Add the enum in front of the struct
     let mut new_path_vec = vec![PathSegment {
-        ident: trait_name.ident.clone(),
+        ident: datatype_name.ident.clone(),
         arguments: PathArguments::None,
     }];
     new_path_vec.append(&mut Vec::from_iter(
@@ -854,8 +921,9 @@ fn transform_expr_inner(
             return expr.clone();
         },
         (TransformType::OOPToFP, Expr::MethodCall(expr_method_call))
-            if gamma.is_destructor_method_call(&expr_method_call, &delta) =>
+            if gamma.is_consumer(&expr_method_call.method) =>
         {
+            println!("Transforming expr method call");
 
             let ExprMethodCall {
                 receiver,
@@ -863,16 +931,6 @@ fn transform_expr_inner(
                 args,
                 ..
             } = expr_method_call;
-            
-            // TODO use clean_type
-            // let receiver_expr = if matches!(
-            //     delta.get_type_of_expr(&receiver, gamma).unwrap().ref_type,
-            //     RefType::Box(_)
-            // ) {
-            //     create_dereference_of_expr(&receiver)
-            // } else {
-            //     *receiver.clone()
-            // };
 
             let mut new_args = vec![*receiver.clone()];
             let old_args: Vec<Expr> = args.iter().cloned().collect();
@@ -934,7 +992,7 @@ fn transform_expr_inner(
         // If the experssion is calling a consumer and we are transforming from FP to OOP
         // Then we should replace the call with a method call
         (TransformType::FPToOOP, Expr::Call(expr_call))
-            if gamma.is_consumer(&get_function_call_name(expr_call)) =>
+            if gamma.is_destructor(&get_function_call_name(expr_call)) =>
         {
             // Extract the first argument to the function
             let mut args = expr_call.args.clone();
@@ -1026,9 +1084,7 @@ fn transform_expr_inner(
             }
         )},
         (TransformType::OOPToFP, Expr::Struct(expr_struct))
-            if gamma
-                .get_generator_trait(&expr_struct.path.get_delta_type().name)
-                .is_some() =>
+            if gamma.is_enum_or_variant(&expr_struct.path.get_delta_type().name) =>
         {
             let struct_ = Expr::Struct(ExprStruct {
                 path: transform_struct_instantiation_path_for_enum(expr_struct, gamma, &delta),
@@ -1076,7 +1132,8 @@ fn transform_expr_inner(
             return struct_;
         }
         (TransformType::FPToOOP, Expr::Struct(expr_struct))
-            if gamma.is_enum_or_variant(&expr_struct.path.get_delta_type().name) =>
+            if gamma.get_generator_trait(&expr_struct.path.segments.last().unwrap().ident)
+                .is_some() =>
         {
             let struct_ = Expr::Struct(ExprStruct {
                 path: Path {
@@ -1347,9 +1404,8 @@ fn transform_statement(
 ) -> Stmt {
     match statement {
         Stmt::Local(local) => {
-            delta.collect_for_local(&local, gamma);
             let init_unwrap = local.init.as_ref().unwrap();
-            Stmt::Local(Local {
+            let trans_local = Local {
                 init: Some((
                     init_unwrap.0,
                     Box::new(transform_expr(
@@ -1361,7 +1417,9 @@ fn transform_statement(
                     )),
                 )),
                 ..local.clone()
-            })
+            };
+            delta.collect_for_local(&trans_local, gamma);
+            Stmt::Local(trans_local)
         }
         Stmt::Semi(expr, semi) => {
             Stmt::Semi(

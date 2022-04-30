@@ -500,9 +500,8 @@ impl Delta {
                     return Ok(receiver_type);
                 }
 
+                let method_sig = gamma.get_destructor_signature(&receiver_type.name, &method).unwrap();
 
-                // TODO trait does not exist
-                let method_sig = gamma.get_transformed_destructor_signature(&receiver_type.name, &method);
                 match get_return_type_from_signature(&method_sig) {
                     EType::DeltaType(ty) => Ok(ty),
                     _ => panic!("Method {:?} not found", method_sig)

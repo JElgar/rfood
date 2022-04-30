@@ -1,6 +1,9 @@
 clean:
 	 find . | grep -E "fp-output.rs|oop-output.rs" | xargs rm -rf
 
+build:
+	 cargo +nightly build
+
 test:
 	# Generate the output files with basic tests, test examples 
 	cargo +nightly test

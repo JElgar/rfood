@@ -1,16 +1,28 @@
-pub enum Shape {
-    Circle,
-    Triangle,
+trait Exp {
+    fn eval(&self) -> i32;
 }
-pub fn side_count(shape: &Shape) -> i32 {
-    match &shape {
-        Shape::Circle {} => 1,
-        Shape::Triangle {} => 3,
+struct Lit {
+    pub n: i32,
+}
+impl Exp for Lit {
+    fn eval(&self) -> i32 {
+        self.n
     }
 }
-pub fn internal_angle(shape: &Shape) -> i32 {
-    match &shape {
-        Shape::Circle {} => 0,
-        _ => 180 * side_count(&shape) - 2,
+struct Sub {
+    pub l: Box<dyn Box<Exp>>,
+    pub r: Box<dyn Box<Exp>>,
+}
+impl Exp for Sub {
+    fn eval(&self) -> i32 {
+        self.l.eval() - self.r.eval()
     }
+}
+pub fn demo() {
+    let exp = Box::new(Sub {
+        l: Box::new(Lit { n: 1 }),
+        r: Box::new(Lit { n: 2 }),
+    });
+    let out = exp.eval();
+    print!("{}", out);
 }
