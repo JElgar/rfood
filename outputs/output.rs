@@ -10,8 +10,8 @@ impl Exp for Lit {
     }
 }
 struct Sub {
-    pub l: Box<dyn Box<Exp>>,
-    pub r: Box<dyn Box<Exp>>,
+    pub l: Box<dyn Exp>,
+    pub r: Box<dyn Exp>,
 }
 impl Exp for Sub {
     fn eval(&self) -> i32 {

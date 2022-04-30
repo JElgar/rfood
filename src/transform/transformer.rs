@@ -102,16 +102,41 @@ pub fn transform_file(path: &PathBuf, output_path: &PathBuf, transform_type: &Tr
             }
 
             // Update other types
+            let type_transformer = |type_| transform_type_fp(type_, &gamma);
+
             for item in syntax.items.iter_mut() {
                 match item {
                     // If a struct is defined and the transform is FP to OOP, then fix the attrs 
                     Item::Struct(struct_) => {
                         *item = Item::Struct(ItemStruct{
+                            fields: transform_type_struct_fields(
+                                &struct_.fields,
+                                type_transformer
+                            ),
                             ..struct_.clone()
                         })
                     },
                     // Top level functions should also have types transformed
                     Item::Fn(fn_) if !gamma.is_consumer(&fn_.sig.ident) => {
+                        fn_.sig = transform_singature_types(&fn_.sig, type_transformer)
+                    },
+                    Item::Trait(item_trait) => {
+                        for item in item_trait.items.iter_mut() {
+                            if let TraitItem::Method(trait_item_method) = item {
+                                trait_item_method.sig = transform_singature_types(
+                                    &trait_item_method.sig, type_transformer
+                                ) 
+                            }
+                        }
+                    },
+                    Item::Impl(item_impl) => {
+                        for item in item_impl.items.iter_mut() {
+                            if let ImplItem::Method(impl_item_method) = item {
+                                impl_item_method.sig = transform_singature_types(
+                                    &impl_item_method.sig, type_transformer
+                                ) 
+                            }
+                        }
                     }
                     _ => ()
                 }
@@ -167,7 +192,7 @@ pub fn transform_type_fp(type_: Type, gamma: &Gamma) -> Type {
     }
 }
 
-pub fn transform_type_struct_fields<F>(fields: Fields, type_transformer: F) -> Fields where F: Fn(Type) -> Type {
+pub fn transform_type_struct_fields<F>(fields: &Fields, type_transformer: F) -> Fields where F: Fn(Type) -> Type {
     let mut fields = fields.clone();
     match &mut fields {
         Fields::Named(FieldsNamed{named: fields, ..}) | Fields::Unnamed(FieldsUnnamed{unnamed: fields, ..}) => {
@@ -178,6 +203,27 @@ pub fn transform_type_struct_fields<F>(fields: Fields, type_transformer: F) -> F
         _ => ()
     }
     fields
+}
+
+pub fn transform_singature_types<F>(sig: &Signature, type_transformer: F) -> Signature where F: Fn(Type) -> Type {
+    Signature {
+        inputs: Punctuated::from_iter(sig.inputs.iter().map(|input| {
+            match input {
+                FnArg::Typed(pat_type) => {
+                    FnArg::Typed(PatType{
+                        ty: Box::new(type_transformer(*pat_type.ty.clone())),
+                        ..pat_type.clone()
+                    })
+                },
+                _ => input.clone(),
+            }
+        })),
+        output: match &sig.output {
+            ReturnType::Default => ReturnType::Default,
+            ReturnType::Type(r, box type_) => ReturnType::Type(r.clone(), Box::new(type_transformer(type_.clone())))
+        },
+        ..sig.clone()
+    }
 }
 
 /// Transform a interface (trait) into a datatype (enum)
@@ -268,7 +314,7 @@ pub fn transform_enum(enum_: &ItemEnum, gamma: &mut Gamma) -> Vec<Item> {
         let struct_ = create_struct(
             &variant.ident,
             &enum_.ident,
-            transform_type_struct_fields(variant.fields.clone(), |type_: Type| transform_type_fp(type_, gamma)),
+            transform_type_struct_fields(&variant.fields.clone(), |type_: Type| transform_type_fp(type_, gamma)),
             enum_.vis.clone(),
         );
         println!("Adding {} struct to gamma", struct_.ident);
