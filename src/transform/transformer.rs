@@ -295,7 +295,20 @@ pub fn transform_enum(enum_: &ItemEnum, gamma: &mut Gamma) -> Vec<Item> {
                         if return_type.is_some() && return_type.unwrap().name == enum_.ident {
                             None
                         } else {
-                            Some(*consumer.block.clone())
+                            if let Expr::Block(block) = transform_consumer_expr(
+                                    &Expr::Block(ExprBlock{
+                                        block: *consumer.block.clone(),
+                                        attrs: Vec::new(),
+                                        label: None,
+                                    }),
+                                    get_fn_arg_name(&consumer.sig.inputs.first().unwrap()),
+                                    Vec::new(),
+                                    &gamma,
+                            ) {
+                                Some(block.block)
+                            } else {
+                                panic!("This should always be a block!")
+                            }
                         }
                     },
                     ..method.clone()

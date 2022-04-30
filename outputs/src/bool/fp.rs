@@ -6,14 +6,14 @@ struct Tok {
 }
 impl Identifier for Tok {}
 trait Expr {
-    fn search(self: Box<Self>) -> Box<dyn Found> {
-        search_pos(e, Box::new(EmptyCtx {}))
-    }
-    fn evaluate(self: Box<Self>) -> Box<dyn Value> {
-        evaluate_aux(search(expr))
-    }
     fn search_pos(self: Box<Self>, ctx: Box<dyn Context>) -> Box<dyn Found>;
+    fn search(self: Box<Self>) -> Box<dyn Found> {
+        self.search_pos(Box::new(EmptyCtx {}))
+    }
     fn search_neg(self: Box<Self>, ctx: Box<dyn Context>) -> Box<dyn Found>;
+    fn evaluate(self: Box<Self>) -> Box<dyn Value> {
+        self.search().evaluate_aux()
+    }
 }
 struct EVar {
     pub n: Box<dyn Identifier>,
