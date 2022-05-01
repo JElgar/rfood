@@ -7,6 +7,7 @@ pub mod mutable;
 pub mod report;
 pub mod shape;
 pub mod shape2;
+pub mod shape3;
 pub mod list;
 pub mod sql;
 pub mod bool;

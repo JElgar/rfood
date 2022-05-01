@@ -435,6 +435,10 @@ impl Delta {
         }
     }
 
+    pub fn collect_for_const(&mut self, const_: &ItemConst) {
+        self.types.insert(const_.ident.clone(), const_.ty.get_delta_type());
+    }
+
     pub fn get_type_of_expr(&self, expr: &Expr, gamma: &Gamma) -> std::result::Result<DeltaType, TypeInferenceFailed> {
         match expr {
             // TODO Match self.thing here so we can do in any order

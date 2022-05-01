@@ -150,15 +150,16 @@ pub fn transform_file(path: &PathBuf, output_path: &PathBuf, transform_type: &Tr
     let mut gamma = Gamma::empty();
     gamma.visit_file(&syntax);
     gamma.visit_file(&transformed_syntax);
-   
+  
+    let mut delta = Delta::new();
     // Stage 2 - Transform all the new items and any untransformed items
     for item in transformed_syntax.items.iter_mut() {
-        *item = transform_item(&item, &transform_type, &gamma)
+        *item = transform_item(&item, &transform_type, &gamma, &mut delta)
     }
     for item in &syntax.items {
         transformed_syntax
             .items
-            .push(transform_item(item, &transform_type, &gamma));
+            .push(transform_item(item, &transform_type, &gamma, &mut delta));
     }
 
     // Write output to file
@@ -1484,7 +1485,7 @@ fn transform_statement(
             };
             delta.collect_for_local(&trans_local, gamma);
             Stmt::Local(trans_local)
-        }
+        },
         Stmt::Semi(expr, semi) => {
             Stmt::Semi(
                 transform_expr(&expr, transform_type, gamma, delta, return_type),
@@ -1506,20 +1507,25 @@ pub fn transform_item(
     item: &syn::Item,
     transform_type: &TransformType,
     gamma: &Gamma,
+    delta: &mut Delta,
 ) -> syn::Item {
     match item {
-        Item::Fn(item_fn) => Item::Fn(transform_function(item_fn, transform_type, gamma)),
+        Item::Fn(item_fn) => Item::Fn(transform_function(item_fn, transform_type, gamma, delta)),
         Item::Impl(item_impl) => {
             let for_type = item_impl.self_ty.get_delta_type().name;
             Item::Impl(ItemImpl {
                 items: item_impl
                     .items
                     .iter()
-                    .map(|item| transform_impl_item(item, &for_type, transform_type, gamma))
+                    .map(|item| transform_impl_item(item, &for_type, transform_type, gamma, delta))
                     .collect(),
                 ..item_impl.clone()
             })
-        }
+        },
+        Item::Const(item_cost) => {
+            delta.collect_for_const(&item_cost);
+            item.clone()
+        },
         _ => item.clone(),
     }
 }
@@ -1529,7 +1535,9 @@ pub fn transform_impl_item(
     impl_for_type: &Ident,
     transform_type: &TransformType,
     gamma: &Gamma,
+    delta: &Delta,
 ) -> syn::ImplItem {
+    let mut delta = delta.clone(); 
     match impl_item {
         ImplItem::Method(impl_item_method) => {
             let return_type = impl_item_method
@@ -1543,7 +1551,6 @@ pub fn transform_impl_item(
 
             ImplItem::Method(ImplItemMethod {
                 block: {
-                    let mut delta = Delta::new();
                     delta.collect_for_sig(&impl_item_method.sig, Some(impl_for_type));
                     transform_block(
                         &impl_item_method.block,
@@ -1564,8 +1571,8 @@ pub fn transform_impl_item(
 }
 
 /// Transform all the statements in a fuction
-fn transform_function(func: &ItemFn, transform_type: &TransformType, gamma: &Gamma) -> syn::ItemFn {
-    let mut delta = Delta::new();
+fn transform_function(func: &ItemFn, transform_type: &TransformType, gamma: &Gamma, delta: &Delta) -> syn::ItemFn {
+    let mut delta = delta.clone();
     delta.collect_for_sig(&func.sig, None);
 
     let return_type = func.sig.output.get_delta_type(None);
