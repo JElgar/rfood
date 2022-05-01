@@ -1,6 +1,5 @@
 pub trait Exp {
     fn eval(&self) -> i32;
-    fn eval_neg(&self, exp: &dyn Exp) -> ;
 }
 
 pub struct Lit{
@@ -9,9 +8,6 @@ pub struct Lit{
 impl Exp for Lit {
     fn eval(&self) -> i32 {
         return self.n;
-    }
-    fn eval2(&self, exp: &dyn Exp) {
-        return 
     }
 }
 
