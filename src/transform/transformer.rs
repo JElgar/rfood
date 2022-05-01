@@ -1018,13 +1018,18 @@ fn transform_expr_inner(
             
             println!("Transforming method call {}", signature.as_ref().unwrap().ident);
             println!("Delta is {:?}", delta);
+
             Expr::MethodCall(ExprMethodCall {
                 receiver: Box::new(transform_expr(
                     &method_call.receiver,
                     transform_type,
                     gamma,
                     &delta,
-                    EType::Any,
+                    if matches!(signature.as_ref().unwrap().inputs.first().unwrap().get_delta_type(Some(reciever_type.name.clone())).ref_type, RefType::Box(_)) {
+                        EType::RefType(RefType::Box(Box::new(RefType::None)))
+                    } else {
+                        EType::Any
+                    }
                 )),
                 // Skip one to skip the receiver argument
                 args: Punctuated::from_iter(method_call.args.iter().enumerate().map(

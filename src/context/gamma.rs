@@ -86,6 +86,8 @@ pub fn get_match_expr_for_enum(
     consumer: &ItemFn,
     enum_variant_ident: &Ident,
 ) -> std::result::Result<Expr, NotFound> {
+
+    println!("Getting match expression for {:?} in {:?}", enum_variant_ident, consumer.sig.ident);
     let match_expr = get_consumer_match_statement(consumer);
     if match_expr.is_err() {
         return Err(match_expr.err().unwrap());
@@ -94,14 +96,16 @@ pub fn get_match_expr_for_enum(
     let enum_expr = match_expr.clone().unwrap().arms.iter().find_map(|arm| {
         // If the arm pat is the enum
         if let Pat::Struct(PatStruct {
-            path: Path { segments, .. },
-            ..
+            path, ..
+        }) | Pat::Path(PatPath{
+            path, ..
         }) = &arm.pat
         {
-            if segments.last().unwrap().ident == *enum_variant_ident {
+            if path.segments.last().unwrap().ident == *enum_variant_ident {
                 return Some(*arm.body.clone());
             }
         }
+
         return None;
     });
 
