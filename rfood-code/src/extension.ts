@@ -32,9 +32,11 @@ function transform(context: vscode.ExtensionContext, isOOP: boolean) {
 				// editBuilder.replace(vscode.Range(startLine: 0))
 				editBuilder.delete(textRange);
 				editBuilder.insert(firstLine.range.start, result);
-			})
-		}) 
+			});
+		});
 
+		// Format the file
+		vscode.commands.executeCommand('editor.action.formatDocument');
 		
 	} catch (error) {
 		console.log("Transformig failed ", error);
