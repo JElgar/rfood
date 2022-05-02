@@ -4,6 +4,9 @@ clean:
 build:
 	 cargo +nightly build
 
+build-pkg:
+	wasm-pack build --target nodejs
+
 test:
 	# Generate the output files with basic tests, test examples 
 	cargo +nightly test

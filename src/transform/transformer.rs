@@ -22,6 +22,8 @@ use transform::visitors::*;
 
 use quote::quote;
 
+use wasm_bindgen::prelude::wasm_bindgen;
+
 #[derive(clap::ArgEnum, Clone)]
 pub enum TransformType {
     OOPToFP,
@@ -35,13 +37,21 @@ fn remove_item_from_syntax(syntax: &mut syn::File, item: syn::Item) {
     }
 }
 
-pub fn transform_file(path: &PathBuf, output_path: &PathBuf, transform_type: &TransformType) {
-    //-- Do the transfrom --//
-    let mut file = File::open(path).expect("Unable to open file");
+#[wasm_bindgen]
+pub fn hello_world(name: String) -> String {
+    format!("Hello {}", name)
+}
 
-    let mut src = String::new();
-    file.read_to_string(&mut src).expect("Unable to read file");
-    let mut syntax: syn::File = syn::parse_file(&src).expect("Unable to parse file");
+#[wasm_bindgen]
+pub fn transform_string_binding(input: String, oop: bool) -> String {
+    transform_string(
+        input,
+        if oop {&TransformType::OOPToFP} else {&TransformType::FPToOOP}
+    )
+}
+
+pub fn transform_string(input: String, transform_type: &TransformType) -> String {
+    let mut syntax: syn::File = syn::parse_file(&input).expect("Unable to parse file");
     let mut transformed_syntax = syn::File {
         items: Vec::new(),
         ..syntax.clone()
@@ -168,8 +178,19 @@ pub fn transform_file(path: &PathBuf, output_path: &PathBuf, transform_type: &Tr
             .push(transform_item(item, &transform_type, &gamma, &mut delta));
     }
 
+    quote!(#transformed_syntax).to_string()
+}
+
+pub fn transform_file(path: &PathBuf, output_path: &PathBuf, transform_type: &TransformType) {
+    //-- Do the transfrom --//
+    let mut file = File::open(path).expect("Unable to open file");
+
+    let mut src = String::new();
+    file.read_to_string(&mut src).expect("Unable to read file");
+
+    let transformed_syntax = transform_string(src, transform_type);
     // Write output to file
-    if write_and_fmt(output_path, quote!(#transformed_syntax)).is_err() {
+    if write_and_fmt(output_path, transformed_syntax).is_err() {
         panic!("Unable to write output file");
     }
 }

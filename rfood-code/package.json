@@ -1,0 +1,55 @@
+{
+  "name": "rfood-code",
+	"displayName": "rfood-code",
+	"description": "Bidirectional transformer for OOP to FP in Rust",
+	"version": "0.0.1",
+	"engines": {
+		"vscode": "^1.66.0"
+	},
+	"categories": [
+		"Other"
+	],
+	"activationEvents": [
+        "onCommand:rfood-code.helloWorld",
+		"onCommand:rfood-code.transOOP",
+		"onCommand:rfood-code.transFP"
+	],
+	"main": "./out/extension.js",
+	"contributes": {
+		"commands": [
+			{
+				"command": "rfood-code.helloWorld",
+				"title": "Hello World"
+			},
+			{
+				"command": "rfood-code.transOOP",
+				"title": "Transform OOP"
+			},
+			{
+				"command": "rfood-code.transFP",
+				"title": "Transform FP"
+			}
+		]
+	},
+	"scripts": {
+		"vscode:prepublish": "npm run compile",
+		"compile": "tsc -p ./",
+		"watch": "tsc -watch -p ./",
+		"pretest": "npm run compile && npm run lint",
+		"lint": "eslint src --ext ts",
+		"test": "node ./out/test/runTest.js"
+	},
+	"devDependencies": {
+		"@types/vscode": "^1.66.0",
+		"@types/glob": "^7.2.0",
+		"@types/mocha": "^9.1.1",
+		"@types/node": "14.x",
+		"@typescript-eslint/eslint-plugin": "^5.21.0",
+		"@typescript-eslint/parser": "^5.21.0",
+		"eslint": "^8.14.0",
+		"glob": "^8.0.1",
+		"mocha": "^9.2.2",
+		"typescript": "^4.6.4",
+		"@vscode/test-electron": "^2.1.3"
+	}
+}
