@@ -28,7 +28,6 @@ function transform(context: vscode.ExtensionContext, isOOP: boolean) {
 
 		editor.edit(editBuilder => {
 			editor.selections.forEach(sel => {
-				file.lineCount
 				// editBuilder.replace(vscode.Range(startLine: 0))
 				editBuilder.delete(textRange);
 				editBuilder.insert(firstLine.range.start, result);
