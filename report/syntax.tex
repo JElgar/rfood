@@ -23,7 +23,7 @@
 \newcommand{\itn}{I}
 
 \newcommand{\dt}{\textsc{Dt}}
-\newcommand{\ct}{\textsc{It}}
+\newcommand{\ite}{\textsc{It}}
 \newcommand{\fn}{\textsc{Fn}}
 
 \newcommand{\fresh}[1]{#1 \; \kwfresh}
@@ -84,6 +84,9 @@
 \newcommand{\transThreeStmt}[2]{\Delta; \Gamma \vdash #1 \leadsto #2}
 \newcommand{\transThreeStmtB}[2]{\Delta; \Gamma \vdash #1 \leadsto \\ #2}
 
+
+\newcommand{\typeInf}[3]{\Delta; \Gamma #1 \vdash #2 : #3}
+
 % \newcommand{\binderspacing}{\,}
 % \newcommand\keyword[1]{\mbox{\lstinline@#1@}}
 \newcommand{\hast}{\!:\!}
@@ -101,6 +104,7 @@
 
 % \newcommand{\eval}[2]{#1 \longrightarrow #2}
 \newcommand{\eval}[2]{#1 \longrightarrow #2}
+\newcommand{\fnsig}[2]{#1 \rightarrow #2}
 
 
 \newcommand{\attrs}{\textsc{Attr}}
@@ -116,6 +120,7 @@
 \newcommand{\inter}[2]{\kwabstract \; \kwclass \; #1 \{ \overline{#2} \}}
 \newcommand{\new}[2]{\kwnew \; #1(#2)}
 \newcommand{\newSeq}[2]{\new #1{\overline{#2}}}
+
 
 \newcommand{\kwinterface}{\kw{interface}}
 \newcommand{\kwextends}{\kw{extends}}

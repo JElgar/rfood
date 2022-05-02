@@ -819,7 +819,7 @@ The global contexts collected for the examples from \autoref{fig:ex-exp} are sho
 \begin{figure}[t]
 \begin{tabular}{ll}
 \dt & Set of Datatypes\\
-\ct & Set of Interfaces\\
+\ite & Set of Interfaces\\
 \fn & Set of Functions \\
 $\ctrs{\dtn}$ & Constructors of datatype $\dtn$\\ 
 $\dtr{\itn}$ & Destructors of interface $\itn$\\  
@@ -1302,9 +1302,7 @@ For FP to OOP the following steps are followed for each enum, as outlined in \ve
 
 \subsection{Transformation of Associated Functions}
 
-Having transformed the definitions of each type, the next stage of the transformation is to convert the associated functions. For OOP this involves transforming the implementations of the trait methods into consumers, whilst for FP, it involves transforming the consumers into the trait methods and associated implementations for the structs. The rules for these transformations also require alteration in order to accommodate the Rust typing system.
-
-Similarly to the previous stage, the fundamental difference between these transformations and those from \cite{food} are the types in the signatures are required to change. Note, however, during this stage the datatype and interface specific rules are used. 
+Having transformed the definitions of each type, the next stage of the transformation is to convert the associated functions. For OOP this involves transforming the implementations of the trait methods into consumers, whilst for FP, it involves transforming the consumers into the trait methods and associated implementations for the structs. The rules for these transformations also require alteration in order to accommodate the type translations.
 
 % When transforming a datatype type or pointer to a datatype from FP, it must be transformed to a dynamic reference of the trait. As discussed in \autoref{sec:dyn} this is because a trait both does not have a fixed sized and must contain a pointer to a vtable. However when transforming a dynamic trait from OOP, it is possible to convert it to either to a datatype type directly or to a pointer of the datatype. Both approaches are valid and have advantages. Converting to a pointer keeps an analogous type as dynamic pointers are treated much the same as pointers when writing in Pure OOP style. Where as converting to the datatype without the pointer, has the potential to reduce the complexity as a pointer may not be required. For datatypes the first style was selected as it prevents issues arising as a result of recursive types. In other cases this first style was also selected as it reduces the impact of the transformer on other aspects of the code. However for destructor implementations, the latter style was selected. This creates relational symmetry between the simpler FP style, where datatypes are used as types directly and the required dynamic pointer style in OOP.
 
@@ -1314,12 +1312,12 @@ Similarly to the previous stage, the fundamental difference between these transf
 
 % Another consideration of destructor methods is the \verb|Self| type. In trait definitions this is a reference to the (unsized) trait, whilst in implementation block it is analogous to the struct type. In both cases this does not require a dynamic reference. For the purposes of the transformer, when a reference to Self is used this is analogous to a reference to the trait, where as when the Self type is used directly, this is analogous to a dynamic reference to the trait. For clarity rules for the transformation of Self have been included explicitly in \autoref{fig:}.
 
-Using these typing rules the steps to transform the associated functions in OOP, as outlined in \verb|DEC2CSM| and \verb|FN2CSM| from \autoref{fig:stage2-trans-oop}, are as follows.
+The steps for transforming the associated functions in OOP, as outlined in \verb|DEC2CSM| and \verb|FN2CSM| from \autoref{fig:stage2-trans-oop}, are as follows.
 
 \begin{enumerate}
-    \item For every destructor defined in the trait, a consumer is created. The consumer is a top level function with the same signature as the destructor, however with the type translations, discussed above, applied to the parameters and return type. The \verb|self| parameter is also renamed to a fresh variable name, in order to avoid the use of the Rust keyword. The consumer function has the same name as the destructor and the visibility is copied from the trait.
+    \item For every destructor defined within a trait, a consumer is created. The consumer is a top level function with the same signature as the destructor, however with the type translations, discussed above, applied to the parameters and return type. The \verb|self| parameter is also renamed to a fresh variable name, in order to avoid the use of the \verb|self| keyword. The consumer function has the same name as the destructor and the visibility is copied from the trait.
     \item The body of the consumer is set as a match statement, which matches on a borrow of the transformed \verb|self| parameter. A borrow must be used as otherwise the pattern cannot expose all the attributes, without breaking ownership principles. A match arm is then created for each of the variants of the datatype, with all of the fields of the datatype included in the pattern match.
-    \item For each generator, the implementation of the consumer method is taken and placed as the body of the match arm. Note at this stage it is possible that the return types of these expressions do not match the return type of the consumer signature. These discrepancies are addressed in the third stage of the transformer.
+    \item For each generator, the implementation of the destructor method method is taken and placed as the body of the match arm. Note at this stage it is possible that the return types of these expressions do not match the return type of the consumer signature. These discrepancies are addressed in the second stage of the transformer.
     \item For the body of each of the match arms, any reference to "self" fields are replaced with simply accessing the field directly from the pattern match attributes. All other references to self are replaced with a reference to the translated "self" type. This is encapsulated in the rules with the rename symbol $[self \mapsto d]$. 
     \item For each trait method, if a default implementation is provided, then a wildcard arm is added to the consumer, with the body of the default implementation. The body undergoes the same renaming encapsulated by $[self \mapsto d]$.
 \end{enumerate}
@@ -1328,8 +1326,8 @@ For FP  the following steps are followed, as outline by \verb|DECFN| and \verb|D
 
 \begin{enumerate}
     \item A destructor is added to the trait for every consumer of the datatype. The types in the signature of the consumer are translated with the rules from \autoref{fig:trans-type-fp} and the first attributes name is converted to a self parameter.
-    \item For each struct an implementation block for the trait is added. Each method added to the trait is implemented, copying the signature from the trait declaration. The body of the implementation is copied from the match arm in the equivalent consumer with the pattern of the equivalent constructor. Any reference to the old "self" parameter is renamed to the literal self values and any reference to values which were exposed through the match pattern are updated to use \verb|self|. In this rules this renaming is indicated with $[d \mapsto self]$, where d is the name of the first argument to the consumer.
-    \item If a consumers contains a wildcard match then the implementation is added as the trait's default implementation of the method. The body undergoes the same renaming encapsulated by $[d \mapsto self]$. Note, as discussed in \autoref{sec:backgrond-inheritance}, Rust has limited support for inheritance and thus this translation is only supported for methods which return basic types. Although not outlined in the formalization, a top level function is also supported as a consumer if no match is provided. This body is simply treated analogously to a match statement with a single wildcard arm.
+    \item For each struct an implementation block for the trait is added. Each method added to the trait is implemented, copying the signature from the trait declaration. The body of the implementation is copied from the match arm in the equivalent consumer with the pattern of the equivalent constructor. Any reference to the old "self" parameter is update to use the self keyword and any reference to values which were exposed through the match pattern are updated to use access the attribute from \verb|self|. In the rules this renaming is indicated with $[d \mapsto self]$, where $d$ is the name of the first argument to the consumer.
+    \item If a consumers contains a wildcard match then the implementation is added as the trait's default implementation of the method. The body undergoes the same renaming encapsulated by $[d \mapsto self]$. Note, as discussed in \autoref{sec:background-inheritance}, Rust has limited support for inheritance and thus this translation is only supported for methods which return basic types. Although not outlined in the formalization, a top level function is also supported as a consumer if no match is provided. This body is simply treated analogously to a match statement with a single wildcard arm.
 \end{enumerate}
 
 \subsection{Other Type Transformations}
@@ -1343,9 +1341,7 @@ In each case additional translations use the standard typing translation rules, 
 
 \subsection{Output}
 
-Throughout the second stage, as the definitions are transformed, gamma is also updated. For example after a datatype is transformed into an interface, the interface name is added to the interface set and removed from the datatype set. Similarly the signatures are updated as required. By the end of this stage, the gamma context is switched. This means the output gamma from the OOP translation matches the FP gamma from \autoref{fig:ex-exp-gamma} and equally for FP, the output gamma matches that of the OOP gamma from the same figure.
-
-\autoref{fig:ex-exp-stage2} shows the outputs of the second stage of the transformer on the examples from \autoref{fig:ex-exp}. There are two notable issues with this output which make the output code from this stage invalid. This is because the eval functions do not return the correct type and the function calls to the destructors/consumers have not been updated. These issue are addressed in the third stage of the transformer.
+\autoref{fig:ex-exp-stage2} shows the outputs of the second stage of the transformer on the examples from \autoref{fig:ex-exp}. There are two notable issues with this output which make the output code from this stage invalid. Firstly the eval functions do not return the correct type and secondaly the function calls to the destructors/consumers have not been updated. These issue are addressed in the third stage of the transformer.
 
 % Add in transformation rules for type signature arguments and return types
 
@@ -1370,37 +1366,108 @@ Throughout the second stage, as the definitions are transformed, gamma is also u
 %TODO Talk about this
 \label{sec:item-trans}
 
-The final stage of the transformation, performs two functions. Firstly, it updates each use of the the transformed user types, including their associated functions. Secondly, given the types can become inconsistent as a result of the second stage type transformations, it updates the type of each expression, ensuring the output program is valid.
+The second stage of the transformation, performs two functions. Firstly, it updates each use of the the transformed user types and their associated functions. Secondly, given that types can become inconsistent as a result of the first transformation stage, it updates the type of each expression, ensuring the output program is valid.
 
 % TODO EXTEND GAMMA IN THE RULES
+
+Prior to this stage, the global context, $\Delta$, is reevaluated. This updates the $\Delta$ such that it contains the values for the newly transformed types. In this case, the context is switched, such that the context collected for the OOP example at this stage is equal to the context collected for the FP example prior to the first stage and vice versa.
 
 During this stage, the whole AST is parsed. For each definition and expression, the sub definitions and expressions are transformed. In each case when transforming a nested expression the expected return type is determined. For example, when transforming the body of a function, the final expression has an expected return type, equal to the return type of the function signature. 
 
 % TODO MOST OF THIS FEEL ITS OUT OF SCOPE FOR THE TRASFORMER
 % Note in some case expressions are expected to return nothing, represented as $\bot$ in the syntax, such as a call to the print macro. Equally in cases any type can be returned from an expression. An example is a let expression without a type signature. In the implementation this is handled with an enum with three variants, Any, None and DeltaType. In the formalization this is instead represented by the $EXPLAIN THE TRANS SYMBOL$.
 
-Each time an expression is transformed, after the transformation is complete the type of the output of the expression is checked using the context. If this type does not match the required type, the rules from \autoref{fig:trans-type} are applied. These use the $\sim$, $*$ and $\&$ expressions to update the type of the expression. Applying these type transformations as the final stage of transforming the expression, allow nested expression to also fix the type of the expression. For example if a return expression contains an if statement each arm of the if statement will update its return type, rather than the top level return type doing the transformation. This, in conjunction with type simplifying, reduce the total number of type translation throughout the code, and keeps the calls to the type transformer in a single place in the implementation.
+Each time an expression is transformed, after the transformation is complete the type of the output expression is inferred using the context. If this type does not match the required type, the rules from \autoref{fig:trans-type} are applied. These use the $\sim$, $*$ and $\&$ expressions to update the type of the expression. Applying these type transformations as the final stage of transforming the expression, allow nested expression to also fix the type of the expression. For example if a return expression contains an if statement each arm of the if statement will update its return type, rather than the top level return type doing the transformation. This, in conjunction with type simplifying, reduce the total number of type translation throughout the code, and keeps the calls to the type transformer in a single place in the implementation.
 
 % TODO talk about reference and box expressions and add rules
 
+\subsubsection{Type Inference}
+
+Type inference is required throughout this stage in order to determine the current type of expressions, and thus determine if they need updating. The rules for this type inference are provided in \autoref{fig:type-inference}, where $\typeInf{}{e}{T}$ implies expression $e$ has type $T$ under the context $\Gamma$ and $\Delta$.
+
+\begin{figure}
+
+\begin{mathpar}
+\inferrule[Var]
+{}
+{\typeInf{, x: T}{x}{T}}
+
+\inferrule[Ctr]
+{}
+{\typeInf{}{\ctrCall{D}{C}{e}}{D}}
+
+\inferrule[Gen]
+{\exists D \in \dt : \genn \in \generator{D}}
+{\typeInf{}{\genn(\overline{e})}{D}}
+
+\inferrule[Ref]
+{\typeInf{}{e}{T} \\ T \notin \ite}
+{\typeInf{}{\& e}{\& T}}
+
+\inferrule[RefIt]
+{\typeInf{}{e}{T} \\ T \in \ite}
+{\typeInf{}{\& e}{\&_{dyn} T}}
+
+\inferrule[Pnt]
+{\typeInf{}{e}{T} \\ T \notin \ite}
+{\typeInf{}{\sim e}{\sim T}}
+
+\inferrule[PntIt]
+{\typeInf{}{e}{T} \\ T \in \ite}
+{\typeInf{}{\sim e}{\sim_{dyn} T}}
+
+\inferrule[DerefPnt]
+{\typeInf{}{e}{\sim T}}
+{\typeInf{}{*e}{T}}
+
+\inferrule[DerefDynPnt]
+{\typeInf{}{e}{\sim_{dyn} T}}
+{\typeInf{}{*e}{T}}
+
+\inferrule[DerefRef]
+{\typeInf{}{e}{\& T}}
+{\typeInf{}{*e}{T}}
+
+\inferrule[DerefDynRef]
+{\typeInf{}{e}{\&_{dyn} T}}
+{\typeInf{}{*e}{T}}
+
+\inferrule[Fn]
+{\sig(f) = \fnsig{\overline{T}}{T}}
+{\typeInf{}{f(\overline{e})}{T}}
+
+\inferrule[Dtr]
+{\typeInf{}{e_1}{\itn} \\ \sig(f, \itn) = \fnsig{\overline{T}}{T}}
+{\typeInf{}{f(\overline{e})}{T}}
+
+\end{mathpar}
+
+\caption{Type inference rules}
+\label{fig:type-inference}
+\end{figure}
+
 \subsubsection{Constructors and Generators}
 
-\verb|Thing| and \verb|Thing2| outline the transformations for generators and constructors respectively. In each case fields of the types are assigned to expressions. Each of these are transformed, with the required types obtained from the $\sig$ map in the $\Delta$ context. The call is also updated to used the correct syntax. In Rust structs (generators) are in the global scope, where as by default enum variants (constructors) are nested within enums. For this reason when transforming generators into constructors, the path is extended with the datatype, for example \rust{Dimmer} to \rust{Light::Dimmer}. For FP this transformation is done in reverse, removing the datatype from the path.
+\verb|GEN2CTR| and \verb|CTR2GEN| outline the transformations between generators and constructors. In Rust structs (generators) are in the global scope, where as by default enum variants (constructors) are nested within enums. For this reason when transforming generators into constructors, the path is extended with the datatype, for example \rust{Dimmer} to \rust{Light::Dimmer}. For FP this transformation is done in reverse, removing the datatype from the path.
 
-Note an alternative approach to this is including enums in the global context, \rust{use Ligth::*}. This brings each enum variant into scope. However this increases the possibility of name collision and is generally considered bad practice. For this reason this syntax was not supported. With some restrictions this syntax could also trivially be supported by the transformer.
+Note an alternative approach to this is including enums in the global context, \rust{use Ligth::*}. This brings each enum variant into scope. However this increases the possibility of name collision and is generally considered bad practice. With some restrictions this syntax could also trivially be supported by the transformer.
 
+In each case the result of the transformation is passed back to the transformer with the same required return type, which updates the nested expressions. 
 \subsubsection{Destructors and Consumers}
 
-For both destructor and consumer transformations, the first step is to move the self parameter. For transforming from OOP to FP, the expression which the method is called on (the reciever) is moved to the first argument of a call to the consumer. Whilst for FP, the first argument is removed and the destructor method is called on that expression. All argument expressions are also transformed, with the return types from the signature in $\Delta$, which will have been updated after the stage 2 transformations.
+The transformations between destructor and consumer are outline in \verb|SEL2APP|, \verb|APP2SEL|. For both, the first step is to move the self parameter. For transforming from OOP to FP, the expression which the method is called on (the receiver) is moved to the first argument of a call to the consumer. Whilst for FP, the first argument is removed and the destructor method is called on that expression. Again, as above, in each case the result of the transformation is passed back to the transformer with the same required return type.
 
+\subsubsection{Expressions}
+
+All other expressions, trivially transform the nested expressions. For example a function call transforms each of the parameter arguments with the required type from the signature.
 
 \section{Beyond the formalization}
 
-The formalizations provided in this paper, present a framework for transformations within the minimal RFOOD calculus. However, for the transformer to be a practical there are many additional constructs that must be supported.
+The formalization's provided in this paper, present a framework for transformations within the minimal RFOOD calculus. However, for the transformer to be a practical tool there are many additional constructs that must be supported.
 
 \subsection{Additional Expression Transformations}
 
-There any may additional expression types supported by the Rust transformer, beyond those outlined in formalizations. In most cases these extension are trival, where the expression simply transform each sub expression. For example for an if expression no change is required for the first stage transformer, whilst for the second stage the following rules can be added where an if expression is represented by $\ifelseexpr{e_1}{e_2}{e_3}$. 
+The implemented Rust transformer goes some way in extending the supported inputs by supporting additional constructs beyond those outlined in formalizations. In most cases these extension are trivial, where the expression simply transform each sub expression. For example for an if expression no change is required for the first stage transformer, whilst for the second stage the following rule can be added where an if expression is represented by $\ifelseexpr{e_1}{e_2}{e_3}$. 
 
 \begin{mathpar}
 \inferrule[If]
@@ -1408,25 +1475,25 @@ There any may additional expression types supported by the Rust transformer, bey
 { \transSigmaInner {\sigma} {\ifelseexpr{e_1}{e_2}{e_3}} {\ifelseexpr{e_1'}{e_2'}{e_3'}} }
 \end{mathpar}
 
-Note the expected return type of the condition is a boolean whilst the expected return types of the \verb|if| and \verb|else| block match that of the required type of the \verb|if| expression it self. When adding an expression the type inference, type inference is also required to be extended. For the \verb|if| statement the type can be obtained from either of the \verb|if| or \verb|else| block expression. Trivially this logic is replicated for other expression types such as match statements. 
+Note the expected return type of the condition is a boolean whilst the expected return types of the \verb|if| and \verb|else| block match that of the required type of the \verb|if| expression it self. When adding an expression expression, the rules for type inference also required extention. For the \verb|if| statement the type can be obtained from either of the \verb|if| or \verb|else| block expression. Note if these do not match the program will not compile. Trivially this logic is replicated for other expression types such as match statements. 
 
 \subsubsection{Boolean Expressions}
 
-In many cases, Rust requires that the types of sub-expressions within a boolean expression match. For example it is not possible to directly compare a string and a reference to a string with the \verb|==| operator. To accommodate this when transforming boolean expressions, the required type of the right expression is given as the type of the left expression. These expression also have implementations for type inference based on the operator. For example the \verb|==| operator is inferred as a boolean whilst the add operator is inferred as the type of the left expression.     
+In many cases, Rust requires that the types of sub-expressions within a boolean expression match. For example it is not possible to directly compare a string and a reference to a string with the \verb|==| operator. To accommodate this when transforming boolean expressions, the required type of the right expression is given as the type of the left expression. These expression also have implementations for type inference based on the operator. For example the \verb|==| operator is inferred as a boolean whilst the \verb|+| operator is inferred as the type of the left expression.     
 
 \subsubsection{Let and Constants}
 
-In the current implementation let expressions are implemented, such that no required type is provided. This means \verb|let| expressions are not unnecessarily transformed and instead type transformations occur when variables are used. Once the \verb|let| expression is transformed, type inference is used on the result to determine the type. This variable is then added to environment within the current scope.
+In the current implementation let expressions are implemented, such that no required type is provided. This means \verb|let| expressions are not unnecessarily transformed and instead type transformations occur when variables are used. Once the \verb|let| expression is transformed, type inference is used on the result to determine the type. This variable is then added to environment, $\Gamma$, within the current scope.
 
-Similarly throughout the transformations constants must be added to the environment. An additional challenge is when constants are defined globally, they must be parsed first as otherwise the type may be unknown during the transformations. This is achieved with a additional parse of the items in the syntax prior to the second stage to collect all the types of global constants.
+Similarly throughout the transformations constants must be added to the environment. An additional challenge, is when constants are defined globally, as they must be parsed first as otherwise the type may be unknown during the transformations. This is achieved with a additional parse of the items in the syntax prior to the second stage to collect all the types of global constants.
 
-\subsubsection{Reference and Dereference}
+% \subsubsection{Reference and Dereference}
 
-TODO this should live somehwere else
+% TODO this should live somehwere else
 
-Throughout the third stage of the transformer, if a reference, deference or box expression (\rust{Box::new(e)}) is transformed, rather than repeating typing logic at this stage, simply the internal expression is returned. This removes the outer reference/deference/box from the expression as it will re-added if required by the expression type transformation. This allows the type transformation function to handle all the typing and prevents any additional indirection expressions that are not required.
+% Throughout the third stage of the transformer, if a reference, deference or box expression (\rust{Box::new(e)}) is transformed, rather than repeating typing logic at this stage, simply the internal expression is returned. This removes the outer reference/deference/box from the expression as it will re-added if required by the expression type transformation. This allows the type transformation function to handle all the typing and prevents any additional indirection expressions that are not required.
 
-For type inference, if a reference or box expression is parsed it will return the type of the inner expression with the \verb|ref_type| type equal to a reference/box of the inner type's \verb|ref_type|. For example when parsing an expression if a reference is parsed and the inner expression has type $\sim i32$, then the outer expression will have type $\& \sim i32$. For dereference expression, if the inner expression is a pointer or reference then this is removed and the inner reference type is returned.
+% For type inference, if a reference or box expression is parsed it will return the type of the inner expression with the \verb|ref_type| type equal to a reference/box of the inner type's \verb|ref_type|. For example when parsing an expression if a reference is parsed and the inner expression has type $\sim i32$, then the outer expression will have type $\& \sim i32$. For dereference expression, if the inner expression is a pointer or reference then this is removed and the inner reference type is returned.
 
 \subsubsection{Macros}
 
@@ -1434,9 +1501,10 @@ In Rust macros are a form of "metaprogramming", meaning they allow developers to
 
 Although not unique to Rust, macros play a far greater role in Rust that most other programming languages, and for this reason it is an important topic to cover. 
 
-In Rust there are 2 kinds of macros, declarative and procedural. Macros operate over token trees which contain the tokens parsed by the compiler. SAY SOMETHING BETTER HERE  https://reberhardt.com/cs110l/spring-2020/slides/lecture-17.pdf
+In Rust there are 2 kinds of macros, declarative and procedural. Declarative macros allow developers to write a match style function which operates on the code provided as the inputs, whist prodcedural macros allow developers to operate directly on the AST of the input code. 
 
-Macros are an incredibly powerful tool and are very effective at reducing code duplication. However this flexibility creates many difficulties for the transformer. Given macro inputs are parsed as tokens, it is not possible to predict what the macro will do to the input. For example, if a macro was created to strip method calls, it would not be possible for the transformer to predict this behaviour. In this case it could there transform a method call to a function and change the resultant meaning of the expression. 
+Macros are an incredibly powerful tool, yet this flexibility creates many difficulties for the transformer. Given macro inputs are parsed as tokens, it is not possible to predict what the macro will do to the input. For example, if a macro was created to strip method calls, it would not be possible for the transformer to predict this behaviour.
+
 Therefore it is not possible to reliably transform the inputs of macros. As a compromise the current implementation attempts to parse the inputs to any macros as comma separated set of expressions. If this is successful it will transform each expression as before using \verb|transform_expr|. After the transformations it will covert the transformed expressions back to the tokens format.
 
 In many cases this limited approach is sufficient to maintain the correctness of the code and transform the required expressions. Critically this approach allows the use of basic macros included in rust such as \rust{println!} and \rust{vec!}. However as mentioned there is no guarantee of correctness when using these transformations with arbitrary macros.
@@ -1449,11 +1517,15 @@ The \verb|syn| package is designed for parsing macro inputs and therefore its su
 
 Once the transformations are completed, the \verb|quote| package is used to covert the AST back into Rust source code tokens. Finally, the \verb|rustfmt| package is used to format the output in a consistent style.
 
-The transformer packaged is exposes as a command line interface, CLI, which takes the path to a file and the desired transformation type (OOP to FP / FP to OOP). 
+The transformer package is exposes as a command line interface, CLI, which takes the path to a file and the desired transformation type (OOP to FP / FP to OOP). 
 
 The project is split into three modules, the core, examples and outputs. The examples and outputs have been separated from the core project to enable them to be tested independently. The core and examples have a limited set of unit tests. An end to end test has then been setup which runs the transformer on a set of examples, and runs a set of unit tests on the output files to validate the functionality of the output matches that of the input.
 
 \subsection{VS Code Extension}
+
+As well as packaging the transformer as a CLI tool, a VS Code plugin has also been developed. VS Code is free and opensource and has over 14 million active users \cite{tung_2021}. This plugin offers the transformer along side other popular refactoring tools, and thus drops the barrier of entry for using the tool. The extension allows developers to transform the file they are currently editing using the VS Code command pallet. A demo is available here \url{https://youtu.be/Z9bvl1Odcds}.
+
+The tool uses the \verb|wasm-bindgen| crate and \verb|wasm-pack| to create web assembly bindings and build a web assembly package for the transformer called rfood. This is then imported into a VS Code extension project template generated by \verb|yo|. Two commands are added to the extension which call the bindings from the rfood library. The source of the file that is current open is parsed to the binding function which returns the transformed code. Formatting the code is handled by another VS Code extension called \verb|rust-analyzer|. With this developers can quickly switch their code as they work, integrating the tool directly into their workflow.
 
 \section{Extensions to the transformer}
 
@@ -1468,22 +1540,18 @@ A common style for object oriented programming is to include methods that mutate
 In rust, variables are immutable by default. To make a varaible mutable the \rust{mut} token must be used before variable assignment. This can be seen on line 3 of the example in \autoref{fig:mutable-example} where the \verb|mut| token allows the self object to be mutated. This is then used for the implementation of \rust{set_brightness} on line 12 to set the brightness of the Dimmer. 
 
 % Horrible sentence
-"Functional programming aims to minimise or eliminate side-effects" \cite{fp-uok}. This can have many benefits such as reducing complexity of programs and making them easier to test. For this reason when transforming this style of OOP programming to FP, the mutations should wrapped within the consumers. This means the consumers should parse in an instance, and a new instance should be returned by the consumer. When the consumer is used, the parsed in object should then be overwritten by the output of the function.  In simple cases this inherently make the transformed function pure by removing the mutation of the argument.
+It is often claimed that "functional programming aims to minimise or eliminate side-effects" \cite{fp-uok}. This can have many benefits such as reducing complexity of programs and making them easier to test. For this reason when transforming this style of OOP programming to FP, the mutations should wrapped within the consumers. This means the consumers should parse in an instance, and a new instance should be returned by the consumer. When the consumer is used, the parsed in object should then be overwritten by the output of the function.  In simple cases this inherently make the transformed function pure by removing the mutation of the argument.
 
-To achieve this kind of transformation, the transfomer check each destructor, checking if the self argument is mutable, if so the following additional steps are added:
+To achieve this kind of transformation, the transformer check each destructor, checking if the self argument is mutable, if so the following additional steps are added:
 
 \begin{itemize}
-    \item Update the arguments of the signature of the destructor, updating the first argument to remove the mutability and borrow. Removing the borrow means the ownership of the passed in variable is taken and thus it will go out of scope after the consumer is called. This is desireable as the variable should be overwritten anyway using the result of the consumer. 
-    \item Update the return type of the signature of the destructor. Currently only destructor with no returns are supported. Set the return to trait type that destructor is for.
+    \item Update the arguments of the signature of the destructor, updating the first argument to remove the mutability and borrow. Removing the borrow means the ownership of the passed in variable is taken and thus it will go out of scope after the consumer is called. This is required  as the variable should be overwritten by the result of the consumer. 
+    \item Update the return type of the signature of the destructor. Currently only destructor with no returns are supported. Set the return to the trait type that destructor is defined within.
     \item In the match statement, make each field mutable. This allows reassignment of these local variables.
-    \item Replace all field assignments on self with field assignments on these new mutable varaibles. 
+    \item Replace all field assignments on self with field assignments on these new mutable variables. 
     \item Return a new instance of the matched enum with the values of the fields equal to the local variable from the match expression. 
     \item When transforming method calls to this object, ensure to also overwrite the receiver with the output of the method.
 \end{itemize}
-
-This has 2 key limitations. Firstly the method cannot return any other values. An extension to the existing transfomrer could be added to support returning tuples.
-
-
 
 \begin{figure}
 \centering
@@ -1492,6 +1560,14 @@ This has 2 key limitations. Firstly the method cannot return any other values. A
 \label{fig:mutable-example}
 \end{figure}
 
+The result of transforming \autoref{fig:mutable-example} is shown in \autoref{fig:mutable-example-result} 
+
+\begin{figure}
+\centering
+\rustoutput{mutable/oop_basic}
+\caption{Mutable class example}
+\label{fig:mutable-example}
+\end{figure}
 
 \subsection{Generics}
 
