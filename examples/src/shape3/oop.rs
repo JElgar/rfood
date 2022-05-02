@@ -30,3 +30,17 @@ impl Shape for Square {
         4.0 * self.side
     }
 }
+
+struct Rectangle {
+    length: f64,
+    height: f64,
+}
+impl Shape for Rectangle {
+    fn area(&self) -> f64 {
+        self.length * self.height
+    }
+
+    fn perimeter(&self) -> f64 {
+        2.0 * self.length + 2.0 * self.height
+    }
+}

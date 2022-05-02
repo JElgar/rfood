@@ -153,6 +153,12 @@ pub fn transform_file(path: &PathBuf, output_path: &PathBuf, transform_type: &Tr
   
     let mut delta = Delta::new();
     // Stage 2 - Transform all the new items and any untransformed items
+    for item in &syntax.items {
+        collect_constants(
+            &item,
+            &mut delta,
+        )
+    }
     for item in transformed_syntax.items.iter_mut() {
         *item = transform_item(&item, &transform_type, &gamma, &mut delta)
     }
@@ -969,6 +975,11 @@ fn transform_expr_inner(
     return_type: EType,
 ) -> Expr {
     match (transform_type, expr) {
+        (_, Expr::Unary(ExprUnary { expr, op: UnOp::Deref(_), .. })) => {
+            // Remove the deref at this stage so it can be added back as required
+            transform_expr(&expr, &transform_type, &gamma, &delta, return_type.clone())
+        },
+
         (_, Expr::Unary(_) | Expr::Path(_)) => {
             // Remove any existing derefs so we can fix the type manually
             // if let EType::DeltaType(delta_type) = return_type {
@@ -1104,11 +1115,16 @@ fn transform_expr_inner(
                 ..
             } = expr_call
             {
+
+
                 let signature = gamma
                     .get_signature(&get_function_call_name(expr_call))
                     .unwrap();
+                println!("\n\nTransforming call {:?}", signature.ident);
+                println!("Signature is {:?}", signature);
+                println!("Current first expression is {:?}", expr_call.args.iter().next().unwrap());
 
-                return Expr::Call(ExprCall {
+                let e = Expr::Call(ExprCall {
                     func: Box::new(match &*expr_call.func {
                         Expr::Path(_) => *expr_call.func.clone(),
                         _ => transform_expr(
@@ -1133,6 +1149,8 @@ fn transform_expr_inner(
                     )),
                     ..expr_call.clone()
                 });
+                println!("Transformed call {:?}\n\n", signature.ident);
+                return e;
             }
             panic!("Cannot transform non path calls")
         }
@@ -1448,11 +1466,12 @@ fn transform_expr(
 
     // Transform the expr
     let expr = clean_type(&transform_expr_inner(expr, transform_type, gamma, &mut delta, return_type.clone()));
-
+                
     // Transform the expression type
     let expr_type = delta.get_type_of_expr(&expr, gamma);
     match expr_type {
         Ok(et) => {
+            println!("Expr {:?}", expr);
             transform_expr_type(&expr, &et, &return_type, gamma)
         },
         _ => expr
@@ -1503,6 +1522,18 @@ fn transform_statement(
     }
 }
 
+pub fn collect_constants(
+    item: &syn::Item,
+    delta: &mut Delta,
+) {
+    match item {
+        Item::Const(item_cost) => {
+            delta.collect_for_const(&item_cost);
+        },
+        _ => ()
+    }
+}
+
 pub fn transform_item(
     item: &syn::Item,
     transform_type: &TransformType,
@@ -1522,11 +1553,10 @@ pub fn transform_item(
                 ..item_impl.clone()
             })
         },
-        Item::Const(item_cost) => {
-            delta.collect_for_const(&item_cost);
+        _ => {
+            println!("Skipping transforming of item, {:?}", item);
             item.clone()
         },
-        _ => item.clone(),
     }
 }
 
