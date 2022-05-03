@@ -1332,12 +1332,7 @@ For FP  the following steps are followed, as outline by \verb|DECFN| and \verb|D
 
 \subsection{Other Type Transformations}
 
-The formalization also demonstrates the required transformations for function signatures (along side the consumers which have already been translated). These are outlined by TODO
-
-Although not included in the formalization, there are some additional expression in the implementation that are supported such as let expression which have explicit types. 
-Similarly there are many other expression types, where explicit types can be assigned in Rust (for example in closures) which have not yet been addressed.
-
-In each case additional translations use the standard typing translation rules, from \autoref{fig} and \autoref{fig} are used.
+For both transformation direction, any expressions which are not transformed during the first stage by the provided rules, still require the types to be updated. For example if a top level function (which is not a consumer) is included the types of all the parameters and the return type should be updated as outlined in the type transformation rules. This also required for any destructors and their implementations which are not transformed. Note beyond the current implementation there are many other places explicit types can be assigned, such as let expressions and closures. These are currently not supported.
 
 \subsection{Output}
 
@@ -1370,7 +1365,7 @@ The second stage of the transformation, performs two functions. Firstly, it upda
 
 % TODO EXTEND GAMMA IN THE RULES
 
-Prior to this stage, the global context, $\Delta$, is reevaluated. This updates the $\Delta$ such that it contains the values for the newly transformed types. In this case, the context is switched, such that the context collected for the OOP example at this stage is equal to the context collected for the FP example prior to the first stage and vice versa.
+Prior to this stage, the global context, $\Delta$, is reevaluated. This updates the $\Delta$ such that it contains the values for the newly transformed types. In the example from \autoref{fig:ex-exp}, the context is switched, such that the context collected for the OOP example at this stage is equal to the context collected for the FP example prior to the first stage and vice versa.
 
 During this stage, the whole AST is parsed. For each definition and expression, the sub definitions and expressions are transformed. In each case when transforming a nested expression the expected return type is determined. For example, when transforming the body of a function, the final expression has an expected return type, equal to the return type of the function signature. 
 
@@ -1560,13 +1555,13 @@ To achieve this kind of transformation, the transformer check each destructor, c
 \label{fig:mutable-example}
 \end{figure}
 
-The result of transforming \autoref{fig:mutable-example} is shown in \autoref{fig:mutable-example-result} 
+The result of transforming \autoref{fig:mutable-example} is shown in \autoref{fig:mutable-example-output}. 
 
 \begin{figure}
 \centering
 \rustoutput{mutable/oop_basic}
-\caption{Mutable class example}
-\label{fig:mutable-example}
+\caption{Mutable class example output}
+\label{fig:mutable-example-output}
 \end{figure}
 
 \subsection{Generics}
