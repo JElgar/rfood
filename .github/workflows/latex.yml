@@ -23,6 +23,7 @@ jobs:
         uses: xu-cheng/latex-action@v2
         with:
           root_file: report/thesis.tex
+          latexmk_shell_escape: true
         env:
           TEXINPUTS: ".:./report//:"          
 
