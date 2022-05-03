@@ -1090,7 +1090,7 @@ The reference type is implemented as a recursive Enum called \verb|ReferenceType
 % { \transTypeExprE {\matchexpr{e_1}{b}{c}{d}{e}} {T}  }
 % \end{mathpar}
 
-\caption{Stage 3 - Program and definition transformation rules}
+\caption{Stage 2 - Program and definition transformation rules}
 \label{fig:trans-stage3-prog}
 \end{figure}
 
@@ -1169,7 +1169,7 @@ The reference type is implemented as a recursive Enum called \verb|ReferenceType
 \end{mathpar}
 
 \caption{Stage 2 - Expression transformation rules}
-\label{fig:trans-fp}
+\label{fig:trans-stage-3-expr}
 \end{figure}
 
 \begin{figure}[t]
@@ -1201,7 +1201,7 @@ The reference type is implemented as a recursive Enum called \verb|ReferenceType
 \end{mathpar}
 
 \caption{Expression type transformation rules}
-\label{fig:trans-type}
+\label{fig:trans-stage3-expr-type}
 \end{figure}
 
 Having collected the global context, the first stage of the translation is to transform the user defined types, and their associated functions. These follow the rules outlined in \autoref{fig:stage2-trans-oop} and \autoref{fig:stage2-trans-fp}. In these rules, $\transtwoNT{}{e}{e'}$ represents the transformation of $e$ to $e'$ under the context of $\Gamma$. In some cases additional context is required to be passed between rules, which is represented with $\vdash_{c}$ where c is set of additional context variables. Specifically for FP, \verb|CTR2GEN|, \verb|CSM2DEC| and \verb|CSM2FUN| take a datatype, whilst \verb|CASE2FUN| takes both a datatype and constructor. In OOP, \verb|DEC2CSM| and \verb|FUN2CSM| take an interface.
@@ -1372,9 +1372,11 @@ During this stage, the whole AST is parsed. For each definition and expression, 
 % TODO MOST OF THIS FEEL ITS OUT OF SCOPE FOR THE TRASFORMER
 % Note in some case expressions are expected to return nothing, represented as $\bot$ in the syntax, such as a call to the print macro. Equally in cases any type can be returned from an expression. An example is a let expression without a type signature. In the implementation this is handled with an enum with three variants, Any, None and DeltaType. In the formalization this is instead represented by the $EXPLAIN THE TRANS SYMBOL$.
 
-Each time an expression is transformed, after the transformation is complete the type of the output expression is inferred using the context. If this type does not match the required type, the rules from \autoref{fig:trans-type} are applied. These use the $\sim$, $*$ and $\&$ expressions to update the type of the expression. Applying these type transformations as the final stage of transforming the expression, allow nested expression to also fix the type of the expression. For example if a return expression contains an if statement each arm of the if statement will update its return type, rather than the top level return type doing the transformation. This, in conjunction with type simplifying, reduce the total number of type translation throughout the code, and keeps the calls to the type transformer in a single place in the implementation.
+Each time an expression is transformed, after the transformation is complete the type of the output expression is inferred using the context. If this type does not match the required type, the rules from \autoref{fig:trans-type} are applied. These use the $\sim$, $*$ and $\&$ expressions to update the type of the expression. Applying these type transformations as the final stage of transforming the expression, allow nested expression to also fix the type of the expression. For example if a return expression contains an if statement each arm of the if statement will update its return type, rather than the top level return type doing the transformation. This, in conjunction with type simplifying, reduce the total number of type translation throughout the code, and keeps the calls to the type transformer in a single place in the implementation. 
 
 % TODO talk about reference and box expressions and add rules
+
+The transformations for programs and definitions are provided in \autoref{fig:trans-stage3-prog}. Expression transformations are outlined in \autoref{fig:trans-stage-3-expr}. $\transSigma{\sigma}{e}{e'}{}$ states that expression $e$ is transformed to $e'$ of required type $\sigma$ under the context of $\Delta$ and $\Gamma$. All expressions are transformed by the top level rule \verb|EXP|. This then uses the subset of inner expression transformation rules, denoted with $\vdash_i$. The result of this inner transformation is then passed to the type transformations from \autoref{fig:trans-stage3-expr-type} denoted by $\vdash_t$.
 
 \subsubsection{Type Inference}
 
@@ -1520,7 +1522,7 @@ The project is split into three modules, the core, examples and outputs. The exa
 
 As well as packaging the transformer as a CLI tool, a VS Code plugin has also been developed. VS Code is free and opensource and has over 14 million active users \cite{tung_2021}. This plugin offers the transformer along side other popular refactoring tools, and thus drops the barrier of entry for using the tool. The extension allows developers to transform the file they are currently editing using the VS Code command pallet. A demo is available here \url{https://youtu.be/Z9bvl1Odcds}.
 
-The tool uses the \verb|wasm-bindgen| crate and \verb|wasm-pack| to create web assembly bindings and build a web assembly package for the transformer called rfood. This is then imported into a VS Code extension project template generated by \verb|yo|. Two commands are added to the extension which call the bindings from the rfood library. The source of the file that is current open is parsed to the binding function which returns the transformed code. Formatting the code is handled by another VS Code extension called \verb|rust-analyzer|. With this developers can quickly switch their code as they work, integrating the tool directly into their workflow.
+The tool uses the \verb|wasm-bindgen| crate and \verb|wasm-pack| to create web assembly bindings and build a web assembly package for the transformer called rfood. This is then imported into a VS Code extension project template generated by \verb|yo|. Two commands are added to the extension which call the bindings from the rfood library. The source of the open file is parsed to the binding function which returns the transformed code. Formatting the code is handled by another VS Code extension called \verb|rust-analyzer|. With this developers can quickly switch their code as they work, integrating the tool directly into their workflow.
 
 \section{Extensions to the transformer}
 
@@ -1688,21 +1690,13 @@ This section will give a full evaluation of the transformer. We begin by evaluat
 
 \section{The Rust Transformer}
 
-A wide range of examples have been produced to demonstrate the functionality of transformer. The full set of examples can be here \url{https://github.com/JElgar/rfood}. A suite of units tests have been created to validate the examples and their outputs.
+A wide range of examples have been produced to demonstrate the functionality of the transformer. The full set of examples can be here \url{https://github.com/JElgar/rfood}. A suite of units tests have been created to validate the examples and their outputs.
 
-To evaluate the Rust transformer, we begin by exploring some case studies transformed by the tool. 
-
-\subsubsection{Countdown Problem}
-
-In \cite{hutton} Hutton outlines a solution for what he calls the "countdown problem". The objective of the implementation is to find an arithmetic equation which evaluates to a given target value. The arithmetic equation must be constructed from values from a provided list, which can only be used at most once. A simple example is, given the input list \rust{[1,2,3]} and the target value $7$, the equation $2 * 3 + 1$ is a valid solution. For this example we focus of the validation of a given expression. Hutton opts for functional decomposition in his solution and thus in this case study, we will discuss the required changes in order to support transforming the outlined solution to object oriented decomposition.
-
-The first key limitation, is the lack of support for built in types. The current implementation of the transformer only operates on a single file and thus importing other definitions is not supported. As a result, currently, the vector and optional types from Rust cannot be used and instead a custom optional value and set type are implemented.
-
-The list implementation 
- 
 \subsubsection{Shape}
 
-One of the key values of the transformer is increasing the efficiency of developers. It can achieve this by allowing developers to extend code in the optimal decomposition style depending on the task. In order to demonstrate this we use the shape example, which is based on work from \cite{oopdesign}. This program begins with the following \rust{Shape} trait which outlines a set of destructors. 
+To demonstrate the value of the transformer, we begin by discussing the extension of a program from \cite{oopdesign} which models various shape. The primary objective of the transformer is to increasing the efficiency of developers. It achieves this by allowing developers to write and extend code in the optimal decomposition style depending on the task at hand. 
+
+The shape program begins with the following \rust{Shape} trait which outlines a set of destructors. 
 
 \begin{minted}{rust}
 trait Shape {
@@ -1711,7 +1705,7 @@ trait Shape {
 }
 \end{minted}
 
-We begin with two destructors in the trait, \rust{perimeter} and \rust{area}. Two generators of \rust{Shape} are then defined, \rust{Circle} and \rust{Square}. In object oriented decomposition style, extending the program to add additional types is trivial. For example to implement the \rust{Rectangle} shape, we simply add a new class. In Rust this maps to the following 
+It begins with two destructors in the trait, \rust{perimeter} and \rust{area}. Two generators of \rust{Shape} are then defined, \rust{Circle} and \rust{Square}. In object oriented decomposition style, extending the program to add additional types is trivial. For example to implement the \rust{Rectangle} shape, we simply add a new class. In Rust this maps to the following 
 
 \begin{minted}{rust}
 struct Rectangle {
@@ -1729,9 +1723,9 @@ impl Shape for Rectangle {
 }
 \end{minted}
 
-Notice the whole implementation of the type is contained in a single place, and no alteration to the original \rust{Shape} type is required. However, when extending the example to support additional destructors the complexity is increased. For example in order to support a side count method, firstly the method would have to be added to the trait, then each generator of the trait would have to be extended to implement this new method.
+Notice the whole implementation of the type is contained in a single place, and no alterations to the original \rust{Shape} type are required. However, when extending the example to support additional destructors the complexity is increased. For example in order to support a side count method, firstly the method would have to be added to the trait, then each generator of the trait would have to be extended to implement this new method. In larger projects it is likely there are many generators across multiple files.
 
-To simplify this process the transformer can be used. By first converting the program into functional decomposition style, the additional method can be added as a single constructor definition as follows
+To simplify this process the transformer can be used. By first converting the program into functional decomposition style, the additional method can be added as a single consumer definition as follows
 
 \begin{minted}{rust}
 fn side_count(shape: &Shape) -> u8 {
@@ -1743,20 +1737,22 @@ fn side_count(shape: &Shape) -> u8 {
 }
 \end{minted}
 
-Note much like when adding types in object oriented decomposition style, no changes outside of the consumer definition are required. With this example it becomes clear functional decomposition is the optimal style for adding functions to types, which object oriented is best for adding additional types. Without first performing these transformation, in more complex programs, it can be a time consuming process to find each location changes as a result of an extension.
+Much like adding types in object oriented decomposition style, adding this consumer definition is an isolated process and thus no changes outside adding the definition are required. With this, in this example, it is clear that functional decomposition is preferred for adding functions, whilst object oriented is preferred for adding types. Using the transformer allows developers to switch between these styles without a lengthy refactoring process. With this they can select the optimal style for the task and thus increase their efficiency. The impact of this tool has a compounding effect as program sizes increase, as the burden of finding each generator of an interface or consumer of a datatype increases. Moreover with the additional complexity of the Rust typing system, if a manual refactor is performed developer also have to consider the updated types, further increasing the complexity of this task. This tool avoid these issue by automating this process allowing developers to automatically and instantly switch between styles.
+
+The VS Code extension allows developer to integrate this tool directly into their workflow. With the tool available in a familiar setting alongside other refactoring tools, the barrier to entry for using the tool is significantly reduced. The following video, \url{https://youtu.be/Z9bvl1Odcds}, demonstrates the implementations of the extensions to Shape discussed in this section. By using the VS Code extension, the developer is able to efficiently implemented both the additional shape and the additional function, switching between decomposition styles as required.
 
 \subsection{Type Transformations}
 
-The primary difference between the FOOD transformer and the Rust transformer is its type transformations. These transformations as handled through two extension to the transformer. Firstly types are transformed using a set type transform rules, then each expression is transformed to all expressions conform to these new types.
+The primary difference between the FOOD transformer and the Rust transformer is its type transformations. These transformations as handled through two extension to the transformer. Firstly types are transformed using a set type transform rules, then each expression is transformed to conform to these new types.
 
-The approach outlined in this paper splits the transformations into two stages. The first updates the types of all expression, whilst the second is responsible for transforming the types of expressions. An alternative approach to this, would to define concrete translations for constructor and destructor, updating each rule to update expression to use new types. 
-For example a constructor of datatype would be updated to always be wrapped in a pointer when converted to a trait. Then any reference to the type could simply be updated to use this new type.
+The approach outlined in this paper splits the transformer into two stages. The first updates the types of all expression, whilst the second is responsible for transforming the types of expressions. An alternative approach to this, would be to define concrete translations for constructor and destructor, updating each rule to update expression to use new types. 
+For example a constructor of a datatype would be updated to always be wrapped in a pointer when converted to a trait. Then any reference to the type could simply be updated to use this new type.
 This approach would prevent the requirement for multiple stages in the formalization and ultimately result in fewer, less complex translations. 
 
 The trade off however, is the type correction becomes closely tired to the transformation rules themselves. As outline in the implementation section, when transforming dynamic pointers to traits in OOP it is possible to convert them to either a pointer of, or directly to a datatype. Ultimately the chosen type is a design decision and each option has merits.
 Combing the transformations into a single stage would require these types to be concrete as each rules would transform based on the results. Instead separating, the type translations from the expression transformation enables a relatively small set of rules to define the type translations, which can be updated independently of the expression rules.
 
-Although the transformer creates transformations that are correct, it is not guaranteed that the transformations are optimal. Optimal in this sense refers to two things, minimising indirection operations and the speed of the transformed code. The type simplifications outlined in the implementation go so way to minimise the use of indirection where it is not required. However in some cases, it may be possible to improve the solution further. For example, the following extracts are taken from an expression example which is provided in full here TODO add to abstract \autoref{}. 
+Although the transformer creates transformations that are correct, it is not guaranteed that the transformations are optimal. Optimal in this sense refers to two things, minimising indirection operations and the speed of the transformed code. The type simplifications outlined in the implementation go some way to minimise the use of indirection where it is not required. However in some cases, it may be possible to improve the solution further. For example, the following extracts are taken from an expression example which is provided in full here TODO add to abstract \autoref{}. 
 
 \sloppy This shows the input to the transformer, where a box to an expression in created, called empty. The \rust{insert} method is then called on this expression which has the following signature \rust{fn insert(self: Box<Self>, i: i32) -> Box<dyn Set>}.
 \begin{minted}{rust}
@@ -1773,10 +1769,16 @@ Although the transformer creates transformations that are correct, it is not gua
 
 Once again, a box to a set is created. However it now must be dereference before it can be passed into the \rust{insert} function. Once passed in, the ownership is transferred to the function and therefore the variable is dropped. In this case the expression was never used as a box and therefore a more efficient solution would be to remove the Box from the let expression. A potential solution for this is for let expression to look ahead and determine how the expression is used before setting it type. This would allow the let expressions to assign the variables to the optimal type to reduce indirection where possible. 
 
-In terms of speed of the outputted code, it is unlikely the transformation will have a significant impact. The transformer does not support the clone operation as borrowing introduced by the developer is maintained as a result of the translation. With this 
+In terms of speed of the outputted code, it is unlikely the transformation will have a significant impact. The transformer does not support the clone operation as borrowing introduced by the developer is maintained as a result of the translation. With this is 
 
+\subsubsection{Countdown Problem}
 
+In \cite{hutton} Hutton outlines a solution for what he calls the "countdown problem". The objective of the implementation is to find an arithmetic equation which evaluates to a given target value. The arithmetic equation must be constructed from values from a provided list, which can only be used at most once. A simple example is, given the input list \rust{[1,2,3]} and the target value $7$, the equation $2 * 3 + 1$ is a valid solution. For this example we focus of the validation of a given expression. Hutton opts for functional decomposition in his solution and thus in this case study, we will discuss the required changes in order to support transforming the outlined solution to object oriented decomposition.
 
+The first key limitation, is the lack of support for built in types. The current implementation of the transformer only operates on a single file and thus importing other definitions is not supported. As a result, currently, the vector and optional types from Rust cannot be used and instead a custom optional value and set type are implemented.
+
+The list implementation 
+ 
 \subsection{Rust Limitations}
 
 \section{FOOD Generality} 
