@@ -157,9 +157,12 @@ pub fn transform_string(input: String, transform_type: &TransformType) -> String
     }
 
     // Collect gamma for the transformed and untouched code
+    let old_gamma = gamma;
+
     let mut gamma = Gamma::empty();
     gamma.visit_file(&syntax);
     gamma.visit_file(&transformed_syntax);
+    gamma.set_mutable_consumers(old_gamma.mutable_consumers);
   
     let mut delta = Delta::new();
     // Stage 2 - Transform all the new items and any untransformed items
@@ -530,7 +533,6 @@ fn transform_destructor(
         });
 
         // TODO Currently this Vec::new() means mutable things cannot have a wild card arm. Fix by
-        // NOTE trait_ident here is wrong/irrelevant
         body = transform_destructor_expr(
             &body,
             Vec::new(),
@@ -558,6 +560,10 @@ fn transform_destructor(
     // TODO for now all functions are public -> check if the trait is public
     let func =
         ast::create::create_function(signature, vec![Stmt::Expr(match_expr)], trait_.vis.clone());
+
+    if is_mutable_self(&destructor.sig) {
+        gamma.add_mutable_consumer(&destructor.sig.ident);
+    }
 
     gamma.add_enum_consumer(&enum_, &func);
     Item::Fn(func)
@@ -1033,7 +1039,7 @@ fn transform_expr_inner(
             fn_expr = transform_expr(&fn_expr, &transform_type, &gamma, &delta, return_type.clone());
 
             // If the method is a mutable self call
-            if gamma.is_mutable_self_method_call(&expr_method_call, &delta) {
+            if gamma.is_mutable_consumer(&expr_method_call.method) {
                 // Overwrite the receiver
                 Expr::Assign(create_assignment_expr(*receiver.clone(), fn_expr.clone()))
             } else {

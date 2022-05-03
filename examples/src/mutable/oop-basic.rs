@@ -15,3 +15,8 @@ impl Light for Dimmer {
         return self.brightness;
     }
 }
+
+pub fn demo() {
+    let mut light = Dimmer { brightness: 0 };
+    light.set_brightness(10);
+}

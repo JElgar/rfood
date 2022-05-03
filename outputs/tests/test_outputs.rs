@@ -54,3 +54,14 @@ fn test_output_shape_oop() {
     println!("The internal angle of the shape is {}", internal_angle(&triangle));
     assert!(internal_angle(&triangle) == 180);
 }
+
+#[test]
+fn test_output_mutable_opp() {
+    use outputs::mutable::oop::*;
+
+    let mut light = Light::RGB{r: 10, g: 20, b: 30};
+    assert_eq!(get_brightness(&light), 20);
+
+    light = increase_brightness(light);
+    assert_eq!(get_brightness(&light), 21);
+}

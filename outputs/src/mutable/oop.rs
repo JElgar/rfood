@@ -68,6 +68,6 @@ pub fn get_brightness(light: &Light) -> i32 {
 }
 pub fn demo() {
     let mut light = Light::Dimmer { brightness: 0 };
-    increase_brightness(light);
+    light = increase_brightness(light);
     println!("Brightness: {}", get_brightness(&light));
 }

@@ -533,7 +533,14 @@ impl Delta {
             Expr::Binary(ExprBinary { left, right, op, .. }) => {
                 match op {
                     BinOp::Eq(_) | BinOp::Ne(_) | BinOp::Lt(_) | BinOp::Le(_) | BinOp::Gt(_) | BinOp::Ge(_)  => Ok(DeltaType{name: Ident::new("bool", Span::call_site()), ref_type: RefType::None}),
-                    BinOp::Add(_) | BinOp::Div(_) | BinOp::Sub(_) | BinOp::Mul(_) | BinOp::Rem(_) => self.get_type_of_expr(left, gamma),
+                    BinOp::Add(_) | BinOp::Div(_) | BinOp::Sub(_) | BinOp::Mul(_) | BinOp::Rem(_) => {
+                        let left_ty = self.get_type_of_expr(left, gamma);
+                        if let Ok(left_ty) = left_ty {
+                            Ok(DeltaType{name: left_ty.name, ref_type: RefType::None})
+                        } else {
+                            left_ty
+                        }
+                    },
                     BinOp::And(_) | BinOp::Or(_) => Ok(DeltaType{name: Ident::new("bool", Span::call_site()), ref_type: RefType::None}),
                     _ => panic!("Unsupported op {:?}", op)
                 }

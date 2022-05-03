@@ -5,7 +5,7 @@ use crate::context::delta::{GetDeltaType, DeltaType};
 use crate::context::*;
 use crate::transform::transformer::TransformType;
 use errors::*;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use syn::visit::{visit_item_enum, visit_item_impl, visit_item_struct, visit_item_trait, Visit};
 use syn::*;
 
@@ -161,6 +161,9 @@ pub struct Gamma {
     // The first ident is the ident of the ItemEnum 
     pub enum_consumers: HashMap<Ident, HashMap<Ident, ItemFn>>, // CSM(DT) - Consumer of DT
 
+    /// Set of mutable consumers
+    pub mutable_consumers: HashSet<Ident>,
+
     /// The signatures of all the destructors and consumers
     pub signatures: HashMap<Ident, Signature>,
 
@@ -179,6 +182,7 @@ impl Gamma {
             enum_consumers: HashMap::new(),
             signatures: HashMap::new(),
 
+            mutable_consumers: HashSet::new(),
             _structs: Vec::new(),
         };
     }
@@ -411,6 +415,18 @@ impl Gamma {
             Ok(sig) => is_mutable_self(&sig),
             Err(_) => false
         }
+    }
+
+    pub fn add_mutable_consumer(&mut self, ident: &Ident) {
+        self.mutable_consumers.insert(ident.clone());
+    }
+    
+    pub fn set_mutable_consumers(&mut self, mutable_consumers: HashSet<Ident>) {
+        self.mutable_consumers = mutable_consumers;
+    }
+    
+    pub fn is_mutable_consumer(&self, ident: &Ident) -> bool {
+        self.mutable_consumers.contains(ident)
     }
 
     pub fn is_mutable_self_method_call(&self, expr_method_call: &ExprMethodCall, delta: &delta::Delta) -> bool {

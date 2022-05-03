@@ -1,4 +1,4 @@
-trait Light {
+pub trait Light {
     fn increase_brightness(&mut self);
     fn decrease_brightness(&mut self);
     fn turn_off(&mut self);
@@ -6,14 +6,14 @@ trait Light {
     fn get_brightness(&self) -> i32;
 }
 
-struct Dimmer {
-    brightness: i32,
+pub struct Dimmer {
+    pub brightness: i32,
 }
 
-struct RGB {
-    r: i32,
-    g: i32,
-    b: i32,
+pub struct RGB {
+    pub r: i32,
+    pub g: i32,
+    pub b: i32,
 }
 
 impl Light for Dimmer {

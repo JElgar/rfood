@@ -61,3 +61,12 @@ fn test_run_transform_example_oop_shape2() {
         TransformType::OOPToFP
     )
 }
+
+#[test]
+fn test_run_transform_example_oop_mutable() {
+    test_run_transform_example(
+        PathBuf::from(r"./examples/src/mutable/oop.rs"),
+        PathBuf::from(r"./outputs/src/mutable/oop.rs"),
+        TransformType::OOPToFP
+    )
+}

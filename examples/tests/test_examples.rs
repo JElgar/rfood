@@ -53,3 +53,23 @@ fn test_shape2_oop() {
     assert!(triangle.side_count() == 3);
     assert!(triangle.internal_angle() == 180);
 }
+
+#[test]
+fn test_mutable_oop() {
+    use examples::mutable::oop::*;
+
+    let mut light = RGB {
+        r: 10,
+        g: 20,
+        b: 30,
+    };
+    
+    assert!(light.get_brightness() == 20);
+    
+    light.decrease_brightness();
+    assert!(light.get_brightness() == 19);
+
+    light.turn_off();
+    assert!(light.get_brightness() == 0);
+}
+
