@@ -34,7 +34,7 @@ jobs:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: report/thesis.pdf
           asset_name: report
-          tag: ${{ github.ref }}
+          tag: latest
           overwrite: true
           body: "Report for RFOOD project"
 
