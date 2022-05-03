@@ -1,6 +1,6 @@
 # This is a basic workflow to help you get started with Actions
 
-name: CI
+name: Latex
 
 # Controls when the workflow will run
 on:
@@ -23,3 +23,7 @@ jobs:
         uses: xu-cheng/latex-action@v2
         with:
           root_file: report/thesis.tex
+        env:
+          TEXINPUTS: ".:./report//:"          
+
+
