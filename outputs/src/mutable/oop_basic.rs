@@ -16,3 +16,7 @@ fn set_brightness(light: Light, brightness: i32) -> Light {
         }
     }
 }
+pub fn demo() {
+    let mut light = Light::Dimmer { brightness: 0 };
+    light = set_brightness(light, 10);
+}
