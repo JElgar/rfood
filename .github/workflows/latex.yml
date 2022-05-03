@@ -22,9 +22,20 @@ jobs:
       - name: Compile LaTeX document
         uses: xu-cheng/latex-action@v2
         with:
-          root_file: report/thesis.tex
+          root_file: thesis.tex
           latexmk_shell_escape: true
+          working_directory: report/
         env:
-          TEXINPUTS: ".:./report//:"          
+          TEXINPUTS: ".:./report//:"        
+          
+      - name: Upload binaries to release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: report/thesis.pdf
+          asset_name: report
+          tag: ${{ github.ref }}
+          overwrite: true
+          body: "Report for RFOOD project"
 
 
