@@ -106,4 +106,8 @@ pub fn demo() {
     });
 
     let _set3 = set.union(set2);
+    
+    let s1 = Box::new(Empty{});
+    let s2 = Box::new(Empty{});
+    let set = s1.union(s2);
 }
