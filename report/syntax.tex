@@ -51,41 +51,47 @@
 \newcommand{\transtwoNT}[3]{\Delta \vdash_{#1} #2 \leadsto #3}
 \newcommand{\transtwoNTB}[3]{\Delta \vdash_{#1} #2 \leadsto \\ #3}
 
-\newcommand{\transTypeExpr}[3]{\gdctx \vdash_{t} e \Rightarrow #1 \leadsto #2e \leftarrow #3}
+\newcommand{\transTypeExpr}[3]{\gdctx \vdash e \Rightarrow #1 \rightarrowtail #2e \Leftarrow #3}
 \newcommand{\transType}[3]{#2 \overset{#1}{\leadsto} #3}
+\newcommand{\transTypeSelf}[3]{#2 \overset{#1}{\rightharpoonup} #3}
 
 \newcommand{\datatype}[2]{\kwdata #1 \blockO{#2}}
 \newcommand{\interface}[2]{\kwinterface #1 \; \blockO{#2}}
 
 \newcommand{\macro}[2]{#1!(#2)}
 
-\newcommand{\ifexpr}[2]{\kwif (#1) \overline{#2}}
-\newcommand{\ifelseexpr}[3]{\ifexpr{#1}{#2} \kwelse \overline{#3}}
+\newcommand{\ifexpr}[2]{\kwif (#1) #2}
+\newcommand{\ifelseexpr}[3]{\ifexpr{#1}{#2} \kwelse #3}
 \newcommand{\blockexpr}[1]{\blockO{#1}}
 \newcommand{\eqexpr}[2]{#1 == #2}
 \newcommand{\macroexpr}[2]{\macro{#1}{\overline{#2}}}
 
-\newcommand{\matchcase}[2]{\kwcase {#1} \Rightarrow \overline{#2}}
+\newcommand{\matchcase}[2]{\kwcase {#1} \Rightarrow #2}
 \newcommand{\matchcaseNO}[2]{\kwcase {#1} \Rightarrow {#2}}
 \newcommand{\matchexpr}[3]{\kwmatch #1 =  \overline{\matchcase{#2}{#3}}}
-\newcommand{\csmcase}[6]{\fnDstr{#1}{#2}{#3} = \matchexpr{\&#4} {#5} {#6}}
+\newcommand{\csmcase}[6]{\fnDstr{#1}{#2}{#3} = \matchexpr{#4} {#5} {#6}}
+
+\newcommand{\rulename}[1]{$\textsc{#1}$}
 
 % \newcommand{\csmcase}[5]{\fnDstr{#1}{#2}{T'} = \matchexpr{#3} {#4} {#5}}
 
 % \newcommand{\transSigmaCtx}[5]{\Delta; \Gamma {#1} \vdash^{#2} {#3} {#4} \leadsto {#5} \Rightarrow {#2}}
-\newcommand{\transSigmaCtx}[6]{\Delta; \Gamma {#1} \vdash_{#6} {#3} {#4} \leadsto {#5} \leftarrow {#2}}
-\newcommand{\transSigma}[3]{\transSigmaCtx{} {#1} {#2} {} {#3} {}}
-\newcommand{\transSigmaType}[3]{\transSigmaCtx{} {#1} {#2} {} {#3} {t}}
-\newcommand{\transSigmaInner}[3]{\transSigmaCtx{} {#1} {#2} {} {#3} {i}}
-\newcommand{\transSigmaT}[4]{\transSigmaCtx{} {#1} {#2} {\Rightarrow #3} {#4} {}}
-\newcommand{\transSigmaTInner}[4]{\transSigmaCtx{} {#1} {#2} {\Rightarrow #3} {#4} {i}}
+\newcommand{\transSigmaCtx}[7]{\Delta; \Gamma {#1} \vdash_{#6} {#3} {#4} {#7} {#5} \Leftarrow {#2}}
+\newcommand{\transSigma}[3]{\transSigmaCtx{} {#1} {#2} {} {#3} {} {\leadsto} }
+\newcommand{\transSigmaType}[3]{\transSigmaCtx{} {#1} {#2} {} {#3} {t} {\leadsto}}
+\newcommand{\transSigmaInner}[3]{\transSigmaCtx{} {#1} {#2} {} {#3} {} {\;\twoheadrightarrow\;}}
+\newcommand{\transSigmaT}[4]{\transSigmaCtx{} {#1} {#2} {\Rightarrow #3} {#4} {} {\leadsto}}
+\newcommand{\transSigmaTT}[3]{\Delta; \Gamma \vdash #2 \leadsto #3 \Rightarrow #1}
+\newcommand{\transSigmaTInner}[4]{\transSigmaCtx{} {#1} {#2} {\Rightarrow #3} {#4} {} {\;\twoheadrightarrow\;}}
 
 \newcommand{\transThree}[3]{\Delta; \Gamma \vdash #1 \leadsto #2 \Rightarrow #3}
 \newcommand{\transThreeStmt}[2]{\Delta; \Gamma \vdash #1 \leadsto #2}
 \newcommand{\transThreeStmtB}[2]{\Delta; \Gamma \vdash #1 \leadsto \\ #2}
 
+\newcommand{\transMatchExpr}[3]{#1 \overset{#2}{\rightarrowtail} #3}
 
-\newcommand{\typeInf}[3]{\Delta; \Gamma #1 \vdash #2 : #3}
+
+\newcommand{\typeInf}[3]{\Delta; \Gamma #1 \vdash #2 \Rightarrow #3}
 
 % \newcommand{\binderspacing}{\,}
 % \newcommand\keyword[1]{\mbox{\lstinline@#1@}}
