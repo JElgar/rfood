@@ -951,17 +951,23 @@ fn transform_expr_type(
                     &gamma
                 )
             ),
+            (RefType::Ref(box current_inner), RefType::Ref(box required_inner)) | (RefType::Box(box current_inner), RefType::Box(box required_inner)) => {
+                transform_expr_type(
+                    expr,
+                    &DeltaType{name: current_type.name.clone(), ref_type: current_inner.clone()},
+                    &EType::RefType(required_inner.clone()),
+                    &gamma
+                )
+            },
             // Box -> Ref / Ref -> Box
-            (RefType::Box(box current_inner), RefType::Ref(box required_inner)) | (RefType::Ref(box current_inner), RefType::Box(box required_inner)) => {
-                create_reference_of_expr(&create_dereference_of_expr(
-                    &transform_expr_type(
-                        expr,
-                        &DeltaType{name: current_type.name.clone(), ref_type: current_inner.clone()},
-                        &EType::RefType(required_inner.clone()),
-                        &gamma
-                    )
-                ))
-            }
+            (RefType::Box(box current_inner), RefType::Ref(_)) | (RefType::Ref(box current_inner), RefType::Box(_)) => {
+                transform_expr_type(
+                    &create_dereference_of_expr(expr),
+                    &DeltaType{name: current_type.name.clone(), ref_type: current_inner.clone()},
+                    required_type,
+                    &gamma
+                )
+            },
             _ => panic!("Cannot transform {:?} to {:?}", current_type, required_type),
         }
     }
