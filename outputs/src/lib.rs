@@ -4,3 +4,4 @@ pub mod shape2;
 pub mod bool;
 pub mod countdown;
 pub mod mutable;
+pub mod generics;

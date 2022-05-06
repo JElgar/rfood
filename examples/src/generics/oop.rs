@@ -1,12 +1,12 @@
 trait Container<T> {
-    fn get_item(self) -> T;
+    fn get_item(self: Box<Self>) -> T;
 }
 
 struct LoggingContainer<T> {
     item: T,
 }
 impl<T> Container<T> for LoggingContainer<T> {
-    fn get_item(self) -> T {
+    fn get_item(self: Box<Self>) -> T {
         self.item
     }
 }
@@ -17,16 +17,13 @@ struct SecretMessageContainer<T, U> where U: std::fmt::Debug {
 
 }
 impl<T, U> Container<T> for SecretMessageContainer<T, U> where U: std::fmt::Debug {
-    fn get_item(self) -> T {
-        println!("{:?}", self.secret);
+    fn get_item(self: Box<Self>) -> T {
+        // println!("{:?}", self.secret);
         self.item
     }
 }
 
 pub fn demo() {
-    let container: LoggingContainer<String> = LoggingContainer{item: "foo".to_string()};
-    println!("{}", container.get_item());
-    
-    let container2: SecretMessageContainer<String, String> = SecretMessageContainer{item: "foo".to_string(), secret: "bar".to_string()};
-    println!("{}", container2.get_item());
+    let container: LoggingContainer<i32> = LoggingContainer{item: 1};
+    let container2: SecretMessageContainer<i32, i32> = SecretMessageContainer{item: 1, secret: 10};
 }
